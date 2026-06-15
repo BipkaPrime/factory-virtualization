@@ -6,7 +6,7 @@ local Helpers = {}
 
 -- Static list of all entity names tracked by this mod
 local TRACKED_ENTITIES = {
-    ["virtualization-interface"] = true
+    ["item-uplink"] = true
 }
 
 -- Ensures that a sub-registry exists for a specific entity name and returns it

@@ -1,0 +1,31 @@
+-- surface documentation https://lua-api.factorio.com/latest/classes/LuaSurface.html#build_checkerboard
+
+-- Полезные методы: 
+-- request_to_generate_chunks(position, radius?) - для генерации чанков при создании поверхности
+-- force_generate_chunk_requests() - в комбинации с предыдущим для того, чтобы прервать выполнение скрипта, пока чанки не сгенерируются
+-- clear_pollution() - прямо перед началом компиляции
+-- get_total_pollution() - для подсчёта загрязнения после завершения компиляции
+-- build_checkerboard(area) - заполняет прощадь тайлами лаборатории, для начального сетапа
+-- create_global_electric_network() - возможно будет полезно?
+
+-- Полезные атрибуты:
+-- name - QoL, переименование поверхностей для удобства игроков
+-- generate_with_lab_tiles - при создании перед прогрузкой, чтобы генерировать сразу lab tiles
+-- always_day - QoL, при создании поверхности
+-- solar_power_multiplier - Баланс, для контроля над солнечными панелями
+-- show_clouds - QoL, отключить облака
+-- global_electric_network_statistics - при компиляции, для подсчёта энергопотребления
+
+
+-- forces documantation https://lua-api.factorio.com/latest/classes/LuaForce.html#chart_all
+-- Полезные методы:
+-- chart_all(surface?) - для прогрузки лабораторных поверхностей
+-- get_item_production_statistics(surface) - для подсчёта производства после завершения компиляции
+-- get_fluid_production_statistics(surface) - для подсчёта производства после завершения компиляции
+
+-- events documantation https://lua-api.factorio.com/latest/events.html
+-- Полезные ивенты: (defines.events)
+-- on_marked_for_deconstruction - для обработки сущностей в лабораториях
+-- on_marked_for_upgrade - для обработки сущностей в лабораториях
+-- on_built_entity - для превращения призраков в здания в лаборатории
+
