@@ -1,42 +1,41 @@
--- This file containes logic regarding Virtualization Interfaces
+-- This file containes logic regarding Uplinks and Downlinks
 
--- scripts/interface-manager.lua
-local InterfaceManager = {}
+local Helpers = {}
 
--- Highly optimized logic executed ONCE A SECOND per individual virtualization-interface
-local function update_single_interface(entity)
-    -- ====================================================================
-    -- PLACE YOUR REAL-WORLD INTERFACE CODE HERE
-    -- Examples: 
-    -- 1. Read input chest contents and push items to the Mainframe cloud
-    -- 2. Pull items from the Mainframe cloud and drop them into an output chest
-    -- ====================================================================
-
+-- Updates given item uplink
+local function update_item_uplink(entity)
     -- Debug placeholder to ensure it's firing:
-    game.print("Interface " .. entity.unit_number .. " processed at tick " .. game.tick)
+    game.print("Item Uplink " .. entity.unit_number .. " processed at tick " .. game.tick)
 end
 
--- Distributed tick processor called from control.lua every single game tick
-function InterfaceManager.process_interfaces(event)
-    if not storage.entity_registries then return end
-    
-    local interface_reg = storage.entity_registries["virtualization-interface"]
-    if not (interface_reg and #interface_reg.array > 0) then return end
-    
-    local entities = interface_reg.array
-    local total_count = #entities
-    
-    -- Calculate which 1/60th slice offset of the flat array to touch this tick (returns 1 to 60)
-    local offset = (event.tick % 60) + 1
-    
-    -- Interleave processing: look at every 60th item to distribute load perfectly
-    for i = offset, total_count, 60 do
-        local entity = entities[i]
-        if entity and entity.valid then
-            update_single_interface(entity)
+-- Updates given item uplink
+local function update_item_downlink(entity)
+    -- Debug placeholder to ensure it's firing:
+    game.print("Item Downlink " .. entity.unit_number .. " processed at tick " .. game.tick)
+end
+
+-- Table that maps entity names to functions used for their processing
+local router = {
+    ["item-uplink"] = update_item_uplink,
+    ["item-downlink"] = update_item_downlink,
+}
+
+-- Distributed processor called on_tick
+function Helpers.process_interfaces(event)
+    for entity_name, handler in pairs(router) do
+        local section = storage.entity_registry[entity_name]
+        local elements = section.array
+        local total_count = #elements
+        if total_count > 0 then
+            -- Interleave processing: look at every 60th item
+            local offset = (event.tick % 60) + 1
+            for i = offset, total_count, 60 do
+                local entity = elements[i].entity
+                handler(entity)
+            end
         end
     end
 end
 
 
-return InterfaceManager
+return Helpers
