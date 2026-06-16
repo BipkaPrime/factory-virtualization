@@ -3,6 +3,10 @@
 
 local Manager = {}
 
+------------------------------------------------------------------------------------
+-- Registry Operations: init, add, remove, switch section
+------------------------------------------------------------------------------------
+
 -- Initializes storage
 function Manager.storage_init()
     storage.lab_chunks_registry = storage.lab_chunks_registry or {
@@ -88,6 +92,10 @@ function Manager.switch_lab_state(surface_index, target_state)
     Manager.register_surface(surface_index, target_state)
 end
 
+------------------------------------------------------------------------------------
+-- Lab Surface Services
+------------------------------------------------------------------------------------
+
 -- Force reveal chunk area on the map
 local function chart_chunk(surface, chunk_area)
     game.forces["player"].chart(surface, chunk_area)
@@ -118,7 +126,7 @@ local function process_ghosts(surface, chunk_area)
         local ghost = ghosts[i]
         if ghost.valid then
             -- raise_built = true triggers script_raised_revive for entity registry
-            ghost.revive{raise_built = true}
+            ghost.revive{raise_revive = true}
         end
     end
 end

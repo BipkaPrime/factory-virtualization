@@ -14,7 +14,7 @@ local item_uplink = {
     icon_size = 64,
     flags = {"placeable-neutral", "placeable-player", "player-creation"},
     minable = {mining_time = 2, result = "item-uplink"},
-    collision_box = {{-2.5, -2.5}, {2.5, 2.5}},
+    collision_box = {{-2.7, -2.7}, {2.7, 2.7}},
     selection_box = {{-3, -3}, {3, 3}},
     inventory_size = 1,
     picture = {
@@ -41,7 +41,7 @@ local item_downlink = {
     icon_size = 64,
     flags = {"placeable-neutral", "placeable-player", "player-creation"},
     minable = {mining_time = 2, result = "item-downlink"},
-    collision_box = {{-2.5, -2.5}, {2.5, 2.5}},
+    collision_box = {{-2.7, -2.7}, {2.7, 2.7}},
     selection_box = {{-3, -3}, {3, 3}},
     inventory_size = 1,
     picture = {

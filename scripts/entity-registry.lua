@@ -13,9 +13,14 @@ local Helpers = {}
 local tracked_entities = {
     ["item-uplink"] = true,
     ["item-downlink"] = true,
-    --["fluid-uplink"] = true,
-    --["fluid-downlink"] = true,
 }
+
+-- Used as event filter for build/destroy events
+Helpers.event_filter = {}
+for building_name, _ in pairs(tracked_entities) do
+    table.insert(Helpers.event_filter, {filter = "name", name = building_name})
+end
+
 
 -- Used on_init or on_configuration_change to set up storage table
 function Helpers.storage_init()
@@ -26,7 +31,7 @@ function Helpers.storage_init()
 end
 
 -- Adds an entity to the registry
-function Helpers.add_to_registry(entity, entity_name)
+local function add_to_registry(entity, entity_name)
     if not (entity and entity.valid and entity.unit_number and entity_name) then return end
     
     local reg = storage.entity_registry[entity_name]
@@ -42,7 +47,7 @@ function Helpers.add_to_registry(entity, entity_name)
 end
 
 -- Removes an entity from the registry
-function Helpers.remove_from_registry(entity, entity_name)
+local function remove_from_registry(entity, entity_name)
     if not (entity and entity.unit_number and entity_name) then return end
 
     local reg = storage.entity_registry[entity_name]
@@ -66,42 +71,33 @@ function Helpers.remove_from_registry(entity, entity_name)
     reg.lookup[entity.unit_number] = nil
 end
 
--- Сhecks if an entity name is tracked by the registry
-function Helpers.is_tracked(entity_name)
-    return tracked_entities[entity_name] == true
-end
-
--- Handles on_built_entity and similar events
-function Helpers.process_built_entity(event)
+-- Handles on_built_entity and similar events add entity to registry
+function Helpers.register_entity(event)
     if not (event.entity and event.entity.valid) then return end
-    if Helpers.is_tracked(event.entity.name) then
-        Helpers.add_to_registry(event.entity, event.entity.name)
-    end
+    add_to_registry(event.entity, event.entity.name)
 end
 
 -- Handles on_entity_died and similar events
-function Helpers.process_destroyed_entity(event)
+function Helpers.unregister_entity(event)
     if not (event.entity and event.entity.valid) then return end
-    if Helpers.is_tracked(event.entity.name) then
-        Helpers.remove_from_registry(event.entity, event.entity.name)
-    end
+    remove_from_registry(event.entity, event.entity.name)
 end
 
 -- Resets the registry then scans all game surfaces to add all tracked entities
 -- Will be very slow on large bases. May be used on_configuration_change but mostly for debugging
-function Helpers.reset_registry()
+function reset_registry()
     storage.entity_registry = {}
     for entity_name, _ in pairs(tracked_entities) do
         storage.entity_registry[entity_name] = {array = {}, lookup = {}}
         for _, surface in pairs(game.surfaces) do
             local entities = surface.find_entities_filtered{name = entity_name}
             for _, entity in ipairs(entities) do
-                Helpers.add_to_registry(entity, entity_name)
+                add_to_registry(entity, entity_name)
             end
         end
     end
 end
 
-commands.add_command("reset_registry", "Resets the entity registry then scans all surfaces repopulate it", Helpers.reset_registry)
+commands.add_command("reset_registry", "Resets the entity registry then scans all surfaces repopulate it", reset_registry)
 
 return Helpers
