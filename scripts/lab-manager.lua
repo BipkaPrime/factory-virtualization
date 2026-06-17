@@ -1,7 +1,14 @@
 local ChunksManager = require("scripts.lab-chunks-registry")
 
+local Helper = {}
+
+function Helper.storage_init()
+    storage.lab_surfaces = storage.lab_surfaces or {}
+end
+
+
 -- Creates a new square lab surface
-function create_new_lab(name, size)
+local function create_new_lab(name, size)
     local lab_name = name or ("Virtual Lab #" .. game.tick)
     local map_size = size or 64 -- Size in tiles (e.g., 64x64)
 
@@ -20,15 +27,18 @@ function create_new_lab(name, size)
     surface.request_to_generate_chunks({0, 0}, chunk_radius)
     surface.force_generate_chunk_requests()
     game.forces["player"].chart_all(surface)
-    
 
+    -- adding created surface to storage
+    storage.lab_surfaces[surface.index] = true
+    
     -- Put chunks into the background processing registry
     ChunksManager.register_surface(surface.index, "designing")
+
     return surface
 end
 
 -- Switches the player's camera to the lab
-function enter_lab_view(player, surface_index)
+local function enter_lab_view(player, surface_index)
     local surface = game.get_surface(surface_index)
     if not (surface and surface.valid) then return end
     
@@ -52,3 +62,5 @@ commands.add_command("v-create", "Creates a new lab surface. Usage: /v-create [s
     
     player.print("[Lab Surface Manager] Lab Created with size " .. size .. "x" .. size .. ". Designing state active.")
 end)
+
+return Helper

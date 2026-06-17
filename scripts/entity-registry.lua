@@ -85,7 +85,7 @@ end
 
 -- Resets the registry then scans all game surfaces to add all tracked entities
 -- Will be very slow on large bases. May be used on_configuration_change but mostly for debugging
-function reset_registry()
+local function reset_registry()
     storage.entity_registry = {}
     for entity_name, _ in pairs(tracked_entities) do
         storage.entity_registry[entity_name] = {array = {}, lookup = {}}
