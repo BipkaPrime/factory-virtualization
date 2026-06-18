@@ -11,6 +11,12 @@ function Helper.storage_init()
     storage.compiled_templates["iron plates"] = {}
     storage.compiled_templates["electronic circuits"] = {}
     storage.compiled_templates["compiled_template3"] = {}
+    storage.compiled_templates["abobus555"] = {}
+    storage.compiled_templates["coal 100m/sec"] = {}
+    storage.compiled_templates["compiled_template77"] = {}
+    storage.compiled_templates["uuuuuuuu"] = {}
+    storage.compiled_templates["plastic 100m/sec"] = {}
+    storage.compiled_templates["----asdfafkl;lasf"] = {}
 
     -- key: surface id, value:table containing virtual_environments
     -- virtual_environments table: keys: compiled_template name, value: table describing venv

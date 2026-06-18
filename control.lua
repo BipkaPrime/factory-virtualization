@@ -4,6 +4,7 @@ local lab_chunks_registry = require("scripts.lab-chunks-registry")
 local udlink_manager = require("scripts.udlink-manager")
 local gui_manager = require("scripts.gui.main")
 local lab_manager = require("scripts.lab-manager")
+local template_compiler = require("scripts.template-compiler")
 
 -------------------------------------------------------------------------------
 -- 1. INITIALIZATION & LIFECYCLE
@@ -14,6 +15,7 @@ script.on_init(function()
     entity_registry.storage_init()
     gui_manager.storage_init()
     lab_manager.storage_init()
+    template_compiler.storage_init()
 end)
 
 script.on_configuration_changed(function(data)

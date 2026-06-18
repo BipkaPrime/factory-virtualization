@@ -96,3 +96,7 @@ storage.template_registry = {
     [vulcanus] = {[template1] = {}, template3 = {}},
     [lab123] = {[template2] = {}, template3 = {}}
 }
+
+
+TODO: udlinks ghosts are clickable. And when clicked vanilla gui pops up.
+This is a big problem for energy udlinks since they are electric energy interfaces.

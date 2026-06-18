@@ -13,6 +13,10 @@ local Helpers = {}
 local tracked_entities = {
     ["item-uplink"] = true,
     ["item-downlink"] = true,
+    ["fluid-uplink"] = true,
+    ["fluid-downlink"] = true,
+    ["energy-uplink"] = true,
+    ["energy-downlink"] = true,
 }
 
 -- Used as event filter for build/destroy events
