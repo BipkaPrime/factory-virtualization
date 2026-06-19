@@ -81,8 +81,8 @@ function Manager.switch_lab_state(surface_index, target_state)
     
     -- Determine the previous state to know which registry section to clean up
     local source_state = "designing"
-    if target_state == "designing" then 
-        source_state = "compiling" 
+    if target_state == "designing" then
+        source_state = "compiling"
     end
     
     -- Remove chunks from the old processing section
@@ -98,7 +98,7 @@ end
 
 -- Force reveal chunk area on the map
 local function chart_chunk(surface, chunk_area)
-    game.forces["player"].chart(surface, chunk_area)
+    game.forces["lab-technical"].chart(surface, chunk_area)
 end
 
 -- Handles entities marked for deconstruction
@@ -126,7 +126,10 @@ local function process_ghosts(surface, chunk_area)
         local ghost = ghosts[i]
         if ghost.valid then
             -- raise_built = true triggers script_raised_revive for entity registry
-            ghost.revive{raise_revive = true}
+            local _, new_entity = ghost.revive{raise_revive = true}
+            if new_entity and new_entity.valid then
+                new_entity.force = game.forces["lab-technical"]
+            end
         end
     end
 end

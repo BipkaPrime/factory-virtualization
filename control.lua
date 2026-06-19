@@ -5,6 +5,7 @@ local udlink_manager = require("scripts.udlink-manager")
 local gui_manager = require("scripts.gui.main")
 local lab_manager = require("scripts.lab-manager")
 local template_compiler = require("scripts.template-compiler")
+local lab_force = require("scripts.lab-force")
 
 -------------------------------------------------------------------------------
 -- 1. INITIALIZATION & LIFECYCLE
@@ -16,10 +17,14 @@ script.on_init(function()
     gui_manager.storage_init()
     lab_manager.storage_init()
     template_compiler.storage_init()
+    lab_force.init_lab_force()
+    lab_force.sync_technologies()
+    lab_force.collect_technical_research()
 end)
 
 script.on_configuration_changed(function(data)
-
+    lab_force.sync_technologies()
+    lab_force.collect_technical_research()
 end)
 
 -------------------------------------------------------------------------------
@@ -57,6 +62,14 @@ for _, event in ipairs(destroy_events) do
     script.on_event(event, on_entity_destroyed, entity_registry.event_filter)
 end
 
+script.on_event(defines.events.on_research_finished, function(event)
+    lab_force.process_research_finished(event)
+end)
+
+script.on_event(defines.events.on_research_reversed, function(event)
+    lab_force.process_research_reversed(event)
+end)
+
 -------------------------------------------------------------------------------
 -- 3. Tick-based handlers
 -------------------------------------------------------------------------------
@@ -64,4 +77,8 @@ end
 script.on_event(defines.events.on_tick, function(event)
     udlink_manager.process_udlinks(event)
     lab_chunks_registry.process_chunks(event)
+end)
+
+script.on_nth_tick(60, function(event)
+    template_compiler.process_compiling_surfaces()
 end)
