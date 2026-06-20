@@ -33,11 +33,15 @@ script.on_event(defines.events.on_player_changed_surface, function(event)
 
     -- chechking if the surface is a virtual lab
     if storage.lab_surfaces[surface_idx] then
-        player.force = "lab-technical"
-        game.print("You now belong to lab force")
+        if player.force.name ~= "lab-technical" then
+            player.force = game.forces["lab-technical"]
+            game.print("You now belong to lab force")
+        end
     else
-        player.force = "player"
-        game.print("You now belong to player force")
+        if player.force.name == "lab-technical" then
+            player.force = game.forces["player"]
+            game.print("You now belong to player force")
+        end
     end
 end)
 

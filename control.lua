@@ -6,6 +6,7 @@ local gui_manager = require("scripts.gui.main")
 local lab_manager = require("scripts.lab-manager")
 local template_compiler = require("scripts.template-compiler")
 local lab_force = require("scripts.lab-force")
+local mv_manager = require("scripts.vm-manager")
 
 -------------------------------------------------------------------------------
 -- 1. INITIALIZATION & LIFECYCLE
@@ -17,6 +18,7 @@ script.on_init(function()
     gui_manager.storage_init()
     lab_manager.storage_init()
     template_compiler.storage_init()
+    mv_manager.storage_init()
     lab_force.init_lab_force()
     lab_force.sync_technologies()
     lab_force.collect_technical_research()

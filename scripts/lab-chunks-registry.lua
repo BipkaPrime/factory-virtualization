@@ -126,9 +126,10 @@ local function process_ghosts(surface, chunk_area)
         local ghost = ghosts[i]
         if ghost.valid then
             -- raise_built = true triggers script_raised_revive for entity registry
-            local _, new_entity = ghost.revive{raise_revive = true}
-            if new_entity and new_entity.valid then
-                new_entity.force = game.forces["lab-technical"]
+            local _, revived_entity = ghost.revive{raise_revive = true}
+            -- if revived entity is a lab type we need to disable it by script
+            if revived_entity and revived_entity.valid and revived_entity.type == "lab" then
+                revived_entity.disabled_by_script = true
             end
         end
     end
@@ -143,7 +144,11 @@ local function process_upgrades(surface, chunk_area)
     for i = 1, #to_upgrade do
         local entity = to_upgrade[i]
         if entity.valid then
-            entity.apply_upgrade()
+            local upgraded_entity = entity.apply_upgrade()
+            -- if revived entity is a lab type we need to disable it by script
+            if upgraded_entity and upgraded_entity.valid and upgraded_entity.type == "lab" then
+                upgraded_entity.disabled_by_script = true
+            end
         end
     end
 end

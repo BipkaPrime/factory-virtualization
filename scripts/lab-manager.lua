@@ -26,7 +26,7 @@ local function create_new_lab(name, size)
     local chunk_radius = math.ceil(map_size / 64)
     surface.request_to_generate_chunks({0, 0}, chunk_radius)
     surface.force_generate_chunk_requests()
-    game.forces["player"].chart_all(surface)
+    game.forces["lab-technical"].chart_all(surface)
 
     -- adding created surface to storage
     storage.lab_surfaces[surface.index] = true
