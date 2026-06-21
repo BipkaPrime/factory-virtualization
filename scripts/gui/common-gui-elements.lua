@@ -113,7 +113,7 @@ end
 
 -- Configures options that are diplayed by the given selector according to following rules
 -- 1. If selected_option is not nil, it will always be at the front ignoring search_query
--- 2. Other frequencies matching with search_query are included
+-- 2. Other options matching with search_query are included
 function Helper.arrange_selector(selector, options, search_query, selected_option)
     local filtered_options = utils.filter_strings(options, search_query)
 

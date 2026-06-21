@@ -3,6 +3,8 @@
 
 local Manager = {}
 
+-- TODO: add support for module slots.
+
 ------------------------------------------------------------------------------------
 -- Registry Operations: init, add, remove, switch section
 ------------------------------------------------------------------------------------
@@ -153,6 +155,33 @@ local function process_upgrades(surface, chunk_area)
     end
 end
 
+-- Find and satisfy item request proxies (modules)
+local function process_item_requests(surface, chunk_area)
+    local proxies = surface.find_entities_filtered{area = chunk_area, name = "item-request-proxy"}
+    -- going through all found proxies 
+    for _, proxy in ipairs(proxies) do
+        -- checking validity
+        if proxy and proxy.valid then
+            local target_entity = proxy.proxy_target
+            -- checking target entity validity
+            if target_entity and target_entity.valid then
+                -- getting target inventory and proxy requests
+                local target_inventory = target_entity.get_module_inventory()
+                local requests = proxy.item_requests
+                -- processing requests
+                if target_inventory then
+                    for _, item in ipairs(requests) do
+                        target_inventory.insert({name = item.name, quality = item.quality, count = item.count})
+                    end
+                    -- deleting proxy 
+                    proxy.destroy{raise_destroy=true}
+                end
+            end
+        end
+    end
+end
+
+
 -- Processes all services sequentially
 local function update_designing_chunk(surface, chunk)
     -- Calculate precise chunk boundaries once to share among all services
@@ -163,6 +192,7 @@ local function update_designing_chunk(surface, chunk)
     process_deconstruction(surface, chunk_area)
     process_ghosts(surface, chunk_area)
     process_upgrades(surface, chunk_area)
+    process_item_requests(surface, chunk_area)
     chart_chunk(surface, chunk_area)
 end
 

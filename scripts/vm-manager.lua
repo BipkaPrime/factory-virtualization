@@ -1,7 +1,7 @@
 -- File for virtualization mainframe logic
 
 
-Helper = {}
+local Helper = {}
 
 
 function Helper.storage_init()

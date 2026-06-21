@@ -19,6 +19,8 @@
 
 local Helper = {}
 
+-- TODO: unlock tech for player force if lab force unlocked it. This way if player somehow (scripts, cheats, etc)
+-- unlocks something while being with lab force, sync is not lost. Also need to prevent infinite loops!
 
 function Helper.init_lab_force()
     game.create_force("lab-technical")
@@ -111,27 +113,5 @@ function Helper.collect_technical_research()
         end
     end
 end
-
--- IT WILL NOT ACTUALLY BE USED LIKE THIS BECUASE IT DOESN'T WORK QUITE THE WAY I WANT
--- Instead, compiler should control this. Because we need to enable each research for as long as possible, 
--- otherwise the results will be inaccurate because only finished cycles count.
-
--- Is called on_nth_tick, to swap current research for lab-technical force for the next one.
--- Lab force only does technical research to benchmark the production.
-function Helper.cycle_technical_research(event)
-    local research_count = #storage.technical_research
-    -- if for some reason no technical research was found
-    if research_count == 0 then return end
-
-    -- index of research we want to start in storage.technical_research
-    local research_idx = math.floor(event.tick / event.nth_tick) % research_count + 1
-    local lab_force = game.forces["lab-technical"]
-    local new_research = storage.technical_research[research_idx]
-
-    -- cancel current research, and start a new one
-    lab_force.cancel_current_research()
-    lab_force.add_research(new_research.tech_name)
-end
-
 
 return Helper

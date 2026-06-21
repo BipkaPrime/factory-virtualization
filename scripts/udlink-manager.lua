@@ -3,8 +3,7 @@
 local Helpers = {}
 
 -- Updates given item uplink. Entity is assumed to be valid because
--- only entities from entity registry are processed. This DOES mean that
--- if entity added by this mod was desroyed by a script without raising the event, game will crash.
+-- only entities from entity registry are processed. Entity registry is assumed to be perfect.
 local function update_item_uplink(entity_properties)
     local entity = entity_properties.entity
     local inventory = entity.get_inventory(defines.inventory.chest)
@@ -30,8 +29,7 @@ local function update_item_uplink(entity_properties)
 end
 
 -- Updates given item downlink. Entity is assumed to be valid because
--- only entities from entity registry are processed. This DOES mean that
--- if entity added by this mod was desroyed by a script without raising the event, game will crash.
+-- only entities from entity registry are processed. Entity registry is assumed to be perfect.
 local function update_item_downlink(entity_properties)
     local entity = entity_properties.entity
     local inventory = entity.get_inventory(defines.inventory.chest)
@@ -57,8 +55,7 @@ local function update_item_downlink(entity_properties)
 end
 
 -- Updates given fluid uplink. Entity is assumed to be valid because
--- only entities from entity registry are processed. This DOES mean that
--- if entity added by this mod was desroyed by a script without raising the event, game will crash.
+-- only entities from entity registry are processed. Entity registry is assumed to be perfect.
 local function update_fluid_uplink(entity_properties)
     local entity = entity_properties.entity
     -- checking if this uplink is a lab surface output
@@ -81,8 +78,7 @@ local function update_fluid_uplink(entity_properties)
 end
 
 -- Updates given fluid downlink. Entity is assumed to be valid because
--- only entities from entity registry are processed. This DOES mean that
--- if entity added by this mod was desroyed by a script without raising the event, game will crash.
+-- only entities from entity registry are processed. Entity registry is assumed to be perfect.
 local function update_fluid_downlink(entity_properties)
     local entity = entity_properties.entity
     -- checking if this downlink is a lab surface input
@@ -105,8 +101,7 @@ local function update_fluid_downlink(entity_properties)
 end
 
 -- Updates given energy uplink. Entity is assumed to be valid because
--- only entities from entity registry are processed. This DOES mean that
--- if entity added by this mod was desroyed by a script without raising the event, game will crash.
+-- only entities from entity registry are processed. Entity registry is assumed to be perfect.
 local function update_energy_uplink(entity_properties)
     local entity = entity_properties.entity
     -- checking if this uplink is a lab surface output
@@ -123,8 +118,7 @@ local function update_energy_uplink(entity_properties)
 end
 
 -- Updates given energy downlink. Entity is assumed to be valid because
--- only entities from entity registry are processed. This DOES mean that
--- if entity added by this mod was desroyed by a script without raising the event, game will crash.
+-- only entities from entity registry are processed. Entity registry is assumed to be perfect.
 local function update_energy_downlink(entity_properties)
     local entity = entity_properties.entity
     -- checking if this downlink is a lab surface input

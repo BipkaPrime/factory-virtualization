@@ -6,21 +6,17 @@ local lab_chunk_manager = require("scripts.lab-chunks-registry")
 
 local Helper = {}
 
+-- TODO: add pollution to compilation
+-- TODO: fix input science pack values for compilations with research
+-- currently the problem is consumed packs are divided by the full length of 
+-- benchmarking process. Because of this, values are much smaller than they should be.
+-- The correct approach is to divide total number of research points produced by the
+-- corresponding number of science packs consumed.
+
 
 function Helper.storage_init()
     -- keys are template names, values are templates
     storage.compiled_templates = storage.compiled_templates or {}
-
-    -- placeholder 
-    storage.compiled_templates["iron plates"] = {}
-    storage.compiled_templates["electronic circuits"] = {}
-    storage.compiled_templates["compiled_template3"] = {}
-    storage.compiled_templates["abobus555"] = {}
-    storage.compiled_templates["coal 100m/sec"] = {}
-    storage.compiled_templates["compiled_template77"] = {}
-    storage.compiled_templates["uuuuuuuu"] = {}
-    storage.compiled_templates["plastic 100m/sec"] = {}
-    storage.compiled_templates["----asdfafkl;lasf"] = {}
 
     -- key: surface_id, value = lab virtual environment
     storage.compiling_surfaces = storage.compiling_surfaces or {}
@@ -63,11 +59,18 @@ local function allocate_benchmark_time(venv, research, time)
     venv.benchmark_results = {slow = {}, fast = {}}
 end
 
--- Starts compilation of a given surface
-function Helper.start_compilation(surface_id)
+-- Checks if given surface_id can start a compilation
+-- @returns bool: true if compilation can be started
+function Helper.compilation_startup_check(surface_id)
+    -- checking if provided surface is a virtualization surface
+    if not storage.lab_surfaces[surface_id] then
+        game.print("Compilation NOT started. Given surface is not a virtualization surface")
+        return
+    end
+
     -- checking if given surface is already compiling
     if storage.compiling_surfaces[surface_id] ~= nil then
-        game.print("Compilation NOT started. This surface is already compiling")
+        game.print("Compilation NOT started. Surface is already compiling")
         return
     end
 
@@ -81,7 +84,10 @@ function Helper.start_compilation(surface_id)
 
     -- checking validity of given sufrace
     local surface = game.get_surface(surface_id)
-    if not surface or not surface.valid then return end
+    if not surface or not surface.valid then
+        game.print("Compilation NOT started. Given surface is invalid")
+        return
+    end
 
     -- checking if the given surface has labs
     local labs_present = surface.count_entities_filtered({type = "lab", limit = 1}) > 0
@@ -92,13 +98,24 @@ function Helper.start_compilation(surface_id)
         return
     end
 
+    return true, labs_present
+end
+
+-- Starts compilation of a given surface
+-- @param template_name str: unique template identifier specified by the player
+function Helper.start_compilation(surface_id, template_name)
+    local check, labs_present = Helper.compilation_startup_check(surface_id)
+    if not check then return end
+
     -- enabling all labs for given surface if it has any
+    local surface = game.get_surface(surface_id)
     if labs_present then
         set_labs_state(surface, true)
     end
 
     -- creating venv for this compilation effectively starting the compilation
     storage.compiling_surfaces[surface_id] = {
+        template_name = template_name, -- unique template identifier specified by the player
         has_labs = labs_present, -- true if compiling surface has labs
         input = {items={}, fluids={}, energy = 0},
         output = {items={}, fluids={}, energy = 0},
@@ -139,9 +156,9 @@ local function change_research(venv, new_index)
         local ingredient = venv.research_benchmarks[current_idx]["ingredient_name"]
 
         -- debug placeholder
-        game.print("science pack: " .. ingredient)
-        game.print("operation time: " .. venv.current_research_time)
-        game.print("produced points: " .. tostring(points_produced))
+        -- game.print("science pack: " .. ingredient)
+        -- game.print("operation time: " .. venv.current_research_time)
+        -- game.print("produced points: " .. tostring(points_produced))
 
         -- saving produced points to venv
         if points_produced > 0 then
@@ -164,6 +181,147 @@ local function change_research(venv, new_index)
     -- clearing all science production statistics
     prod_stat.clear()
     return status
+end
+
+-- Helper function in calculating building cost of a surface
+local function add_to_cost(total_cost, name, count, quality)
+    quality = quality or "normal"
+    if not total_cost[name] then
+        total_cost[name] = {}
+    end
+    total_cost[name][quality] = (total_cost[name][quality] or 0) + count
+end
+
+-- Function to calculate the building cost of a given surface
+local function get_building_cost(surface)
+    local total_cost = {}
+
+    -- searching for all entities on a surface
+    local entities = surface.find_entities()
+
+    for _, entity in ipairs(entities) do
+        -- counting only valid entities excluding ghosts
+        if entity and entity.valid and entity.type ~= "entity-ghost" then
+            local build_cost = entity.prototype.items_to_place_this
+            -- checking if entity can be built
+            if build_cost then
+                local entity_quality = "normal"
+                if entity_quality then
+                    entity_quality = entity.quality.name
+                end
+
+                add_to_cost(total_cost, build_cost[1].name, build_cost[1].count, entity_quality)
+
+                -- add any inserted modules inside the building
+                local module_inv = entity.get_module_inventory()
+                -- checking if entity has a module inventory and it's not empty
+                if module_inv and not module_inv.is_empty() then
+                    -- get_contents() returns an array of {name, count, quality}
+                    for _, item in ipairs(module_inv.get_contents()) do
+                        add_to_cost(total_cost, item.name, item.count, item.quality)
+                    end
+                end
+            end
+        end
+    end
+    return total_cost
+end
+
+-- Creates compiled production template 
+local function create_production_template(venv, surface, template_name)
+    local template_data = {}
+
+    -- gathering item inputs
+    for item_name, q_counts in pairs(venv.input.items) do
+        -- creating categories only when required
+        template_data.input = template_data.input or {}
+        template_data.input.items = template_data.input.items or {}
+        -- going through counts and qualities under the same item name
+        for quality, count in pairs(q_counts) do
+            if count > 0 then
+                template_data.input.items[item_name] = template_data.input.items[item_name] or {}
+                template_data.input.items[item_name][quality] = count / venv.compilation_time
+            end
+        end
+    end
+
+    -- gathering item outputs
+    for item_name, q_counts in pairs(venv.output.items) do
+        -- creating categories only when required
+        template_data.output = template_data.output or {}
+        template_data.output.items = template_data.output.items or {}
+        -- going through counts and qualities under the same item name
+        for quality, count in pairs(q_counts) do
+            if count > 0 then
+                template_data.output.items[item_name] = template_data.output.items[item_name] or {}
+                template_data.output.items[item_name][quality] = count / venv.compilation_time
+            end
+        end
+    end
+
+    -- gathering fluid inputs
+    for fluid_name, amount in pairs(venv.input.fluids) do
+        if amount > 0 then
+            -- creating categories only when required
+            template_data.input = template_data.input or {}
+            template_data.input.fluids = template_data.input.fluids or {}
+            template_data.input.fluids[fluid_name] = amount / venv.compilation_time
+        end
+    end
+
+    -- gathering fluid ouputs
+    for fluid_name, amount in pairs(venv.output.fluids) do
+        if amount > 0 then
+            -- creating categories only when required
+            template_data.output = template_data.output or {}
+            template_data.output.fluids = template_data.output.fluids or {}
+            template_data.output.fluids[fluid_name] = amount / venv.compilation_time
+        end
+    end
+
+    -- gathering energy input
+    if venv.input.energy > 0 then
+        -- creating categories only when required
+        template_data.input = template_data.input or {}
+        template_data.input.energy = venv.input.energy / venv.compilation_time
+    end
+
+    -- gathering energy output
+    if venv.output.energy > 0 then
+        -- creating categories only when required
+        template_data.output = template_data.output or {}
+        template_data.output.energy = venv.output.energy / venv.compilation_time
+    end
+
+    -- gathering building costs
+    local cost = get_building_cost(surface)
+    -- checking if cost is not empty
+    if next(cost) ~= nil then
+        template_data.building_cost = cost
+    end
+
+    -- gathering science production capability
+    if venv.has_labs then
+        -- slow stage. labs potential
+        for ingredient, data in pairs(venv.benchmark_results.slow) do
+            template_data.science = template_data.science or {}
+            template_data.science.labs_potential = template_data.science.labs_potential or {}
+            template_data.science.labs_potential[ingredient] = data.points / data.time
+        end
+
+        -- fast stage. logistics potential
+        for ingredient, data in pairs(venv.benchmark_results.fast) do
+            template_data.science = template_data.science or {}
+            template_data.science.logistics_potential = template_data.science.logistics_potential or {}
+            template_data.science.logistics_potential[ingredient] = data.points / data.time
+        end
+    end
+
+    -- gathering surface area
+    local settings = surface.map_gen_settings
+    template_data.area = settings.width * settings.height
+
+    storage.compiled_templates[template_name] = template_data
 end
 
 -- Stops compilation of a given surface and deletes assocciated venv
@@ -189,18 +347,20 @@ local function stop_compilation(surface_id, status)
         change_research(venv, 0)
     end
     
-    -- TODO: make production template if compilation is successful
-    -- TODO: make function that collects building cost of a lab surface
     -- TODO: make function to check that surface compilation was valid. Like there are no chests full of trash etc.
 
+    -- Adding compiled template data to template storage
+    if status then
+       create_production_template(venv, surface, venv.template_name) 
+    end
 
     -- debug placeholder
     game.print("Surface compiled. Status:" .. tostring(status))
-    helpers.write_file('compilation_result.json', "Inputs:" .. serpent.block(venv.input) .. "\n", true)
-    helpers.write_file('compilation_result.json', "Outputs:" .. serpent.block(venv.output) .. "\n", true)
-    if venv.has_labs then
-        helpers.write_file('compilation_result.json', "Science production:" .. serpent.block(venv.benchmark_results) .. "\n", true)
-    end
+    --helpers.write_file('compilation_result.json', "Inputs:" .. serpent.block(venv.input) .. "\n", true)
+    --helpers.write_file('compilation_result.json', "Outputs:" .. serpent.block(venv.output) .. "\n", true)
+    --if venv.has_labs then
+        --helpers.write_file('compilation_result.json', "Science production:" .. serpent.block(venv.benchmark_results) .. "\n", true)
+    --end
     
     -- switching lab state in chunk registry
     lab_chunk_manager.switch_lab_state(surface_id, "designing")
@@ -270,11 +430,29 @@ end
 commands.add_command("compile", "Starts the compilation of a lab surface player is looking at", function(command)
     local player = game.get_player(command.player_index)
     local surface_idx = player.surface_index
+
+    local template_name = "Unspecified"
+    if command.parameter then
+        template_name = command.parameter
+    end
+
+    Helper.start_compilation(surface_idx, template_name)
+end)
+
+commands.add_command("save_template_data", "Saves all compiled template data to json", function(command)
+    helpers.write_file("compiled_templates.json", serpent.block(storage.compiled_templates), false)
+    game.print("Template data saved to compiled_templates.json")
+end)
+
+commands.add_command("surface_cost", "Prints building cost of a surface player is looking at", function(command)
+    local player = game.get_player(command.player_index)
+    local surface_idx = player.surface_index
     if not storage.lab_surfaces[surface_idx] then
         game.print("This is not a lab surface")
         return
     end
-    Helper.start_compilation(surface_idx)
+
+    game.print(serpent.block(get_building_cost(surface_idx)))
 end)
 
 

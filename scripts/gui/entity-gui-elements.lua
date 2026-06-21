@@ -236,10 +236,10 @@ function Helper.entity_freq_selector(content_frame, entity_properties)
     selection_flow.style.bottom_margin = 12
 
     if entity_properties.checkbox_state then
-        -- disabling search if selector is disabled  
+        -- disabling selector if udlink is lab surface IO
         utils.set_element_state(selection_flow, false)
     else
-        -- arranging selector options of selector is enabled
+        -- arranging selector options if selector is enabled
         local selector = selection_flow[params["prefix"] .. params["entity_freq_selector"]]
         local frequencies = utils.get_all_freq()
         local selected_option = entity_properties.selected_frequency

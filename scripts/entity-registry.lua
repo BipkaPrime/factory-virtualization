@@ -7,7 +7,13 @@
 -- It's a hash map that stores [unit_number] = array_idx
 -- It's required for the ability to find and delete an entity in O(1) time
 
+
 local Helpers = {}
+
+-- TODO: Make registry bulletproof. Currently it's possible to break it and crash the mod
+-- It will happen if entity from registry is destroyed by script without raising an event
+-- We can counter this by script.register_on_object_destroyed(entity)
+-- and then catching on_object_destroyed event.
 
 -- table with all entity names that are included in the registry
 local tracked_entities = {
@@ -42,7 +48,7 @@ local function add_to_registry(entity, entity_name)
     
     -- Prevent duplicate entries
     if reg.lookup[entity.unit_number] then return end
-    
+
     -- Append the entity to the end of the correct array
     table.insert(reg.array, {["entity"] = entity})
     
