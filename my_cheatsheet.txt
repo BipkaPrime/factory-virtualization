@@ -98,5 +98,3 @@ storage.template_registry = {
 }
 
 
-TODO: udlinks ghosts are clickable. And when clicked vanilla gui pops up.
-This is a big problem for energy udlinks since they are electric energy interfaces.

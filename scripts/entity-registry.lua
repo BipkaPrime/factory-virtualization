@@ -10,10 +10,6 @@
 
 local Helpers = {}
 
--- TODO: Make registry bulletproof. Currently it's possible to break it and crash the mod
--- It will happen if entity from registry is destroyed by script without raising an event
--- We can counter this by script.register_on_object_destroyed(entity)
--- and then catching on_object_destroyed event.
 
 -- table with all entity names that are included in the registry
 local tracked_entities = {

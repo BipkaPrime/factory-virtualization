@@ -52,7 +52,4 @@ function Helper.get_all_freq()
     return all_freq
 end
 
-
-
-
 return Helper

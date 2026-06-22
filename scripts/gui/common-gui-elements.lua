@@ -1,8 +1,6 @@
 -- This file contains definition for common gui elements
 
--- TODO: make search vidget for freq selection
-
-local params = require("scripts.gui.params")
+local gui_names = require("scripts.gui.gui-names")
 local utils = require("scripts.gui.utils")
 
 local Helper = {}
@@ -12,14 +10,14 @@ local Helper = {}
 -- @param window_name: string
 function Helper.gui_base_window(player, window_name)
     -- if window with given name is already opened, we need to destroy it first
-    if player.gui.screen[params.prefix .. window_name] then
-        player.gui.screen[params.prefix .. window_name].destroy()
+    if player.gui.screen[window_name] then
+        player.gui.screen[window_name].destroy()
     end
 
     -- main window
     local main_frame = player.gui.screen.add{
         type = "frame",
-        name = params.prefix .. window_name,
+        name = window_name,
         direction = "vertical",
         style = "frame"
     }
@@ -32,10 +30,11 @@ function Helper.gui_base_window(player, window_name)
     }
 
     -- window title
+    local title = string.sub(window_name, #gui_names.prefix + 1)
     titlebar.add{
         type = "label",
         style = "frame_title",
-        caption = {"gui-title."..window_name},
+        caption = {"gui-title." .. title},
         ignored_by_interaction = true
     }
     titlebar.style.horizontal_spacing = 8
@@ -54,7 +53,7 @@ function Helper.gui_base_window(player, window_name)
     -- close button
     titlebar.add{
         type = "sprite-button",
-        name = params.prefix .. params.close_button,
+        name = gui_names.prefix .. gui_names.close_button,
         style = "frame_action_button",
         sprite = "utility/close",
     }
@@ -68,7 +67,7 @@ function Helper.process_close_button(event)
     if not element or not element.valid then return end
 
     -- cheking gui element name to make sure it's the right button
-    if element.name == params.prefix .. params.close_button then
+    if element.name == gui_names.prefix .. gui_names.close_button then
         local player = game.get_player(event.player_index)
         if player then
             player.opened = nil
@@ -133,6 +132,68 @@ function Helper.arrange_selector(selector, options, search_query, selected_optio
         selector.selected_index = 1
     end
 end
+
+
+-- Creates empty grid panel for displaying sprite buttons
+-- @param gui_element LuaGuiElement: panel will be added here
+-- @param label localized string: text to be displayed above the panel
+-- @return LuaGuiElement: element where you can actually add the buttons
+function Helper.empty_grid_panel(gui_element, label)
+    local main_frame = gui_element.add{
+        type = "frame",
+        style = "bordered_frame"
+    }
+
+    local main_flow = main_frame.add{
+        type = "flow",
+        direction = "vertical",
+    }
+
+    -- Label above the table
+    local label_element = main_flow.add{
+        type = "label",
+        caption = label,
+        style = "bold_label",
+    }
+    label_element.style.font_color = {255, 230, 199}
+
+    -- deep container element
+    local container = main_flow.add{
+        type = "scroll-pane",
+        style = "deep_slots_scroll_pane",
+        direction = "vertical",
+        horizontal_scroll_policy = "never",
+        vertical_scroll_policy = "never",
+    }
+
+    local internal_table = container.add{
+        type = "table",
+        column_count = 10,
+        style = "slot_table"
+    }
+
+    return internal_table
+end
+
+-- Inserts an item sprite into the given grid_panel
+-- @param target_grid LuaGuiElement: "table"
+-- @param name string: for instance, "iron-plate"
+-- @param count number: displayed number of items
+-- @param quality string: "uncommon", "rare", "epic", "legendary", etc.
+function Helper.insert_item_icon(target_grid, name, count, quality)
+    local slot_button = target_grid.add{
+        type = "sprite-button",
+        sprite = "item/" .. name,
+        number = count,
+        style = "slot_button",
+        quality = quality
+    }
+
+    slot_button.elem_tooltip = {type = "item", name = name}
+end
+
+
+
 
 
 return Helper

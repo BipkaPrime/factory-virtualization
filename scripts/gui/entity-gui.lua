@@ -1,7 +1,7 @@
 -- This file is for definitions of custom GUIs for entities
 
 
-local params = require("scripts.gui.params")
+local gui_names = require("scripts.gui.gui-names")
 local entity_gui_elements = require("scripts.gui.entity-gui-elements")
 local utils = require("scripts.gui.utils")
 
@@ -139,7 +139,6 @@ function Helper.process_entity_gui_opened(event)
     -- saving the entity to storage
     storage.last_opened_entity[event.player_index] = entity
 
-
     local player = game.get_player(event.player_index)
     local handler = entity_mapping[entity.name]
     handler(player, entity)
@@ -150,14 +149,14 @@ function Helper.process_entity_gui_closed(event)
     if not event.element then return end
 
     -- removing prefix from element name to get the entity name 
-    local entity_name = string.sub(event.element.name, #params.prefix + 1)
+    local entity_name = string.sub(event.element.name, #gui_names.prefix + 1)
 
     -- cheking that it's our custom window
     if not entity_mapping[entity_name] then return end
 
     -- now we need to find and destroy the element
     local player = game.get_player(event.player_index)
-    player.gui.screen[params.prefix .. entity_name].destroy()
+    player.gui.screen[gui_names.prefix .. entity_name].destroy()
 
     -- cleaning up storage
     storage.last_opened_entity[event.player_index] = nil

@@ -1,12 +1,5 @@
 local ChunksManager = require("scripts.lab-chunks-registry")
 
-local Helper = {}
-
-function Helper.storage_init()
-    storage.lab_surfaces = storage.lab_surfaces or {}
-end
-
-
 -- Creates a new square lab surface
 local function create_new_lab(name, size)
     local lab_name = name or ("Virtual Lab #" .. game.tick)
@@ -62,5 +55,3 @@ commands.add_command("v-create", "Creates a new lab surface. Usage: /v-create [s
     
     player.print("[Lab Surface Manager] Lab Created with size " .. size .. "x" .. size .. ". Designing state active.")
 end)
-
-return Helper

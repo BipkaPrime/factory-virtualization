@@ -1,26 +1,15 @@
 -- This file is for logic regarding lab surfaces: 
 -- creation, deletion, state changes, auto-building processes
 
-local Manager = {}
-
--- TODO: add support for module slots.
+local Helper = {}
 
 ------------------------------------------------------------------------------------
 -- Registry Operations: init, add, remove, switch section
 ------------------------------------------------------------------------------------
 
--- Initializes storage
-function Manager.storage_init()
-    storage.lab_chunks_registry = storage.lab_chunks_registry or {
-    -- Gapless arrays containing lab chunks for on_tick processing
-    designing_chunks = {array = {}, lookup = {}},
-    compiling_chunks = {array = {}, lookup = {}}
-    }
-end
-
 -- Registers all chunks of a given surface to specified registry
 -- @param lab_type = ("designing" or "compiling")
-function Manager.register_surface(surface_index, lab_type)
+function Helper.register_surface(surface_index, lab_type)
     -- Selecting the right registry section
     local chunk_reg = storage.lab_chunks_registry[lab_type .. "_chunks"]
     local surface = game.get_surface(surface_index)
@@ -47,7 +36,7 @@ end
 
 -- Removes all chunks belonging to a specific surface from the specified registry
 -- @param lab_type =  ("designing" or "compiling")
-function Manager.unregister_surface(surface_index, lab_type)
+function Helper.unregister_surface(surface_index, lab_type)
     local chunk_reg = storage.lab_chunks_registry[lab_type .. "_chunks"]
     
     -- Iterating through the right section backwards
@@ -78,7 +67,7 @@ end
 
 -- Switches the processing state of a lab surface
 -- @param target_state = ("designing" or "compiling")
-function Manager.switch_lab_state(surface_index, target_state)
+function Helper.switch_lab_state(surface_index, target_state)
     if not (surface_index and target_state) then return end
     
     -- Determine the previous state to know which registry section to clean up
@@ -88,10 +77,10 @@ function Manager.switch_lab_state(surface_index, target_state)
     end
     
     -- Remove chunks from the old processing section
-    Manager.unregister_surface(surface_index, source_state)
+    Helper.unregister_surface(surface_index, source_state)
     
     -- Add chunks to the new processing section
-    Manager.register_surface(surface_index, target_state)
+    Helper.register_surface(surface_index, target_state)
 end
 
 ------------------------------------------------------------------------------------
@@ -221,14 +210,14 @@ local function process_registry_section(section, tick, handler)
         else
             -- Auto-cleanup if the surface was deleted by another script or command
             local current_type = (section == storage.lab_chunks_registry.designing_chunks) and "designing" or "compiling"
-            Manager.unregister_surface(chunk.surface_index, current_type)
+            Helper.unregister_surface(chunk.surface_index, current_type)
             return -- Break execution loop since the array length has changed
         end
     end
 end
 
 -- Main on-tick processor
-function Manager.process_chunks(event)
+function Helper.process_chunks(event)
     local reg = storage.lab_chunks_registry
     -- Process designing labs
     process_registry_section(reg.designing_chunks, event.tick, function(surface, chunk)
@@ -241,4 +230,4 @@ function Manager.process_chunks(event)
     end)
 end
 
-return Manager
+return Helper

@@ -1,5 +1,5 @@
-local ICONPATH = "__factory-virtualization__/graphics/icons/"
-local ENTITYPATH = "__factory-virtualization__/graphics/entity/"
+local iconpath = "__factory-virtualization__/graphics/icons/"
+local entitypath = "__factory-virtualization__/graphics/entity/"
 
 
 local item_uplink = {
@@ -10,7 +10,7 @@ local item_uplink = {
         stack_size_max = 10000,
     },
     name = "item-uplink",
-    icon = ICONPATH.."item-uplink.png",
+    icon = iconpath.."item-uplink.png",
     icon_size = 64,
     flags = {"placeable-neutral", "placeable-player", "player-creation"},
     minable = {mining_time = 0.1, result = "item-uplink"},
@@ -20,7 +20,7 @@ local item_uplink = {
     picture = {
         layers = {
             {
-                filename = ENTITYPATH..'item-uplink.png',
+                filename = entitypath..'item-uplink.png',
                 width = 384,
                 height = 384,
                 scale = 0.5,
@@ -37,7 +37,7 @@ local item_downlink = {
         stack_size_max = 10000,
     },
     name = "item-downlink",
-    icon = ICONPATH.."item-downlink.png",
+    icon = iconpath.."item-downlink.png",
     icon_size = 64,
     flags = {"placeable-neutral", "placeable-player", "player-creation"},
     minable = {mining_time = 0.1, result = "item-downlink"},
@@ -47,7 +47,7 @@ local item_downlink = {
     picture = {
         layers = {
             {
-                filename = ENTITYPATH..'item-downlink.png',
+                filename = entitypath..'item-downlink.png',
                 width = 384,
                 height = 384,
                 scale = 0.5,
@@ -74,7 +74,7 @@ local fluid_uplink = {
     window_bounding_box = {{-0.4, -0.4}, {0.4, 0.4}},
     flow_length_in_ticks = 60,
     name = "fluid-uplink",
-    icon = ICONPATH.."fluid-uplink.png",
+    icon = iconpath.."fluid-uplink.png",
     icon_size = 64,
     flags = {"placeable-neutral", "placeable-player", "player-creation"},
     minable = {mining_time = 0.1, result = "fluid-uplink"},
@@ -83,7 +83,7 @@ local fluid_uplink = {
     inventory_size = 1,
     pictures = {
         picture = {
-            filename = ENTITYPATH..'fluid-uplink.png',
+            filename = entitypath..'fluid-uplink.png',
                 width = 384,
                 height = 384,
                 scale = 0.5,
@@ -109,7 +109,7 @@ local fluid_downlink = {
     window_bounding_box = {{-0.4, -0.4}, {0.4, 0.4}},
     flow_length_in_ticks = 60,
     name = "fluid-downlink",
-    icon = ICONPATH.."fluid-downlink.png",
+    icon = iconpath.."fluid-downlink.png",
     icon_size = 64,
     flags = {"placeable-neutral", "placeable-player", "player-creation"},
     minable = {mining_time = 0.1, result = "fluid-downlink"},
@@ -118,7 +118,7 @@ local fluid_downlink = {
     inventory_size = 1,
     pictures = {
         picture = {
-            filename = ENTITYPATH..'fluid-downlink.png',
+            filename = entitypath..'fluid-downlink.png',
                 width = 384,
                 height = 384,
                 scale = 0.5,
@@ -136,7 +136,7 @@ local energy_uplink = {
         input_flow_limit = "1GW",
     },
     name = "energy-uplink",
-    icon = ICONPATH.."energy-uplink.png",
+    icon = iconpath.."energy-uplink.png",
     icon_size = 64,
     flags = {"placeable-neutral", "placeable-player", "player-creation"},
     minable = {mining_time = 0.1, result = "energy-uplink"},
@@ -146,7 +146,7 @@ local energy_uplink = {
     picture = {
         layers = {
             {
-                filename = ENTITYPATH..'energy-uplink.png',
+                filename = entitypath..'energy-uplink.png',
                 width = 384,
                 height = 384,
                 scale = 0.5,
@@ -165,7 +165,7 @@ local energy_downlink = {
         output_flow_limit = "1GW",
     },
     name = "energy-downlink",
-    icon = ICONPATH.."energy-downlink.png",
+    icon = iconpath.."energy-downlink.png",
     icon_size = 64,
     flags = {"placeable-neutral", "placeable-player", "player-creation"},
     minable = {mining_time = 0.1, result = "energy-downlink"},
@@ -175,7 +175,7 @@ local energy_downlink = {
     picture = {
         layers = {
             {
-                filename = ENTITYPATH..'energy-downlink.png',
+                filename = entitypath..'energy-downlink.png',
                 width = 384,
                 height = 384,
                 scale = 0.5,

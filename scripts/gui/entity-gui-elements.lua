@@ -1,6 +1,6 @@
 -- This file contains definition for entity gui elements
 
-local params = require("scripts.gui.params")
+local gui_names = require("scripts.gui.gui-names")
 local gui_common = require("scripts.gui.common-gui-elements")
 local utils = require("scripts.gui.utils")
 
@@ -10,7 +10,7 @@ local Helper = {}
 -- @param player: LuaPlayer
 -- @param entity_name: str
 function Helper.entity_gui_base(player, entity_name)
-    local main_frame = gui_common.gui_base_window(player, entity_name)
+    local main_frame = gui_common.gui_base_window(player, gui_names.prefix .. entity_name)
 
     -- large frame inside the main window
     main_frame.add{
@@ -43,7 +43,7 @@ function Helper.udlink_item_selection(content_frame, entity_properties, button_c
     -- button itself
     local selection_button = row.add{
         type="choose-elem-button",
-        name=params.prefix .. params.item_selection,
+        name=gui_names.prefix .. gui_names.item_selection,
         elem_type="item-with-quality",
     }
 
@@ -61,7 +61,7 @@ function Helper.process_udlink_item_selection(event)
     if not element or not element.valid then return end
 
     -- checking the button name to make sure it's the right button
-    if element.name ~= params.prefix .. params.item_selection then return end
+    if element.name ~= gui_names.prefix .. gui_names.item_selection then return end
 
     -- checking entity validity
     local entity = storage.last_opened_entity[event.player_index]
@@ -100,7 +100,7 @@ function Helper.udlink_fluid_selection(content_frame, entity_properties, button_
     -- button itself
     local selection_button = row.add{
         type="choose-elem-button",
-        name=params.prefix .. params.fluid_selection,
+        name=gui_names.prefix .. gui_names.fluid_selection,
         elem_type="fluid",
     }
 
@@ -117,7 +117,7 @@ function Helper.process_udlink_fluid_selection(event)
     if not element or not element.valid then return end
 
     -- checking the button name to make sure it's the right button
-    if element.name ~= params.prefix .. params.fluid_selection then return end
+    if element.name ~= gui_names.prefix .. gui_names.fluid_selection then return end
 
     -- checking entity validity
     local entity = storage.last_opened_entity[event.player_index]
@@ -158,7 +158,7 @@ function Helper.udlink_io_checkbox(content_frame, entity_properties, button_capt
     -- button itself
     local button = row.add{
         type="checkbox",
-        name=params.prefix .. params.udlink_checkbox,
+        name=gui_names.prefix .. gui_names.udlink_checkbox,
         state=button_state,
     }
 
@@ -180,7 +180,7 @@ function Helper.process_udlink_io_checkbox(event)
     if not element or not element.valid then return end
 
     -- checking the button name to make sure it's the right button
-    if element.name ~= params.prefix .. params.udlink_checkbox then return end
+    if element.name ~= gui_names.prefix .. gui_names.udlink_checkbox then return end
 
     -- checking entity validity
     local entity = storage.last_opened_entity[event.player_index]
@@ -202,15 +202,15 @@ function Helper.process_udlink_io_checkbox(event)
     properties.checkbox_state = button_state
 
     -- enable/disable selector widget based on button state
-    local selection_flow = element.parent.parent[params["prefix"] .. params["entity_freq_selector_flow"]]
-    local selector = selection_flow[params["prefix"] .. params["entity_freq_selector"]]
+    local selection_flow = element.parent.parent[gui_names["prefix"] .. gui_names["entity_freq_selector_flow"]]
+    local selector = selection_flow[gui_names["prefix"] .. gui_names["entity_freq_selector"]]
     -- enabling/disabling the search field
     utils.set_element_state(selection_flow, not button_state)
     -- arranging selector items based on button state
     if button_state then
         gui_common.arrange_selector(selector, {})
         -- clearing the search field
-        local search_field = selection_flow[params["prefix"] .. params["entity_freq_searchfield"]]
+        local search_field = selection_flow[gui_names["prefix"] .. gui_names["entity_freq_searchfield"]]
         search_field.text = ""
         -- clearing the selected_frequency
         properties.selected_frequency = nil
@@ -228,9 +228,9 @@ function Helper.entity_freq_selector(content_frame, entity_properties)
     -- adding frequency selector
     local selection_flow = gui_common.selection_widget(
         content_frame,
-        params["prefix"] .. params["entity_freq_selector_flow"],
-        params["prefix"] .. params["entity_freq_searchfield"],
-        params["prefix"] .. params["entity_freq_selector"],
+        gui_names["prefix"] .. gui_names["entity_freq_selector_flow"],
+        gui_names["prefix"] .. gui_names["entity_freq_searchfield"],
+        gui_names["prefix"] .. gui_names["entity_freq_selector"],
         {"gui-label.frequency-selection"}
     )
     selection_flow.style.bottom_margin = 12
@@ -240,7 +240,7 @@ function Helper.entity_freq_selector(content_frame, entity_properties)
         utils.set_element_state(selection_flow, false)
     else
         -- arranging selector options if selector is enabled
-        local selector = selection_flow[params["prefix"] .. params["entity_freq_selector"]]
+        local selector = selection_flow[gui_names["prefix"] .. gui_names["entity_freq_selector"]]
         local frequencies = utils.get_all_freq()
         local selected_option = entity_properties.selected_frequency
         gui_common.arrange_selector(selector, frequencies, nil, selected_option)
@@ -252,7 +252,7 @@ function Helper.process_entity_freq_selector(event)
     local element = event.element
 
     -- checking the button name to make sure it's the right button
-    if element.name ~= params.prefix .. params.entity_freq_selector then return end
+    if element.name ~= gui_names.prefix .. gui_names.entity_freq_selector then return end
 
     -- checking entity validity
     local entity = storage.last_opened_entity[event.player_index]
@@ -272,7 +272,7 @@ function Helper.process_entity_freq_search(event)
     local element = event.element
 
     -- checking the button name to make sure it's the right button
-    if element.name ~= params.prefix .. params.entity_freq_searchfield then return end
+    if element.name ~= gui_names.prefix .. gui_names.entity_freq_searchfield then return end
 
     -- checking entity validity
     local entity = storage.last_opened_entity[event.player_index]
@@ -282,7 +282,7 @@ function Helper.process_entity_freq_search(event)
     local properties = utils.properties_from_reg(entity)
 
     -- modifing selector options based on search query
-    local selector = element.parent[params.prefix .. params.entity_freq_selector]
+    local selector = element.parent[gui_names.prefix .. gui_names.entity_freq_selector]
     local frequencies = utils.get_all_freq()
     local query = element.text
     local selected_option = properties.selected_frequency

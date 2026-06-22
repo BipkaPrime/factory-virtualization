@@ -1,26 +1,8 @@
 -- This file contains is used to compile production templates.
 
-
 local lab_chunk_manager = require("scripts.lab-chunks-registry")
 
-
 local Helper = {}
-
--- TODO: add pollution to compilation
--- TODO: fix input science pack values for compilations with research
--- currently the problem is consumed packs are divided by the full length of 
--- benchmarking process. Because of this, values are much smaller than they should be.
--- The correct approach is to divide total number of research points produced by the
--- corresponding number of science packs consumed.
-
-
-function Helper.storage_init()
-    -- keys are template names, values are templates
-    storage.compiled_templates = storage.compiled_templates or {}
-
-    -- key: surface_id, value = lab virtual environment
-    storage.compiling_surfaces = storage.compiling_surfaces or {}
-end
 
 -- Enables/disables all labs on a a given surface. Surface must be valid
 -- @param enabled bool: true for labs to be enabled
@@ -347,7 +329,7 @@ local function stop_compilation(surface_id, status)
         change_research(venv, 0)
     end
     
-    -- TODO: make function to check that surface compilation was valid. Like there are no chests full of trash etc.
+    
 
     -- Adding compiled template data to template storage
     if status then

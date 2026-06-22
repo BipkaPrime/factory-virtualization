@@ -17,10 +17,9 @@
 -- deconstrucion and upgrade planners to work properly.
 
 
-local Helper = {}
+local gui_names = require("scripts.gui.gui-names")
 
--- TODO: unlock tech for player force if lab force unlocked it. This way if player somehow (scripts, cheats, etc)
--- unlocks something while being with lab force, sync is not lost. Also need to prevent infinite loops!
+local Helper = {}
 
 function Helper.init_lab_force()
     game.create_force("lab-technical")
@@ -87,13 +86,12 @@ end
 -- Also enables it to lab-techical force
 -- Called on_init and on_configuration_changed
 function Helper.collect_technical_research()
-    storage.technical_research = {}
     local lab_tech = game.forces["lab-technical"].technologies
 
     -- going through prototypes and identifying technical research by prefix
     for tech_name, tech_prototype in pairs(prototypes.technology) do
         
-        if tech_name:find("^FV_") then
+        if tech_name:find("^" .. gui_names.prefix) then
             local ingredients = tech_prototype.research_unit_ingredients
             if ingredients and #ingredients > 0 then
                 local first_ingredient = ingredients[1]
