@@ -133,38 +133,20 @@ function Helper.arrange_selector(selector, options, search_query, selected_optio
     end
 end
 
-
 -- Creates empty grid panel for displaying sprite buttons
 -- @param gui_element LuaGuiElement: panel will be added here
 -- @param label localized string: text to be displayed above the panel
 -- @return LuaGuiElement: element where you can actually add the buttons
-function Helper.empty_grid_panel(gui_element, label)
-    local main_frame = gui_element.add{
-        type = "frame",
-        style = "bordered_frame"
-    }
-
-    local main_flow = main_frame.add{
-        type = "flow",
-        direction = "vertical",
-    }
-
-    -- Label above the table
-    local label_element = main_flow.add{
-        type = "label",
-        caption = label,
-        style = "bold_label",
-    }
-    label_element.style.font_color = {255, 230, 199}
-
+function Helper.empty_grid_panel(gui_element)
     -- deep container element
-    local container = main_flow.add{
+    local container =gui_element.add{
         type = "scroll-pane",
         style = "deep_slots_scroll_pane",
         direction = "vertical",
         horizontal_scroll_policy = "never",
         vertical_scroll_policy = "never",
     }
+    container.style.width = 400
 
     local internal_table = container.add{
         type = "table",
@@ -175,23 +157,40 @@ function Helper.empty_grid_panel(gui_element, label)
     return internal_table
 end
 
--- Inserts an item sprite into the given grid_panel
+-- Inserts a sprite button into the given grid_panel
 -- @param target_grid LuaGuiElement: "table"
+-- @para, type str: "item"/"fluid"
 -- @param name string: for instance, "iron-plate"
 -- @param count number: displayed number of items
 -- @param quality string: "uncommon", "rare", "epic", "legendary", etc.
-function Helper.insert_item_icon(target_grid, name, count, quality)
+function Helper.insert_sprite_button(target_grid, type, name, count, quality)
     local slot_button = target_grid.add{
         type = "sprite-button",
-        sprite = "item/" .. name,
+        sprite = type .. "/" .. name,
         number = count,
         style = "slot_button",
         quality = quality
     }
 
-    slot_button.elem_tooltip = {type = "item", name = name}
+    slot_button.elem_tooltip = {type = type, name = name}
 end
 
+-- Adds array of given buttons to grid_panel
+-- buttons must have following keys: type str: "item"/"fluid", name str: prototype name, count double
+function Helper.populate_sprite_grid(sprite_table, buttons)
+    for _, button in ipairs(buttons) do
+        Helper.insert_sprite_button(sprite_table, button.type, button.name, button.count, button.quality)
+    end
+end
+
+-- Adds label to given gui element
+function Helper.add_label(gui_element, caption)
+    gui_element.add{
+        type = "label",
+        caption = caption,
+        style = "bold_label",
+    }
+end
 
 
 

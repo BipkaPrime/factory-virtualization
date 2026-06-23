@@ -103,6 +103,9 @@ function Helper.start_compilation(surface_id, template_name)
         output = {items={}, fluids={}, energy = 0},
     }
 
+    -- cleaning pollution statistics for given surface
+    surface.pollution_statistics.clear()
+
     local venv = storage.compiling_surfaces[surface_id]
     -- if surface has labs we need to allocate time for benchmarking each science pack
     if venv.has_labs then
@@ -213,6 +216,26 @@ end
 local function create_production_template(venv, surface, template_name)
     local template_data = {}
 
+    -- gathering science production capability
+    -- local science_packs = {}
+    if venv.has_labs then
+        -- slow stage. labs potential
+        for ingredient, data in pairs(venv.benchmark_results.slow) do
+            template_data.science = template_data.science or {}
+            template_data.science.labs_potential = template_data.science.labs_potential or {}
+            template_data.science.labs_potential[ingredient] = data.points / data.time
+            -- science_packs[ingredient] = true
+        end
+
+        -- fast stage. logistics potential
+        for ingredient, data in pairs(venv.benchmark_results.fast) do
+            template_data.science = template_data.science or {}
+            template_data.science.logistics_potential = template_data.science.logistics_potential or {}
+            template_data.science.logistics_potential[ingredient] = data.points / data.time
+            -- science_packs[ingredient] = true
+        end
+    end
+
     -- gathering item inputs
     for item_name, q_counts in pairs(venv.input.items) do
         -- creating categories only when required
@@ -222,6 +245,7 @@ local function create_production_template(venv, surface, template_name)
         for quality, count in pairs(q_counts) do
             if count > 0 then
                 template_data.input.items[item_name] = template_data.input.items[item_name] or {}
+
                 template_data.input.items[item_name][quality] = count / venv.compilation_time
             end
         end
@@ -282,26 +306,19 @@ local function create_production_template(venv, surface, template_name)
         template_data.building_cost = cost
     end
 
-    -- gathering science production capability
-    if venv.has_labs then
-        -- slow stage. labs potential
-        for ingredient, data in pairs(venv.benchmark_results.slow) do
-            template_data.science = template_data.science or {}
-            template_data.science.labs_potential = template_data.science.labs_potential or {}
-            template_data.science.labs_potential[ingredient] = data.points / data.time
-        end
-
-        -- fast stage. logistics potential
-        for ingredient, data in pairs(venv.benchmark_results.fast) do
-            template_data.science = template_data.science or {}
-            template_data.science.logistics_potential = template_data.science.logistics_potential or {}
-            template_data.science.logistics_potential[ingredient] = data.points / data.time
-        end
-    end
-
     -- gathering surface area
     local settings = surface.map_gen_settings
     template_data.area = settings.width * settings.height
+
+    -- gathering pollution
+    local pollution_counts = surface.pollution_statistics.input_counts
+    local total = 0
+    for _, count in pairs(pollution_counts) do
+        total = total + count
+    end
+    if total > 0 then
+        template_data.pollution = total / venv.compilation_time
+    end
 
     storage.compiled_templates[template_name] = template_data
 end

@@ -12,23 +12,21 @@ require("scripts.lab-manager")
 
 
 
--- TODO: If entity is no longer valid, the interface will not close by itself.
+-- TODO: If entity is no longer valid, its interface will not close by itself.
 -- TODO: udlinks ghosts are clickable. And when clicked vanilla gui pops up.
 -- This is a big problem for energy udlinks since they are electric energy interfaces.
 -- TODO: unlock tech for player force if lab force unlocked it. This way if player somehow (scripts, cheats, etc)
 -- unlocks something while being with lab force, sync is not lost. Also need to prevent infinite loops!
--- TODO: add pollution to compilation
 -- TODO: fix input science pack values for compilations with research
 -- currently the problem is consumed packs are divided by the full length of 
 -- benchmarking process. Because of this, values are much smaller than they should be.
 -- The correct approach is to divide total number of research points produced by the
--- corresponding number of science packs consumed.
+-- corresponding number of time the science pack was researching.
 -- TODO: Make registry bulletproof. Currently it's possible to break it and crash the mod
 -- It will happen if entity from registry is destroyed by script without raising an event
 -- We can counter this by script.register_on_object_destroyed(entity)
 -- and then catching on_object_destroyed event.
 -- TODO: make function to check that surface compilation was valid. Like there are no chests full of trash etc.
--- TODO: sort items by count in dashboard sprite-button tables
 
 -------------------------------------------------------------------------------
 -- Initialization and lifecycle
@@ -66,8 +64,8 @@ script.on_init(function()
     -- Initializing technical lab force that owns everything built on virtualization surfaces. 
     lab_force.init_lab_force()
 
-    -- Technological progress of lab force must always match progress of player force
-    lab_force.sync_technologies()
+    -- Copying all of the given changeable values (except charts) from player force to lab force.
+    game.forces["lab-technical"].copy_from("player")
 
     -- Used to track all technical research added by this mod to benchmark science production
     -- on virualization surfaces. 1-indexed array, value: table containing 2 keys: tech_name, ingredient_name
@@ -85,8 +83,8 @@ end)
 
 
 script.on_configuration_changed(function()
-    -- Sync technologies just in case
-    lab_force.sync_technologies()
+    -- Copying all of the given changeable values (except charts) from player force to lab force.
+    game.forces["lab-technical"].copy_from("player")
 
     -- We need to recollect technical research because science packs could have been added/deleted
     storage.technical_research = {}
@@ -131,6 +129,10 @@ end
 -------------------------------------------------------------------------------
 -- Technology researched/unresearched handlers for lab force sync with player
 -------------------------------------------------------------------------------
+
+script.on_event(defines.events.on_player_changed_surface, function(event)
+    lab_force.process_surface_changed(event)
+end)
 
 script.on_event(defines.events.on_research_finished, function(event)
     lab_force.process_research_finished(event)
@@ -192,20 +194,11 @@ script.on_event(defines.events.on_gui_text_changed, function(event)
     dashboard.process_dashboard_surface_search(event)
 end)
 
-
-local dashboard_shortcut_name = gui_names.prefix .. gui_names.template_dashboard
--- Toggles production template dashboard when shortcut bar element is clicked
 script.on_event(defines.events.on_lua_shortcut, function(event)
-    if event.prototype_name == dashboard_shortcut_name then
-        local player = game.get_player(event.player_index)
-        if not player then return end
-        dashboard.toggle_template_dashboard(player)
-    end
+    dashboard.process_dashboard_shortcut(event)
 end)
 
--- Toggles production template dashboard when custom hotkey is pressed
+
 script.on_event(gui_names.prefix .. gui_names.dashboard_hotkey, function(event)
-    local player = game.get_player(event.player_index)
-    if not player then return end
-    dashboard.toggle_template_dashboard(player)
+    dashboard.process_dashboard_hotkey(event)
 end)

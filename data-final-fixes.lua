@@ -11,14 +11,12 @@ for _, tech_data in pairs(data.raw["technology"]) do
     if tech_data.unit and tech_data.unit.ingredients then
         for _, ingredient in ipairs(tech_data.unit.ingredients) do
             
-            -- Handle both format styles: 
-            -- {"automation-science-pack", 1} or {name="automation-science-pack", amount=1}
-            local pack_name = ingredient[1] or ingredient.name
+            -- getting the ingredient name
+            local pack_name = ingredient[1]
             
             if pack_name and not collected_science_packs[pack_name] then
                 -- Fetch the actual item prototype from data.raw
-                -- Science packs can occasionally be tools (like standard packs) or ammunition/items
-                local item_proto = data.raw["tool"][pack_name] or data.raw["item"][pack_name]
+                local item_proto = data.raw["item"][pack_name]
                 
                 if item_proto then
                     collected_science_packs[pack_name] = {
@@ -40,7 +38,7 @@ for _, pack in pairs(collected_science_packs) do
         icon = pack.icon,
         icon_size = pack.icon_size,
         enabled = false,
-        -- visible_when_disabled = true,
+        -- visible_when_disabled = true, -- debug option
         unit = {
             count = 1e18,
             time = 60,

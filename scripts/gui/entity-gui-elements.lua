@@ -215,7 +215,7 @@ function Helper.process_udlink_io_checkbox(event)
         -- clearing the selected_frequency
         properties.selected_frequency = nil
     else
-        local frequencies = utils.get_all_freq()
+        local frequencies = utils.get_all_templates()
         -- if button is disabled, that means there is no selected frequency
         gui_common.arrange_selector(selector, frequencies)
     end
@@ -241,7 +241,7 @@ function Helper.entity_freq_selector(content_frame, entity_properties)
     else
         -- arranging selector options if selector is enabled
         local selector = selection_flow[gui_names["prefix"] .. gui_names["entity_freq_selector"]]
-        local frequencies = utils.get_all_freq()
+        local frequencies = utils.get_all_templates()
         local selected_option = entity_properties.selected_frequency
         gui_common.arrange_selector(selector, frequencies, nil, selected_option)
     end
@@ -283,7 +283,7 @@ function Helper.process_entity_freq_search(event)
 
     -- modifing selector options based on search query
     local selector = element.parent[gui_names.prefix .. gui_names.entity_freq_selector]
-    local frequencies = utils.get_all_freq()
+    local frequencies = utils.get_all_templates()
     local query = element.text
     local selected_option = properties.selected_frequency
     gui_common.arrange_selector(selector, frequencies, query, selected_option)

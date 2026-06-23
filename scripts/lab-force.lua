@@ -28,7 +28,7 @@ end
 
 -- Changing force of the player who is looking at a lab surface to technical force
 -- and changing it back after leaving
-script.on_event(defines.events.on_player_changed_surface, function(event)
+function Helper.process_surface_changed(event)
     local player = game.players[event.player_index]
     local surface_idx = player.surface_index
 
@@ -43,18 +43,6 @@ script.on_event(defines.events.on_player_changed_surface, function(event)
             player.force = game.forces["player"]
             game.print("You now belong to player force")
         end
-    end
-end)
-
--- Function that researches every technology the player has for technical lab force.
--- Is called on_init and on_configuration_change
-function Helper.sync_technologies()
-    local player_tech = game.forces["player"].technologies
-    local lab_tech = game.forces["lab-technical"].technologies
-
-    for name, tech in pairs(player_tech) do
-        lab_tech[name].researched = tech.researched
-        lab_tech[name].level = tech.level
     end
 end
 
