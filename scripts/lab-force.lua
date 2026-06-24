@@ -33,7 +33,7 @@ function Helper.process_surface_changed(event)
     local surface_idx = player.surface_index
 
     -- chechking if the surface is a virtual lab
-    if storage.lab_surfaces[surface_idx] then
+    if storage.v_surfaces[surface_idx] then
         if player.force.name ~= "lab-technical" then
             player.force = game.forces["lab-technical"]
             game.print("You now belong to lab force")

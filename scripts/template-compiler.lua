@@ -45,7 +45,7 @@ end
 -- @returns bool: true if compilation can be started
 function Helper.compilation_startup_check(surface_id)
     -- checking if provided surface is a virtualization surface
-    if not storage.lab_surfaces[surface_id] then
+    if not storage.v_surfaces[surface_id] then
         game.print("Compilation NOT started. Given surface is not a virtualization surface")
         return
     end
@@ -446,7 +446,7 @@ end)
 commands.add_command("surface_cost", "Prints building cost of a surface player is looking at", function(command)
     local player = game.get_player(command.player_index)
     local surface_idx = player.surface_index
-    if not storage.lab_surfaces[surface_idx] then
+    if not storage.v_surfaces[surface_idx] then
         game.print("This is not a lab surface")
         return
     end

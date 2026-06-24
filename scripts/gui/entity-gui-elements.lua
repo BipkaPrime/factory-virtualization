@@ -164,7 +164,7 @@ function Helper.udlink_io_checkbox(content_frame, entity_properties, button_capt
 
     -- button should only be enabled on lab surfaces
     local surface_idx = entity_properties.entity.surface.index
-    if not storage.lab_surfaces[surface_idx] then
+    if not storage.v_surfaces[surface_idx] then
         button.enabled = false
         caption.enabled = false
         

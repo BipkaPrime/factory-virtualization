@@ -19,6 +19,23 @@ local const = {
     ["dashboard_datafield"] = "dashboard-datafield",
     ["dashboard_content_frame"] = "dashboard-content-frame",
     ["dashboard_right_content_frame"] = "dashboard-right-content-frame",
+    ["surface_manager"] = "surface-manager", -- shortcut bar element 
+    ["surface_manager_hotkey"] = "surface-manager-hotkey", -- custom input hotkey that opens surface manager
+    ["sm_window"] = "surface-manager-window",
+    ["sm_left_frame"] = "sm-left-frame",
+    ["sm_selector_flow"] = "sm-selector-flow",
+    ["sm_surface_selector"] = "sm-surface-selector",
+    ["sm_selector_textfield"] = "sm-selector-textfield",
+    ["new_surface_button"] = "new-surface-button",
+    ["sm_main_flow"] = "sm-main-flow",
+    ["sm_right_frame"] = "sm-right-frame",
+    ["sm_new_surface_label"] = "sm-new-surface-label",
+    ["sm_new_surface_textfield"] = "sm-new-surface-textfield",
+    ["sm_type_dropdown"] = "sm-type-dropdown",
+    ["sm_size_dropdown"] = "sm-size-dropdown",
+    ["sm_energy_drain"] = "sm_energy_drain",
+    ["sm_confirm_create"] = "sm-confirm-create",
+    ["sm_confirmation_flow"] = "sm-confirmation-flow",
 }
 
 return const

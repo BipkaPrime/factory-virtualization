@@ -8,8 +8,7 @@ local entity_gui_elements = require("scripts.gui.entity-gui-elements")
 local entity_gui = require("scripts.gui.entity-gui")
 local gui_names = require("scripts.gui.gui-names")
 local dashboard = require("scripts.gui.template-dashboard")
-require("scripts.lab-manager")
-
+local surface_manager = require("scripts.gui.surface-manager")
 
 
 -- TODO: If entity is no longer valid, its interface will not close by itself.
@@ -27,6 +26,10 @@ require("scripts.lab-manager")
 -- We can counter this by script.register_on_object_destroyed(entity)
 -- and then catching on_object_destroyed event.
 -- TODO: make function to check that surface compilation was valid. Like there are no chests full of trash etc.
+-- TODO: completely separate virtual surfaces that can produce research points from the rest. Create 2 different virtual surface types:
+-- First type can not produce research points (labs won't work here). (compiler will fire a warning if there are labs on the surface)
+-- Second type can ONLY produce research points, IO checkbox uplinks are prohibited. (compilation won't start with them)
+-- TODO: finish surface manager info display
 
 -------------------------------------------------------------------------------
 -- Initialization and lifecycle
@@ -34,9 +37,9 @@ require("scripts.lab-manager")
 
 script.on_init(function()
     -- Used to track special virtualization surfaces added by this mod
-    -- key: surface_id, value: true
-    storage.lab_surfaces = {}
-    
+    -- key: surface_id, value: table describing surface
+    storage.v_surfaces = {}
+
     -- Used to track compiled production templates added by this mod
     -- key: template name, value: compiled templates (table) 
     storage.compiled_templates = {}
@@ -79,6 +82,10 @@ script.on_init(function()
     -- Used to track all players who have template dashboard opened
     -- keys: player id, value = table (selected_template, selected_surface, etc.)
     storage.dashboard = {}
+
+    -- Used to track all players who have surface manager opened
+    -- keys: player id, value = table (selected_surface, etc.)
+    storage.surface_manager = {}
 end)
 
 
@@ -167,10 +174,13 @@ end)
 script.on_event(defines.events.on_gui_closed, function(event)
     entity_gui.process_entity_gui_closed(event)
     dashboard.process_dashboard_gui_closed(event)
+    surface_manager.process_surface_manager_gui_closed(event)
 end)
 
 script.on_event(defines.events.on_gui_click, function(event)
     gui_common.process_close_button(event)
+    surface_manager.process_new_surface_button(event)
+    surface_manager.process_creation_confirm(event)
 end)
 
 script.on_event(defines.events.on_gui_elem_changed, function(event)
@@ -186,19 +196,28 @@ script.on_event(defines.events.on_gui_selection_state_changed, function(event)
     entity_gui_elements.process_entity_freq_selector(event)
     dashboard.process_dashboard_template_selector(event)
     dashboard.process_dashboard_surface_selector(event)
+    surface_manager.process_new_surface_type(event)
+    surface_manager.process_new_surface_size(event)
+    surface_manager.process_vsurface_selector(event)
 end)
 
 script.on_event(defines.events.on_gui_text_changed, function(event)
     entity_gui_elements.process_entity_freq_search(event)
     dashboard.process_dashboard_template_search(event)
     dashboard.process_dashboard_surface_search(event)
+    surface_manager.process_new_surface_name(event)
+    surface_manager.process_left_searchfield(event)
 end)
 
 script.on_event(defines.events.on_lua_shortcut, function(event)
     dashboard.process_dashboard_shortcut(event)
+    surface_manager.process_surface_manager_shortcut(event)
 end)
-
 
 script.on_event(gui_names.prefix .. gui_names.dashboard_hotkey, function(event)
     dashboard.process_dashboard_hotkey(event)
+end)
+
+script.on_event(gui_names.prefix .. gui_names.surface_manager_hotkey, function(event)
+    surface_manager.process_surface_manager_hotkey(event)
 end)

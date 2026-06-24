@@ -1,4 +1,4 @@
--- Template dashboards is a gui window that displays information
+-- Template dashboard is a gui window that displays information
 -- about current state of all venvs there are.
 
 local gui_names = require("scripts.gui.gui-names")

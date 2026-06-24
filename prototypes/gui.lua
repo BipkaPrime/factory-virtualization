@@ -17,4 +17,19 @@ local dashboard_button = {
     associated_control_input = gui_names.prefix .. gui_names.dashboard_hotkey,
 }
 
-data.extend({dashboard_hotkey, dashboard_button})
+local surface_manager_hotkey = {
+    type = "custom-input",
+    name = gui_names.prefix .. gui_names.surface_manager_hotkey,
+    key_sequence = "ALT + V",
+}
+
+local surface_manager_button = {
+    type = "shortcut",
+    name = gui_names.prefix .. gui_names.surface_manager,
+    action = "lua",
+    icon = iconpath .. "surface-manager.png",
+    small_icon = iconpath .. "surface-manager.png",
+    associated_control_input = gui_names.prefix .. gui_names.surface_manager_hotkey,
+}
+
+data.extend({dashboard_hotkey, dashboard_button, surface_manager_hotkey, surface_manager_button})

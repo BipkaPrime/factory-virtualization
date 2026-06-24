@@ -185,5 +185,14 @@ function Helper.template_area_to_power(area)
     return K * math.sqrt(area) * area
 end
 
+-- Checks all values of a table and returns true if they all evaluate
+-- to true, false otherwise
+function Helper.all_true(table)
+    for _, val in pairs(table) do
+        if not val then return false end
+    end
+    return true
+end
+
 
 return Helper
