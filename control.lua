@@ -3,12 +3,7 @@ local lab_chunks_registry = require("scripts.lab-chunks-registry")
 local udlink_manager = require("scripts.udlink-manager")
 local template_compiler = require("scripts.template-compiler")
 local lab_force = require("scripts.lab-force")
-local gui_common = require("scripts.gui.common-gui-elements")
-local entity_gui_elements = require("scripts.gui.entity-gui-elements")
-local entity_gui = require("scripts.gui.entity-gui")
-local gui_names = require("scripts.gui.gui-names")
-local dashboard = require("scripts.gui.template-dashboard")
-local surface_manager = require("scripts.gui.surface-manager")
+require("scripts.gui-v2.main")
 
 
 -- TODO: If entity is no longer valid, its interface will not close by itself.
@@ -29,7 +24,7 @@ local surface_manager = require("scripts.gui.surface-manager")
 -- TODO: completely separate virtual surfaces that can produce research points from the rest. Create 2 different virtual surface types:
 -- First type can not produce research points (labs won't work here). (compiler will fire a warning if there are labs on the surface)
 -- Second type can ONLY produce research points, IO checkbox uplinks are prohibited. (compilation won't start with them)
--- TODO: finish surface manager info display
+-- TODO: make gui buttons routers (currently buttons press events are processed 1 by 1 by button names)
 
 -------------------------------------------------------------------------------
 -- Initialization and lifecycle
@@ -161,63 +156,4 @@ end)
 
 script.on_nth_tick(60, function()
     template_compiler.process_compiling_surfaces()
-end)
-
--------------------------------------------------------------------------------
--- GUI ZONE
--------------------------------------------------------------------------------
-
-script.on_event(defines.events.on_gui_opened, function(event)
-    entity_gui.process_entity_gui_opened(event)
-end)
-
-script.on_event(defines.events.on_gui_closed, function(event)
-    entity_gui.process_entity_gui_closed(event)
-    dashboard.process_dashboard_gui_closed(event)
-    surface_manager.process_surface_manager_gui_closed(event)
-end)
-
-script.on_event(defines.events.on_gui_click, function(event)
-    gui_common.process_close_button(event)
-    surface_manager.process_new_surface_button(event)
-    surface_manager.process_creation_confirm(event)
-end)
-
-script.on_event(defines.events.on_gui_elem_changed, function(event)
-    entity_gui_elements.process_udlink_item_selection(event)
-    entity_gui_elements.process_udlink_fluid_selection(event)
-end)
-
-script.on_event(defines.events.on_gui_checked_state_changed, function(event)
-    entity_gui_elements.process_udlink_io_checkbox(event)
-end)
-
-script.on_event(defines.events.on_gui_selection_state_changed, function(event)
-    entity_gui_elements.process_entity_freq_selector(event)
-    dashboard.process_dashboard_template_selector(event)
-    dashboard.process_dashboard_surface_selector(event)
-    surface_manager.process_new_surface_type(event)
-    surface_manager.process_new_surface_size(event)
-    surface_manager.process_vsurface_selector(event)
-end)
-
-script.on_event(defines.events.on_gui_text_changed, function(event)
-    entity_gui_elements.process_entity_freq_search(event)
-    dashboard.process_dashboard_template_search(event)
-    dashboard.process_dashboard_surface_search(event)
-    surface_manager.process_new_surface_name(event)
-    surface_manager.process_left_searchfield(event)
-end)
-
-script.on_event(defines.events.on_lua_shortcut, function(event)
-    dashboard.process_dashboard_shortcut(event)
-    surface_manager.process_surface_manager_shortcut(event)
-end)
-
-script.on_event(gui_names.prefix .. gui_names.dashboard_hotkey, function(event)
-    dashboard.process_dashboard_hotkey(event)
-end)
-
-script.on_event(gui_names.prefix .. gui_names.surface_manager_hotkey, function(event)
-    surface_manager.process_surface_manager_hotkey(event)
 end)

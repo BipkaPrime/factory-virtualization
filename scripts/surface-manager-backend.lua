@@ -56,8 +56,8 @@ function Helper.create_v_surface(properties, player)
     game.forces["lab-technical"].chart_all(surface)
 
     -- adding created surface to storage
-    storage.v_surfaces[surface.index] = {type = type}
-    
+    storage.v_surfaces[surface.index] = {type = type, status = "designing"}
+
     -- Put chunks into the "designing" section of chunk registry
     chunk_registry.register_surface(surface.index, "designing")
 

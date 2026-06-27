@@ -36,6 +36,9 @@ local const = {
     ["sm_energy_drain"] = "sm_energy_drain",
     ["sm_confirm_create"] = "sm-confirm-create",
     ["sm_confirmation_flow"] = "sm-confirmation-flow",
+    ["sm_start_compilation"] = "sm-start-compilation",
+    ["sm_template_name_textfield"] = "sm-template-name-textfield",
+    ["sm_template_name_label"] = "sm-template-name-label",
 }
 
 return const
