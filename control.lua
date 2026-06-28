@@ -20,7 +20,7 @@ require("scripts.gui-v2.main")
 -- It will happen if entity from registry is destroyed by script without raising an event
 -- We can counter this by script.register_on_object_destroyed(entity)
 -- and then catching on_object_destroyed event.
--- TODO: make function to check that surface compilation was valid. Like there are no chests full of trash etc.
+
 -- TODO: completely separate virtual surfaces that can produce research points from the rest. Create 2 different virtual surface types:
 -- First type can not produce research points (labs won't work here). (compiler will fire a warning if there are labs on the surface)
 -- Second type can ONLY produce research points, IO checkbox uplinks are prohibited. (compilation won't start with them)

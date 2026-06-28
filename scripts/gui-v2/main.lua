@@ -42,7 +42,7 @@ script.on_event(defines.events.on_lua_shortcut, function(event)
 end)
 
 local on_gui_text_changed_router = {
-    [names.prefix .. names.sm_left_search] = surface_manager.process_left_searchfield,
+    [names.prefix .. names.sm_left_search] = surface_manager.process_vsurface_searchfield,
     [names.prefix .. names.sm_new_surface_name_textfield] = surface_manager.process_new_surface_name_changed,
     [names.prefix .. names.sm_template_name_textfield] = surface_manager.process_template_name_textfield,
 }

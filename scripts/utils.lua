@@ -194,24 +194,4 @@ function Helper.all_true(table)
     return true
 end
 
--- checks if given template name is available
-function Helper.template_name_available(template_name)
-    if not template_name then return false end
-    local trimmed_name = template_name:match("^%s*(.-)%s*$") or ""
-    if trimmed_name == "" then return false end
-    for name, _ in pairs(storage.compiled_templates) do
-        if name == template_name then return false end
-    end
-    for _, venv in pairs(storage.compiling_surfaces) do
-        if venv.template_name == template_name then return false end
-    end
-    return true
-end
-
--- maps vsurface types to their descriptions (1 = production, 2 = science).
-Helper.vsurface_type_table = {
-    {"gui-label.production-type-detailed"},
-    {"gui-label.science-type-detailed"},
-}
-
 return Helper

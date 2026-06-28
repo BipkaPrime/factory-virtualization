@@ -6,6 +6,7 @@ local Helper = {}
 
 -- checking availability of surface name
 function Helper.surface_name_available(name)
+    if not name then return false end
     -- cleaning name
     local trimmed_name = name:match("^%s*(.-)%s*$") or ""
     local cleaned_name = string.lower(trimmed_name)
@@ -56,7 +57,7 @@ function Helper.create_v_surface(properties, player)
     game.forces["lab-technical"].chart_all(surface)
 
     -- adding created surface to storage
-    storage.v_surfaces[surface.index] = {type = type, status = "designing"}
+    storage.v_surfaces[surface.index] = {type = type}
 
     -- Put chunks into the "designing" section of chunk registry
     chunk_registry.register_surface(surface.index, "designing")
