@@ -2,7 +2,7 @@
 -- surfaces (create, destroy, start compilation, see information).
 
 -- Main considerations to keep in mind when creating this gui.
--- 1. I want all data to persist if inteface is closed and then opened again.
+-- 1. I want all data to persist if interface is closed and then opened again.
 --    To achieve this, we store all data related to interface state in storage.
 -- 2. We have to update parts of the interface in responce to user inputs.
 --    To do this conveniently, we store references to all objects that we want to update,
@@ -45,26 +45,13 @@ local misc = require("scripts.misc")
 
 local Helper = {}
 
--- collects names of all existing vsurfaces
--- @returns table[string]: collected names
-local function get_all_vsurfaces()
-    local result = {}
-    for surface_index, _ in pairs(storage.v_surfaces) do
-        local surface = game.get_surface(surface_index)
-        if surface and surface.valid then
-            table.insert(result, surface.name)
-        end
-    end
-    return result
-end
-
 -- Updates vsurface selector located on the left side of interface
 local function update_vsurface_selector(manager_data)
     local selector = manager_data.elements.vsurface_selector
     if not selector or not selector.valid then return end
     local query = manager_data.vsurface_search_query
     local selected_vsurface = manager_data.selected_vsurface
-    local options = get_all_vsurfaces()
+    local options = backend.get_all_vsurfaces()
     common.arrange_selector(selector, options, query, selected_vsurface)
 end
 
@@ -584,14 +571,6 @@ function Helper.process_compile_button(event)
     update_right_frame(manager_data)
 end
 
--- Closes the surface manager when player.opened changes.
--- Used when on_gui_closed event is triggered
-function Helper.process_surface_manager_gui_closed(event)
-    local manager_data = storage.surface_manager[event.player_index]
-    manager_data.opened = nil
-    manager_data.elements.main_window.destroy()
-end
-
 -- Time-based vsurface manager updater
 function Helper.update_opened_managers()
     for _, manager_data in pairs(storage.surface_manager) do
@@ -602,6 +581,14 @@ function Helper.update_opened_managers()
             update_template_name_textfield(manager_data)
         end
     end
+end
+
+-- Closes the surface manager when player.opened changes.
+-- Used when on_gui_closed event is triggered
+function Helper.process_surface_manager_gui_closed(event)
+    local manager_data = storage.surface_manager[event.player_index]
+    manager_data.opened = nil
+    manager_data.elements.main_window.destroy()
 end
 
 -- Toggles surface manager when shortcut bar element is clicked

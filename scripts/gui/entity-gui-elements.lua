@@ -22,38 +22,7 @@ function Helper.entity_gui_base(player, entity_name)
     return main_frame
 end
 
--- Adds an item selection button to a given content frame
--- @param content_frame: LuaGuiElement, button will be added here
--- @param entity_properties: table from entity registry, describing it
--- @param button_caption: str, text to the left of button
-function Helper.udlink_item_selection(content_frame, entity_properties, button_caption)
-    -- invisible object for horizontal alignment
-    local row = content_frame.add{
-        type = "flow",
-        direction = "horizontal",
-    }
-    row.style.vertical_align = "center"
 
-    -- caption text to the left of button
-    row.add{
-        type="label",
-        caption=button_caption,
-    }
-
-    -- button itself
-    local selection_button = row.add{
-        type="choose-elem-button",
-        name=gui_names.prefix .. gui_names.item_selection,
-        elem_type="item-with-quality",
-    }
-
-    -- if something is already selected, we need to display that
-    local selected_item = entity_properties.selected_item
-    if selected_item then
-        -- since selected item is potentially with quality we have to do it like this
-        selection_button.elem_value = selected_item
-    end
-end
 
 -- Used when on_gui_elem_changed event is triggered
 function Helper.process_udlink_item_selection(event)
@@ -133,46 +102,7 @@ function Helper.process_udlink_fluid_selection(event)
     properties.selected_fluid = element.elem_value
 end
 
--- Adds an item checkbox button to a given content frame
--- @param content_frame: LuaGuiElement, button will be added here
--- @param entity_properties: table from entity registry, describing it
--- @param button_caption: str, text to the left of button
-function Helper.udlink_io_checkbox(content_frame, entity_properties, button_caption)
-    -- invisible object for horizontal alignment
-    local row = content_frame.add{
-        type = "flow",
-        direction = "horizontal",
-    }
-    row.style.vertical_align = "center"
-    row.style.bottom_margin = 12
 
-    -- caption text to the left of button
-    local caption = row.add{
-        type="label",
-        caption=button_caption,
-    }
-
-    local button_state = entity_properties.checkbox_state
-    if button_state == nil then button_state = false end
-
-    -- button itself
-    local button = row.add{
-        type="checkbox",
-        name=gui_names.prefix .. gui_names.udlink_checkbox,
-        state=button_state,
-    }
-
-    -- button should only be enabled on lab surfaces
-    local surface_idx = entity_properties.entity.surface.index
-    if not storage.v_surfaces[surface_idx] then
-        button.enabled = false
-        caption.enabled = false
-        
-        -- in case button is somehow enabled on non-lab surface
-        button.state = false
-        entity_properties.checkbox_state = false
-    end
-end
 
 -- Used when on_gui_checked_state_changed event is triggered
 function Helper.process_udlink_io_checkbox(event)

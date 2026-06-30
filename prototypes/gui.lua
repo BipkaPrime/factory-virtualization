@@ -1,22 +1,21 @@
 local names = require("scripts.gui-v2.names")
 local iconpath = "__factory-virtualization__/graphics/icons/"
 
---[[
-local dashboard_hotkey = {
+
+local td_hotkey = {
     type = "custom-input",
-    name = names.prefix .. names.dashboard_hotkey,
+    name = names.prefix .. names.td_hotkey,
     key_sequence = "CONTROL + SPACE",
 }
 
-local dashboard_button = {
+local td_shortcut = {
     type = "shortcut",
-    name = names.prefix .. names.template_dashboard,
+    name = names.prefix .. names.td_shortcut,
     action = "lua",
     icon = iconpath .. "template-dashboard.png",
     small_icon = iconpath .. "template-dashboard.png",
-    associated_control_input = names.prefix .. names.dashboard_hotkey,
+    associated_control_input = names.prefix .. names.td_hotkey,
 }
---]]
 
 local sm_hotkey = {
     type = "custom-input",
@@ -33,4 +32,4 @@ local sm_shortcut = {
     associated_control_input = names.prefix .. names.sm_hotkey,
 }
 
-data.extend({sm_hotkey, sm_shortcut})
+data.extend({td_hotkey, td_shortcut, sm_hotkey, sm_shortcut})

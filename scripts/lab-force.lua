@@ -35,15 +35,17 @@ end
 
 function Helper.init_lab_force()
     -- creating technical force if it doesn't exist
-    local lab_force = game.forces["lab-technical"]
-    if not lab_force then
+    if not game.forces["lab-technical"] then
         game.create_force("lab-technical")
     end
+    local lab_force = game.forces["lab-technical"]
     -- copying all player force data to match progress
-    game.forces["lab-technical"].copy_from("player")
+    lab_force.copy_from("player")
     storage.technical_research = {}
     collect_technical_research()
-    game.forces["lab-technical"].disable_research()
+    lab_force.disable_research()
+    -- setting them friends so player won't die to own turrents
+    game.forces["player"].set_friend(lab_force, true)
 end
 
 function Helper.process_player_changed_surface(event)

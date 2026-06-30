@@ -1,4 +1,4 @@
--- Functions for creation/deletion/etc of v-surfaces 
+-- Functions for lookup/creation/deletion/etc of v-surfaces 
 
 local chunk_registry = require("scripts.vsurface-chunk-registry")
 
@@ -90,6 +90,19 @@ function Helper.get_surface_data(surface_name)
     if not surface or not surface.valid then return end
     local vsurface_data = storage.v_surfaces[surface.index]
     return vsurface_data
+end
+
+-- collects names of all existing vsurfaces
+-- @returns table[string]: collected names
+function Helper.get_all_vsurfaces()
+    local result = {}
+    for surface_index, _ in pairs(storage.v_surfaces) do
+        local surface = game.get_surface(surface_index)
+        if surface and surface.valid then
+            table.insert(result, surface.name)
+        end
+    end
+    return result
 end
 
 -- Deletes vsurface provided it's name

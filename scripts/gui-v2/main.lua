@@ -3,6 +3,7 @@
 local common = require("scripts.gui-v2.common")
 local names = require("scripts.gui-v2.names")
 local surface_manager = require("scripts.gui-v2.vsurface-manager")
+local template_dashboard = require("scripts.gui-v2.template-dashboard")
 
 
 -- Picks a handler for event.element from router table.
@@ -28,6 +29,7 @@ end)
 
 local on_gui_closed_router = {
     [names.prefix .. names.sm_window] = surface_manager.process_surface_manager_gui_closed,
+    [names.prefix .. names.td_window] = template_dashboard.process_template_dashboard_gui_closed,
 }
 script.on_event(defines.events.on_gui_closed, function(event)
     gui_name_router(event, on_gui_closed_router)
@@ -35,6 +37,7 @@ end)
 
 local on_lua_shortcut_router = {
     [names.prefix .. names.sm_shortcut] = surface_manager.process_surface_manager_shortcut,
+    [names.prefix .. names.td_shortcut] = template_dashboard.process_dashboard_shortcut,
 }
 script.on_event(defines.events.on_lua_shortcut, function(event)
     local handler = on_lua_shortcut_router[event.prototype_name]
@@ -46,6 +49,7 @@ local on_gui_text_changed_router = {
     [names.prefix .. names.sm_vsurface_search] = surface_manager.process_vsurface_searchfield,
     [names.prefix .. names.sm_new_surface_name] = surface_manager.process_new_surface_name_changed,
     [names.prefix .. names.sm_template_name] = surface_manager.process_template_name_textfield,
+    [names.prefix .. names.td_template_search] = template_dashboard.process_template_search,
 }
 script.on_event(defines.events.on_gui_text_changed, function(event)
     gui_name_router(event, on_gui_text_changed_router)
@@ -55,6 +59,7 @@ local on_gui_selection_state_changed_router = {
     [names.prefix .. names.sm_vsurface_selector] = surface_manager.process_vsurface_selector,
     [names.prefix .. names.sm_new_surface_type] = surface_manager.process_new_surface_type,
     [names.prefix .. names.sm_new_surface_size] = surface_manager.process_new_surface_size,
+    [names.prefix .. names.td_template_selector] = template_dashboard.process_template_selector,
 }
 script.on_event(defines.events.on_gui_selection_state_changed, function(event)
     gui_name_router(event, on_gui_selection_state_changed_router)
@@ -63,14 +68,6 @@ end)
 --[[
 script.on_event(defines.events.on_gui_opened, function(event)
     entity_gui.process_entity_gui_opened(event)
-end)
-
-
-script.on_event(defines.events.on_gui_click, function(event)
-    gui_common.process_close_button(event)
-    --surface_manager.process_new_surface_button(event)
-    --surface_manager.process_creation_confirm(event)
-    --surface_manager.process_compile_button(event)
 end)
 
 script.on_event(defines.events.on_gui_elem_changed, function(event)
@@ -82,16 +79,4 @@ script.on_event(defines.events.on_gui_checked_state_changed, function(event)
     entity_gui_elements.process_udlink_io_checkbox(event)
 end)
 
-
-
-
-
-script.on_event(defines.events.on_lua_shortcut, function(event)
-    dashboard.process_dashboard_shortcut(event)
-    surface_manager.process_surface_manager_shortcut(event)
-end)
-
-script.on_event(gui_names.prefix .. gui_names.dashboard_hotkey, function(event)
-    dashboard.process_dashboard_hotkey(event)
-end)
 --]]

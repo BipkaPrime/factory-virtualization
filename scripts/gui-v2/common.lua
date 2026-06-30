@@ -161,7 +161,7 @@ end
 -- @param buttons array of tables: each table must contain following keys:
 -- type: "item"/"fluid", name str: prototype name, count double: displayed number,
 -- quality (if type == "item") string: "uncommon", "epic", etc.
-function Helper.empty_grid_panel(element, buttons)
+function Helper.sprite_button_panel(element, buttons)
     -- deep container element
     local container = element.add{
         type = "scroll-pane",

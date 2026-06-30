@@ -3,6 +3,7 @@ local lab_force = require("scripts.lab-force")
 local entity_registry = require("scripts.entity-registry")
 local template_compiler = require("scripts.template-compiler")
 local vsurface_manager = require("scripts.gui-v2.vsurface-manager")
+local template_dashboard = require("scripts.gui-v2.template-dashboard")
 require("scripts.gui-v2.main")
 
 
@@ -48,15 +49,15 @@ script.on_init(function()
 
     -- Used to store data of dashboard gui window for all players
     -- keys: player id, value = table (selected_template, selected_surface, etc.)
-    storage.dashboard = {}
+    storage.template_dashboard = {}
 
     -- Used to store data of surface manager gui window for all players
     -- keys: player id, value = table (selected_surface, etc.)
     storage.surface_manager = {}
 
-    -- Used to track last opened entity with cusom gui.
-    -- key: player_index, value: LuaEntity
-    storage.last_opened_entity = {}
+    -- Used to track of last opened entity with cusom gui.
+    -- key: player_index, value: table
+    storage.entity_gui = {}
 end)
 
 
@@ -96,4 +97,5 @@ end)
 script.on_event(defines.events.on_player_changed_surface, function(event)
     lab_force.process_player_changed_surface(event)
     vsurface_manager.process_player_changed_surface(event)
+    template_dashboard.process_player_changed_surface(event)
 end)

@@ -14,6 +14,17 @@ local const = {
     sm_new_surface_confirm = "sm-new-surface-confirm", -- surface manager new surface confirm create new surface button
     sm_template_name = "sm-template-name", -- surface manager template name textfield
     sm_start_compilation_btn = "sm-start-compilation", -- surface manager start compilation button
+    td_window = "td-window", -- template dashboard main window
+    td_hotkey = "td-hotkey", -- prototype name of a hotkey used to open template dashboard
+    td_shortcut = "td-shortcut", -- template dashboard shortcut bar element name
+    td_template_selector = "td-template-selector", -- template dashboard template selector
+    td_template_search = "td-template-search", -- template dashboard template searchfield
+    td_surface_selector = "td-surface-selector", -- template dashboard surface selector
+    td_surface_search = "td-surface-search", -- template dashboard surface searchfield
+    entity_window = "entity-window", -- custom entity gui main window name
+    udlink_io_checkbox = "udlink-io-checkbox", -- uplink/downlink IO checkbox name
+    entity_template_search = "entity-template-search", -- entity gui template searchfield
+    entity_template_selector = "entity-template-selector", -- entity gui template selector
 }
 
 return const
