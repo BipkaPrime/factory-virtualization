@@ -13,7 +13,6 @@ local const = {
     sm_new_surface_size = "sm-new-surface-size", -- surface manager new surface type selection
     sm_new_surface_confirm = "sm-new-surface-confirm", -- surface manager new surface confirm create new surface button
     sm_template_name = "sm-template-name", -- surface manager template name textfield
-    sm_template_name_status = "sm_template_name_status", -- surface manager template name status
     sm_start_compilation_btn = "sm-start-compilation", -- surface manager start compilation button
 }
 

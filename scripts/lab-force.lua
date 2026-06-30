@@ -1,102 +1,81 @@
 -- This file is for everything regarding technical force this mod introduces.
 
--- This mod allows for creation of special lab surfaces where all buildings and resources
+-- This mod allows for creation of special virtualization surfaces where all buildings and resources
 -- are basically free. One potential problem to keep in mind is that player can get 
 -- infinite research for free. So we need to prevent that somehow.
 
--- The idea is simple. Whenever an entity is built on a lab surface its force will be converted
--- to technical lab force. This way player won't be able to get any research progress from the lab surface.
--- This approach will also allow for virtualization of research. Another side effect from this is that 
--- production from lab surfaces will not affect production statistics for player.
+-- For that we will create "lab-technical" force that will own everything that is built on vsurfaces
+-- Moreover, when player looks as vsurface we will assign them to "lab-technical" force.
 
 -- The lab force should have the same researched technologies as the player force so that simulation is accurate.
 -- So whenever the player researches something, we need to also unlock that technology for the lab force.
 -- Since mod can be added to an already existing save, we need to match the research progress on_init as well.
 
--- We will have to change the force of whoever looking at lab surface for 
--- deconstrucion and upgrade planners to work properly.
-
-
-local gui_names = require("scripts.gui.gui-names")
+local names = require("scripts.gui-v2.names")
 
 local Helper = {}
 
-function Helper.init_lab_force()
-    game.create_force("lab-technical")
-    game.forces["lab-technical"].disable_research()
-end
-
--- Changing force of the player who is looking at a lab surface to technical force
--- and changing it back after leaving
-function Helper.process_surface_changed(event)
-    local player = game.players[event.player_index]
-    local surface_idx = player.surface_index
-
-    -- chechking if the surface is a virtual lab
-    if storage.v_surfaces[surface_idx] then
-        if player.force.name ~= "lab-technical" then
-            player.force = game.forces["lab-technical"]
-            game.print("You now belong to lab force")
-        end
-    else
-        if player.force.name == "lab-technical" then
-            player.force = game.forces["player"]
-            game.print("You now belong to player force")
+-- Collects and enables all technical research and saves it to storage
+local function collect_technical_research()
+    local lab_tech = game.forces["lab-technical"].technologies
+    -- going through prototypes and identifying technical research by prefix
+    for tech_name, tech_prototype in pairs(prototypes.technology) do
+        if tech_name:find("^" .. names.prefix) then
+            local first_ingredient = tech_prototype.research_unit_ingredients[1]
+            local tech_data = {
+                tech_name = tech_name,
+                ingredient_name = first_ingredient.name
+            }
+            table.insert(storage.technical_research, tech_data)
+            -- enabling technology for lab force
+            lab_tech[tech_name].enabled = true
         end
     end
 end
 
--- Used when on_research_finished event is triggered.
--- Researches finished technology for lab force.
+function Helper.init_lab_force()
+    -- creating technical force if it doesn't exist
+    local lab_force = game.forces["lab-technical"]
+    if not lab_force then
+        game.create_force("lab-technical")
+    end
+    -- copying all player force data to match progress
+    game.forces["lab-technical"].copy_from("player")
+    storage.technical_research = {}
+    collect_technical_research()
+    game.forces["lab-technical"].disable_research()
+end
+
+function Helper.process_player_changed_surface(event)
+    local player = game.players[event.player_index]
+    if not player and not player.valid then return end
+    local surface_idx = player.surface_index
+    if storage.v_surfaces[surface_idx] then
+        player.force = game.forces["lab-technical"]
+    else
+        player.force = game.forces["player"]
+    end
+end
+
+-- Used to sync progress between player and "lab-technical" forces
+-- When player researches a technology, "lab-technical" unlocks it too
 function Helper.process_research_finished(event)
     local tech = event.research
     local lab_tech = game.forces["lab-technical"].technologies
 
-    -- if player force did the research, we unlock it for lab force
     if tech.force == game.forces["player"] then
         lab_tech[tech.name].researched = true
     end
 end
 
--- Used when on_research_reversed event is triggered.
--- Unresearches technology for lab force.
+-- Used to sync progress between player and "lab-technical" forces
+-- When player reverses a technology, "lab-technical" locks it too
 function Helper.process_research_reversed(event)
     local tech = event.research
     local lab_tech = game.forces["lab-technical"].technologies
 
-    -- if player force did unresearched, we unresearch it for lab force
     if tech.force == game.forces["player"] then
         lab_tech[tech.name].researched = false
-    end
-end
-
--- Collects all technical research added by this mod and saves to storage
--- Also enables it to lab-techical force
--- Called on_init and on_configuration_changed
-function Helper.collect_technical_research()
-    local lab_tech = game.forces["lab-technical"].technologies
-
-    -- going through prototypes and identifying technical research by prefix
-    for tech_name, tech_prototype in pairs(prototypes.technology) do
-        
-        if tech_name:find("^" .. gui_names.prefix) then
-            local ingredients = tech_prototype.research_unit_ingredients
-            if ingredients and #ingredients > 0 then
-                local first_ingredient = ingredients[1]
-
-                -- saving tech_name and ingridient_name
-                table.insert(
-                    storage.technical_research,
-                    {
-                        tech_name = tech_name,
-                        ingredient_name = first_ingredient.name,
-                    }
-                )
-                
-                -- enabling the technology for lab force
-                lab_tech[tech_name].enabled = true
-            end
-        end
     end
 end
 

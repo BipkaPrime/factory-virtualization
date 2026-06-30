@@ -2,7 +2,7 @@
 
 local gui_names = require("scripts.gui.gui-names")
 local gui_common = require("scripts.gui.common-gui-elements")
-local utils = require("scripts.utils")
+local utils = require("scripts.misc")
 
 local Helper = {}
 

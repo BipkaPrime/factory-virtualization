@@ -1,109 +1,106 @@
 -- This mod introduces several entities that need to be tracked.
 -- To tackle this problem, we create an entity registry in storage table.
--- Each entity name is associated with it's own section in the registry.
--- Each section contains 2 tables called "array" and "lookup".
--- The "array" is for storing tables that contain LuaEntity objects and custom mod settings associated with them. It's gap-free.
--- The "lookup" is for storing entity.unit_number identifiers.
--- It's a hash map that stores [unit_number] = array_idx
--- It's required for the ability to find and delete an entity in O(1) time
-
-
-local Helpers = {}
-
-
--- table with all entity names that are included in the registry
-local tracked_entities = {
-    ["item-uplink"] = true,
-    ["item-downlink"] = true,
-    ["fluid-uplink"] = true,
-    ["fluid-downlink"] = true,
-    ["energy-uplink"] = true,
-    ["energy-downlink"] = true,
+-- We want it to do two things. First, it should contain 1-indexed array
+-- with all data of entities that are "in" the registry for performance reasons.
+-- Each tick we will process every 60-th element of that array with changing offset.
+-- Second, we want to be able to access data for a given entity in O(1) time.
+-- To achieve this, registry will consist of 2 parts:
+--[[
+storage.entity_registry = {
+    -- main 1-indexed array
+    array = {}, 
+    -- hashmap for fast access with keys: entity.unit_number,
+    -- and values: index of entity data in the main array
+    lookup = {},
 }
+--]]
 
--- Used as event filter for build/destroy events
-Helpers.event_filter = {}
-for building_name, _ in pairs(tracked_entities) do
-    table.insert(Helpers.event_filter, {filter = "name", name = building_name})
-end
+local entity_manager = require("scripts.entity-manager")
+local names = require("scripts.gui-v2.names")
 
+local Helper = {}
 
--- Used on_init or on_configuration_change to set up storage table
-function Helpers.storage_init()
-    storage.entity_registry = storage.entity_registry or {}
-    for entity_name, _ in pairs(tracked_entities) do
-        storage.entity_registry[entity_name] = storage.entity_registry[entity_name] or {array = {}, lookup = {}}
-    end
-end
-
--- Adds an entity to the registry
-local function add_to_registry(entity, entity_name)
-    if not (entity and entity.valid and entity.unit_number and entity_name) then return end
-    
-    local reg = storage.entity_registry[entity_name]
-    
-    -- Prevent duplicate entries
+-- Adds given entity to registry
+-- @param entity LuaEntity
+local function register_entity(entity)
+    if not entity or not entity.valid or not entity.unit_number then return end
+    local reg = storage.entity_registry
+    -- avoiding duplicates
     if reg.lookup[entity.unit_number] then return end
-
-    -- Append the entity to the end of the correct array
-    table.insert(reg.array, {["entity"] = entity})
-    
-    -- Record its current index location for O(1) removals later
+    table.insert(reg.array, {entity = entity, unit_number = entity.unit_number})
     reg.lookup[entity.unit_number] = #reg.array
 end
 
--- Removes an entity from the registry
-local function remove_from_registry(entity, entity_name)
-    if not (entity and entity.unit_number and entity_name) then return end
+-- Removes given entity from registry. Used for automatic garbage collection.
+-- @param unit_number
+local function unregister_entity(unit_number)
+    local reg = storage.entity_registry
+    local index = reg.lookup[unit_number]
 
-    local reg = storage.entity_registry[entity_name]
-    local index = reg.lookup[entity.unit_number]
-    if not index then return end
+    -- swapping element we want to delete with the last one
+    local last_element = reg.array[#reg.array]
+    reg.array[index] = last_element
+    reg.lookup[last_element.unit_number] = index
 
-    local array_length = #reg.array
-    -- If the target is not the last item, swap it with the last item
-    if index < array_length then
-        local last_element = reg.array[array_length]
-        reg.array[index] = last_element
-        
-        -- Update the index tracker for the moved element
-        reg.lookup[last_element.entity.unit_number] = index
-    end
-    
-    -- Safely drop the redundant last slot from the array
+    -- removing last element from both tables 
     table.remove(reg.array)
-    
-    -- Clear the entry from the tracking lookup table
-    reg.lookup[entity.unit_number] = nil
+    reg.lookup[unit_number] = nil
 end
 
--- Handles on_built_entity and similar events add entity to registry
-function Helpers.register_entity(event)
-    if not (event.entity and event.entity.valid) then return end
-    add_to_registry(event.entity, event.entity.name)
+-- Returns table describing entity from entity registry
+-- @param unit_number int: unique entity identifier
+function Helper.get_entity_data(unit_number)
+    local reg = storage.entity_registry
+    local index = reg.lookup[unit_number]
+    if not index then return end
+    return reg.array[index]
 end
 
--- Handles on_entity_died and similar events
-function Helpers.unregister_entity(event)
-    if not (event.entity and event.entity.valid) then return end
-    remove_from_registry(event.entity, event.entity.name)
+-- Maps entity names to their on-tick handlers
+local entity_router = {
+    [names.prefix .. "item-uplink"] = entity_manager.update_item_uplink,
+    [names.prefix .. "item-downlink"] = entity_manager.update_item_downlink,
+    [names.prefix .. "fluid-uplink"] = entity_manager.update_fluid_uplink,
+    [names.prefix .. "fluid-downlink"] = entity_manager.update_fluid_downlink,
+    [names.prefix .. "energy-uplink"] = entity_manager.update_energy_uplink,
+    [names.prefix .. "energy-downlink"] = entity_manager.update_energy_downlink,
+}
+
+-- Subscribing to all build events 
+local build_filter = {}
+for building_name, _ in pairs(entity_router) do
+    table.insert(build_filter, {filter = "name", name = building_name})
+end
+local build_events = {
+    defines.events.on_built_entity,
+    defines.events.on_robot_built_entity,
+    defines.events.on_space_platform_built_entity,
+    defines.events.script_raised_revive
+}
+local function on_entity_built(event)
+    local entity = event.entity
+    register_entity(entity)
+end
+for _, event in ipairs(build_events) do
+    script.on_event(event, on_entity_built, build_filter)
 end
 
--- Resets the registry then scans all game surfaces to add all tracked entities
--- Will be very slow on large bases. May be used on_configuration_change but mostly for debugging
-local function reset_registry()
-    storage.entity_registry = {}
-    for entity_name, _ in pairs(tracked_entities) do
-        storage.entity_registry[entity_name] = {array = {}, lookup = {}}
-        for _, surface in pairs(game.surfaces) do
-            local entities = surface.find_entities_filtered{name = entity_name}
-            for _, entity in ipairs(entities) do
-                add_to_registry(entity, entity_name)
-            end
+-- Used for on-tick entity processing
+function Helper.entity_processor(event)
+    local reg = storage.entity_registry
+    -- processing every 60-th element each tick
+    local offset = event.tick % 60
+    for i = #reg.array - offset, 1, -60 do
+        local properties = reg.array[i]
+        local entity = properties.entity
+        if entity.valid then
+            local handler = entity_router[entity.name]
+            handler(properties)
+        else
+            -- auto garbage collection
+            unregister_entity(properties.unit_number)
         end
     end
 end
 
-commands.add_command("reset_registry", "Resets the entity registry then scans all surfaces repopulate it", reset_registry)
-
-return Helpers
+return Helper

@@ -1,5 +1,6 @@
 local iconpath = "__factory-virtualization__/graphics/icons/"
 local item_sounds = require("__base__.prototypes.item_sounds")
+local names = require("scripts.gui-v2.names")
 
 
 local virtualization_subgroup = {
@@ -19,7 +20,7 @@ local item_uplink = {
 	inventory_move_sound = item_sounds.metal_chest_inventory_move,
 	pick_sound = item_sounds.metal_chest_inventory_pickup,
 	drop_sound = item_sounds.metal_chest_inventory_move,
-	place_result = "item-uplink",
+	place_result = names.prefix .. "item-uplink",
 	stack_size = 10,
 }
 
@@ -32,7 +33,7 @@ local item_downlink = {
 	inventory_move_sound = item_sounds.metal_chest_inventory_move,
 	pick_sound = item_sounds.metal_chest_inventory_pickup,
 	drop_sound = item_sounds.metal_chest_inventory_move,
-	place_result = "item-downlink",
+	place_result = names.prefix .. "item-downlink",
 	stack_size = 10,
 }
 
@@ -45,7 +46,7 @@ local fluid_uplink = {
 	inventory_move_sound = item_sounds.metal_chest_inventory_move,
 	pick_sound = item_sounds.metal_chest_inventory_pickup,
 	drop_sound = item_sounds.metal_chest_inventory_move,
-	place_result = "fluid-uplink",
+	place_result = names.prefix .. "fluid-uplink",
 	stack_size = 10,
 }
 
@@ -58,7 +59,7 @@ local fluid_downlink = {
 	inventory_move_sound = item_sounds.metal_chest_inventory_move,
 	pick_sound = item_sounds.metal_chest_inventory_pickup,
 	drop_sound = item_sounds.metal_chest_inventory_move,
-	place_result = "fluid-downlink",
+	place_result = names.prefix .. "fluid-downlink",
 	stack_size = 10,
 }
 
@@ -71,7 +72,7 @@ local energy_uplink = {
 	inventory_move_sound = item_sounds.metal_chest_inventory_move,
 	pick_sound = item_sounds.metal_chest_inventory_pickup,
 	drop_sound = item_sounds.metal_chest_inventory_move,
-	place_result = "energy-uplink",
+	place_result = names.prefix .. "energy-uplink",
 	stack_size = 10,
 }
 
@@ -84,7 +85,7 @@ local energy_downlink = {
 	inventory_move_sound = item_sounds.metal_chest_inventory_move,
 	pick_sound = item_sounds.metal_chest_inventory_pickup,
 	drop_sound = item_sounds.metal_chest_inventory_move,
-	place_result = "energy-downlink",
+	place_result = names.prefix .. "energy-downlink",
 	stack_size = 10,
 }
 

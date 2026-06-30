@@ -82,7 +82,4 @@ local energy_downlink = {
 	results = {{type="item", name="energy-downlink", amount = 1}},
 }
 
-
-
-
 data:extend({item_uplink, item_downlink, fluid_uplink, fluid_downlink, energy_uplink, energy_downlink})

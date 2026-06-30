@@ -3,7 +3,7 @@
 
 local gui_names = require("scripts.gui.gui-names")
 local entity_gui_elements = require("scripts.gui.entity-gui-elements")
-local utils = require("scripts.utils")
+local utils = require("scripts.misc")
 
 
 local Helper = {}

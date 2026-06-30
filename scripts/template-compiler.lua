@@ -64,7 +64,7 @@ science table: {labs_potential = {}, logistics_potential = {}, points_per_item =
     These values are calculated for normal quality items.
 --]]
 
-local chunk_registry = require("scripts.lab-chunks-registry")
+local chunk_registry = require("scripts.vsurface-chunk-registry")
 
 local Helper = {}
 
@@ -168,9 +168,11 @@ end
 -- @param type "items"/"fluids"/"energy": type to process
 local function collect_io_flow(template_data, venv, io_category, type)
     local venv_section = venv[io_category][type]
-    if type == "energy" and venv_section > 0 then
-        template_data[io_category] = template_data[io_category] or {}
-        template_data[io_category][type] = venv_section / venv.compilation_time
+    if type == "energy" then
+        if venv_section > 0 then
+            template_data[io_category] = template_data[io_category] or {}
+            template_data[io_category][type] = venv_section / venv.compilation_time
+        end
     else
         -- if venv section is empty, we can return
         if next(venv_section) == nil then return end
@@ -211,10 +213,39 @@ local function collect_science_generation(template_data, venv, section)
     end
 end
 
+-- Helps in template creation. Makes sure that sets of ingredient items in 
+-- labs_potential and logistics_potentials match.
+local function validate_science_generation(template_data)
+    if not template_data.science then return end
+    local labs_potential = template_data.science.labs_potential
+    local logistics_potential = template_data.science.logistics_potential
+    if not labs_potential or not logistics_potential then
+        template_data.science = nil
+        return
+    end
+    -- deleting items that are not present in logistics
+    for item, _ in pairs(labs_potential) do
+        if not logistics_potential[item] then
+            labs_potential[item] = nil
+        end
+    end
+    -- deleting items that are not present in labs
+    for item, _ in pairs(logistics_potential) do
+        if not labs_potential[item] then
+            logistics_potential[item] = nil
+        end
+    end
+    -- if nothing is left, erasing science section
+    if not next(labs_potential) then
+        template_data.science = nil
+    end
+end
+
 -- Helps in template creation. Calculates research points per item.
 -- Must be called after collecting science points generation.
 local sections = {"slow", "fast"}
 local function collect_science_ppi(template_data, venv)
+    if not template_data.science then return end
     local pack_stats = {}
     -- going through both slow and fast sections
     for _, section in ipairs(sections) do
@@ -248,34 +279,6 @@ local function collect_science_ppi(template_data, venv)
     -- deleting points per item table if it's empty
     if next(template_data.science.points_per_item) == nil then
         template_data.science.points_per_item = nil
-    end
-end
-
--- Helps in template creation. Makes sure that sets of ingredient items in 
--- labs_potential and logistics_potentials match.
-local function validate_science_generation(template_data)
-    if not template_data.science then return end
-    local labs_potential = template_data.science.labs_potential
-    local logistics_potential = template_data.science.logistics_potential
-    if not labs_potential or not logistics_potential then
-        template_data.science = nil
-        return
-    end
-    -- deleting items that are not present in logistics
-    for item, _ in pairs(labs_potential) do
-        if not logistics_potential[item] then
-            labs_potential[item] = nil
-        end
-    end
-    -- deleting items that are not present in labs
-    for item, _ in pairs(logistics_potential) do
-        if not labs_potential[item] then
-            logistics_potential[item] = nil
-        end
-    end
-    -- if nothing is left, erasing science section
-    if not next(labs_potential) then
-        template_data.science = nil
     end
 end
 
@@ -346,8 +349,8 @@ local function create_production_template(venv, surface, template_name)
         -- gathering science generation and ppi
         collect_science_generation(template_data, venv, "slow")
         collect_science_generation(template_data, venv, "fast")
-        collect_science_ppi(template_data, venv)
         validate_science_generation(template_data)
+        collect_science_ppi(template_data, venv)
     else
         -- gathering outputs
         collect_io_flow(template_data, venv, "output", "items")
@@ -438,7 +441,7 @@ function Helper.start_compilation(surface_name, template_name)
     surface.pollution_statistics.clear()
 
     -- switching vsurface state in chunk registry
-    chunk_registry.switch_lab_state(surface.index, "compiling")
+    chunk_registry.set_compiling_flag(surface.index, true)
 
     -- creating venv for this compilation effectively starting it
     local trimmed_name = template_name:match("^%s*(.-)%s*$")
@@ -511,9 +514,21 @@ local function stop_compilation(surface_id, status)
     end
 
     -- switching lab state in chunk registry
-    chunk_registry.switch_lab_state(surface_id, "designing")
+    chunk_registry.set_compiling_flag(surface_id, false)
     -- cleaning up the environment
     storage.compiling_surfaces[surface_id] = nil
+end
+
+-- Returns compilation progress of a given surface if it's valid and compiling 
+-- in the form of 2 integers: time elapsed, time remaining (in seconds). 
+-- In all other cases returns nil
+function Helper.get_compilation_progress(surface_name)
+    local surface = game.get_surface(surface_name)
+    if not surface or not surface.valid then return end
+    local venv = storage.compiling_surfaces[surface.index]
+    if not venv then return end
+    local elapsed_time = venv.compilation_time - venv.remaining_time
+    return elapsed_time, venv.remaining_time
 end
 
 -- helper function for time-based processing compilation of type 2 surface.

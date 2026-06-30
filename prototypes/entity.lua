@@ -1,5 +1,6 @@
 local iconpath = "__factory-virtualization__/graphics/icons/"
 local entitypath = "__factory-virtualization__/graphics/entity/"
+local names = require("scripts.gui-v2.names")
 
 
 local item_uplink = {
@@ -9,7 +10,7 @@ local item_uplink = {
         stack_size_min = 10000,
         stack_size_max = 10000,
     },
-    name = "item-uplink",
+    name = names.prefix .. "item-uplink",
     icon = iconpath.."item-uplink.png",
     icon_size = 64,
     flags = {"placeable-neutral", "placeable-player", "player-creation"},
@@ -36,7 +37,7 @@ local item_downlink = {
         stack_size_min = 10000,
         stack_size_max = 10000,
     },
-    name = "item-downlink",
+    name = names.prefix .. "item-downlink",
     icon = iconpath.."item-downlink.png",
     icon_size = 64,
     flags = {"placeable-neutral", "placeable-player", "player-creation"},
@@ -73,7 +74,7 @@ local fluid_uplink = {
     },
     window_bounding_box = {{-0.4, -0.4}, {0.4, 0.4}},
     flow_length_in_ticks = 60,
-    name = "fluid-uplink",
+    name = names.prefix .. "fluid-uplink",
     icon = iconpath.."fluid-uplink.png",
     icon_size = 64,
     flags = {"placeable-neutral", "placeable-player", "player-creation"},
@@ -108,7 +109,7 @@ local fluid_downlink = {
     },
     window_bounding_box = {{-0.4, -0.4}, {0.4, 0.4}},
     flow_length_in_ticks = 60,
-    name = "fluid-downlink",
+    name = names.prefix .. "fluid-downlink",
     icon = iconpath.."fluid-downlink.png",
     icon_size = 64,
     flags = {"placeable-neutral", "placeable-player", "player-creation"},
@@ -135,7 +136,7 @@ local energy_uplink = {
         usage_priority = "secondary-input",
         input_flow_limit = "1GW",
     },
-    name = "energy-uplink",
+    name = names.prefix .. "energy-uplink",
     icon = iconpath.."energy-uplink.png",
     icon_size = 64,
     flags = {"placeable-neutral", "placeable-player", "player-creation"},
@@ -164,7 +165,7 @@ local energy_downlink = {
         usage_priority = "primary-output",
         output_flow_limit = "1GW",
     },
-    name = "energy-downlink",
+    name = names.prefix .. "energy-downlink",
     icon = iconpath.."energy-downlink.png",
     icon_size = 64,
     flags = {"placeable-neutral", "placeable-player", "player-creation"},

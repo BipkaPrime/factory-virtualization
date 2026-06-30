@@ -1,7 +1,6 @@
 -- This file contains definition for common gui elements
 
 local names = require("scripts.gui-v2.names")
-local utils = require("scripts.utils")
 
 local Helper = {}
 
@@ -77,11 +76,37 @@ function Helper.selection_widget(element, searchfield_name, selector_name, subti
     return searchfield, selector
 end
 
+-- Filters an array of strings based on a search query
+-- @param list table: array of strings to search through
+-- @param query string: search query
+-- @return table: filtered array containing only matching strings
+local function filter_strings(list, query)
+    -- if list in nil or empty, return empty list
+    if not list or not next(list) then return {} end
+    -- if query is nil, return full list
+    if not query or query == "" then return list end
+    -- trimming the query
+    local cleaned_query = string.lower(query:match("^%s*(.-)%s*$"))
+    if cleaned_query == "" then return list end
+
+    local filtered = {}
+    for _, text in ipairs(list) do
+        local trimmed_text = text:match("^%s*(.-)%s*$")
+        if trimmed_text then
+            local cleaned_text = string.lower(trimmed_text)
+            if string.find(cleaned_text, cleaned_query, 1, true) then
+                table.insert(filtered, text)
+            end
+        end
+    end
+    return filtered
+end
+
 -- Configures options that are diplayed by the given selector according to following rules
 -- 1. If selected_option is not nil, it will always be at the front ignoring search_query
 -- 2. Other options matching with search_query are included
 function Helper.arrange_selector(selector, options, search_query, selected_option)
-    local filtered_options = utils.filter_strings(options, search_query)
+    local filtered_options = filter_strings(options, search_query)
     local displayed_items = {}
     -- adding selected option to the front
     if selected_option then table.insert(displayed_items, selected_option) end
@@ -94,10 +119,43 @@ function Helper.arrange_selector(selector, options, search_query, selected_optio
     selector.items = displayed_items
     if selected_option then
         selector.selected_index = 1
+    else
+        selector.selected_index = 0
     end
 end
 
--- Creates a sptire button table. Buttons are inserted in order they are passed.
+-- Comparison function that is used to sort sprite buttons by count.
+-- Table being sorted must contain following keys:
+-- count: float, name: prototype name, type: "item"/"fluid", quality (for items): "rare"/"epic", etc.
+local type_rank = {item = 1, fluid = 2}
+local quality_rank = {
+    normal = 1,
+    uncommon = 2,
+    rare = 3,
+    epic = 4,
+    legendary = 5,
+}
+local function sprite_buttons_comparison(a, b)
+    -- priority 1: higher count first
+    if a.count ~= b.count then
+        return a.count > b.count
+    end
+
+    -- priority 2: items first
+    if a.type ~= b.type then
+        return type_rank[a.type] < type_rank[b.type]
+    end
+
+    -- priority 3: name (alphabetical)
+    if a.name ~= b.name then
+        return a.name < b.name
+    end
+
+    -- priority 4: higher quality first
+    return (quality_rank[a.quality] or 0) > (quality_rank[b.quality] or 0)
+end
+
+-- Creates a sptire button table. Buttons are sorted by count with above function.
 -- Number of buttons per row is hardcoded to 10 because it's golden standart of factorio.
 -- @param element LuaGuiElement: table will be added here
 -- @param buttons array of tables: each table must contain following keys:
@@ -119,6 +177,8 @@ function Helper.empty_grid_panel(element, buttons)
         column_count = 10,
         style = "slot_table"
     }
+    -- sorting the buttons by count
+    table.sort(buttons, sprite_buttons_comparison)
     -- adding the buttons
     for _, button in ipairs(buttons) do
         local slot_button = button_table.add{
