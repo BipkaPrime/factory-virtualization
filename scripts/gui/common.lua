@@ -1,6 +1,6 @@
 -- This file contains definition for common gui elements
 
-local names = require("scripts.gui-v2.names")
+local names = require("scripts.gui.names")
 
 local Helper = {}
 
@@ -68,12 +68,12 @@ end
 function Helper.selection_widget(element, searchfield_name, selector_name, subtitle)
     local flow = element.add{type = "flow", direction = "vertical"}
     flow.style.bottom_margin = 12
-    flow.add{type = "label", caption = subtitle}
+    local label = flow.add{type = "label", caption = subtitle}
     local searchfield = flow.add{type = "textfield", name = searchfield_name}
     local selector = flow.add{type = "list-box", name = selector_name}
     selector.style.width = 200
     selector.style.height = 200
-    return searchfield, selector
+    return searchfield, selector, label
 end
 
 -- Filters an array of strings based on a search query

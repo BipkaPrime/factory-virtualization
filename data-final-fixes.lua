@@ -1,7 +1,7 @@
 -- We need to make a technical research for each science pack in the game.
 -- Doing it here to let other mods add their science packs
 
-local names = require("scripts.gui-v2.names")
+local names = require("scripts.gui.names")
 
 -- Table to store your collected science pack data
 local collected_science_packs = {}

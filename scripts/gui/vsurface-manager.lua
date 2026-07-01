@@ -39,8 +39,8 @@
 
 local compiler = require("scripts.template-compiler")
 local backend = require("scripts.vsurface-manager-backend")
-local common = require("scripts.gui-v2.common")
-local names = require("scripts.gui-v2.names")
+local common = require("scripts.gui.common")
+local names = require("scripts.gui.names")
 local misc = require("scripts.misc")
 
 local Helper = {}

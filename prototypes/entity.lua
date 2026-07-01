@@ -1,6 +1,6 @@
 local iconpath = "__factory-virtualization__/graphics/icons/"
 local entitypath = "__factory-virtualization__/graphics/entity/"
-local names = require("scripts.gui-v2.names")
+local names = require("scripts.gui.names")
 
 
 local item_uplink = {

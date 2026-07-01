@@ -2,9 +2,7 @@ local chunk_registry = require("scripts.vsurface-chunk-registry")
 local lab_force = require("scripts.lab-force")
 local entity_registry = require("scripts.entity-registry")
 local template_compiler = require("scripts.template-compiler")
-local vsurface_manager = require("scripts.gui-v2.vsurface-manager")
-local template_dashboard = require("scripts.gui-v2.template-dashboard")
-require("scripts.gui-v2.main")
+local gui = require("scripts.gui.main")
 
 
 -- TODO: If entity is no longer valid, its interface will not close by itself.
@@ -90,12 +88,11 @@ end)
 
 script.on_nth_tick(60, function()
     template_compiler.process_compiling_surfaces()
-    vsurface_manager.update_opened_managers()
+    gui.process_opened_windows()
 end)
 
 
 script.on_event(defines.events.on_player_changed_surface, function(event)
     lab_force.process_player_changed_surface(event)
-    vsurface_manager.process_player_changed_surface(event)
-    template_dashboard.process_player_changed_surface(event)
+    gui.process_player_changed_surface(event)
 end)

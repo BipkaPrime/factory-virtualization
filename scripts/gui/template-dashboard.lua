@@ -26,8 +26,8 @@
 -- elements.surface_selector LuaGuiElement: reference to surface selector
 -- elements.datafield LuaGuiElement: reference to scroll pane on the right where info is displayed
 
-local names = require("scripts.gui-v2.names")
-local common = require("scripts.gui-v2.common")
+local names = require("scripts.gui.names")
+local common = require("scripts.gui.common")
 local backend = require("scripts.template-dashboard-backend")
 
 local Helper = {}

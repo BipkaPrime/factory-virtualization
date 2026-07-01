@@ -1,4 +1,4 @@
-local names = require("scripts.gui-v2.names")
+local names = require("scripts.gui.names")
 local iconpath = "__factory-virtualization__/graphics/icons/"
 
 

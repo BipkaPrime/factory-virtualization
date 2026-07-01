@@ -14,9 +14,18 @@ storage.entity_registry = {
     lookup = {},
 }
 --]]
+--------------------------------------------------------------------------------------------
+-- STORAGE KEYS FOR CONVENIENCE
+--------------------------------------------------------------------------------------------
+-- table = get_entity_data(unit_number). table keys:
+-- selected_template string: selected template for a given entity if any
+-- vsurface_io bool: true if given uplink/downlink is a vsurface IO
+-- selected_item (table) {name, quality}: item filter selected in item udlink
+-- selected_fluid (table): {name} fluid name selected in fluid udlink
+
 
 local entity_manager = require("scripts.entity-manager")
-local names = require("scripts.gui-v2.names")
+local names = require("scripts.gui.names")
 
 local Helper = {}
 

@@ -11,7 +11,7 @@
 -- So whenever the player researches something, we need to also unlock that technology for the lab force.
 -- Since mod can be added to an already existing save, we need to match the research progress on_init as well.
 
-local names = require("scripts.gui-v2.names")
+local names = require("scripts.gui.names")
 
 local Helper = {}
 

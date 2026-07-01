@@ -1,10 +1,12 @@
 -- contains all gui-related scripts
 
-local common = require("scripts.gui-v2.common")
-local names = require("scripts.gui-v2.names")
-local surface_manager = require("scripts.gui-v2.vsurface-manager")
-local template_dashboard = require("scripts.gui-v2.template-dashboard")
+local common = require("scripts.gui.common")
+local names = require("scripts.gui.names")
+local surface_manager = require("scripts.gui.vsurface-manager")
+local template_dashboard = require("scripts.gui.template-dashboard")
+local entity_gui = require("scripts.gui.entity")
 
+local Helper = {}
 
 -- Picks a handler for event.element from router table.
 -- Only useful when routing is done by element.name
@@ -14,6 +16,20 @@ local function gui_name_router(event, router)
     local handler = router[element.name]
     if not handler then return end
     handler(event)
+end
+
+-- After player changes surface with custom gui window opened
+-- player.opened can be assigned nil with window still opened
+-- So if window should be opened, we set player.opened to it.
+function Helper.process_player_changed_surface(event)
+    template_dashboard.process_player_changed_surface(event)
+    surface_manager.process_player_changed_surface(event)
+    entity_gui.process_player_changed_surface(event)
+end
+
+-- Time-based processing of custom gui windows
+function Helper.process_opened_windows()
+    surface_manager.update_opened_managers()
 end
 
 local on_gui_click_router = {
@@ -30,6 +46,7 @@ end)
 local on_gui_closed_router = {
     [names.prefix .. names.sm_window] = surface_manager.process_surface_manager_gui_closed,
     [names.prefix .. names.td_window] = template_dashboard.process_template_dashboard_gui_closed,
+    [names.prefix .. names.entity_window] = entity_gui.process_entity_gui_closed,
 }
 script.on_event(defines.events.on_gui_closed, function(event)
     gui_name_router(event, on_gui_closed_router)
@@ -50,6 +67,7 @@ local on_gui_text_changed_router = {
     [names.prefix .. names.sm_new_surface_name] = surface_manager.process_new_surface_name_changed,
     [names.prefix .. names.sm_template_name] = surface_manager.process_template_name_textfield,
     [names.prefix .. names.td_template_search] = template_dashboard.process_template_search,
+    [names.prefix .. names.entity_template_search] = entity_gui.process_template_searchfield,
 }
 script.on_event(defines.events.on_gui_text_changed, function(event)
     gui_name_router(event, on_gui_text_changed_router)
@@ -60,23 +78,25 @@ local on_gui_selection_state_changed_router = {
     [names.prefix .. names.sm_new_surface_type] = surface_manager.process_new_surface_type,
     [names.prefix .. names.sm_new_surface_size] = surface_manager.process_new_surface_size,
     [names.prefix .. names.td_template_selector] = template_dashboard.process_template_selector,
+    [names.prefix .. names.entity_template_selector] = entity_gui.process_template_selector,
 }
 script.on_event(defines.events.on_gui_selection_state_changed, function(event)
     gui_name_router(event, on_gui_selection_state_changed_router)
 end)
 
---[[
-script.on_event(defines.events.on_gui_opened, function(event)
-    entity_gui.process_entity_gui_opened(event)
-end)
-
-script.on_event(defines.events.on_gui_elem_changed, function(event)
-    entity_gui_elements.process_udlink_item_selection(event)
-    entity_gui_elements.process_udlink_fluid_selection(event)
-end)
-
+local on_gui_checked_state_changed_router = {
+    [names.prefix .. names.udlink_io_checkbox] = entity_gui.process_udlink_io_checkbox,
+}
 script.on_event(defines.events.on_gui_checked_state_changed, function(event)
-    entity_gui_elements.process_udlink_io_checkbox(event)
+    gui_name_router(event, on_gui_checked_state_changed_router)
 end)
 
---]]
+local on_gui_elem_changed_router = {
+    [names.prefix .. names.udlink_choose_item_button] = entity_gui.process_item_selection_button,
+    [names.prefix .. names.udlink_choose_fluid_button] = entity_gui.process_fluid_selection_button,
+}
+script.on_event(defines.events.on_gui_elem_changed, function(event)
+    gui_name_router(event, on_gui_elem_changed_router)
+end)
+
+return Helper

@@ -1,6 +1,6 @@
 local iconpath = "__factory-virtualization__/graphics/icons/"
 local item_sounds = require("__base__.prototypes.item_sounds")
-local names = require("scripts.gui-v2.names")
+local names = require("scripts.gui.names")
 
 
 local virtualization_subgroup = {

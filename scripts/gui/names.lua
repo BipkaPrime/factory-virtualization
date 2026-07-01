@@ -25,6 +25,8 @@ local const = {
     udlink_io_checkbox = "udlink-io-checkbox", -- uplink/downlink IO checkbox name
     entity_template_search = "entity-template-search", -- entity gui template searchfield
     entity_template_selector = "entity-template-selector", -- entity gui template selector
+    udlink_choose_item_button = "udlink-choose-item-button", -- entity gui choose item button
+    udlink_choose_fluid_button = "udlink-choose-fluid-button", -- entity gui choose fluid button
 }
 
 return const
