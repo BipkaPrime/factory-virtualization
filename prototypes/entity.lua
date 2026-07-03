@@ -185,4 +185,44 @@ local energy_downlink = {
     }
 }
 
-data:extend({item_uplink, item_downlink, fluid_uplink, fluid_downlink, energy_uplink, energy_downlink})
+local virtualization_mainframe = {
+    type = "logistic-container",
+    name = names.prefix .. "virtualization-mainframe",
+    logistic_mode = "requester",
+    trash_inventory_size = 32,
+    render_not_in_network_icon = true,
+    use_exact_mode = true,
+    inventory_size = 32,
+    quality_affects_inventory_size = false,
+    inventory_type = "with_custom_stack_size",
+    inventory_properties = {
+        stack_size_min = 100000,
+        stack_size_max = 100000,
+    },
+    flags = {"placeable-neutral", "placeable-player", "player-creation"},
+    minable = {mining_time = 0.1, result = "virtualization-mainframe"},
+    collision_box = {{-5.7, -5.7}, {5.7, 5.7}},
+    selection_box = {{-6, -6}, {6, 6}},
+    icon = iconpath .. "virtualization-mainframe.png",
+    icon_size = 64,
+    picture = {
+        layers = {
+            {
+                filename = entitypath.."virtualization-mainframe.png",
+                width = 768,
+                height = 768,
+                scale = 0.5,
+            }
+        },
+    },
+}
+
+data:extend({
+    item_uplink,
+    item_downlink,
+    fluid_uplink,
+    fluid_downlink,
+    energy_uplink,
+    energy_downlink,
+    virtualization_mainframe
+})

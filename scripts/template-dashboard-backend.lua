@@ -129,7 +129,7 @@ end
 local function collect_science_table(input_table)
     if not input_table then return {} end
     local result = {}
-    for name, count in input_table do
+    for name, count in pairs(input_table) do
         data = {
             type = "item",
             name = name,

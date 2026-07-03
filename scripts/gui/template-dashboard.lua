@@ -84,6 +84,7 @@ local function template_dashboard_base(player)
     )
     dashboard_data.elements.template_search = search
     dashboard_data.elements.template_selector = selector
+    search.text = dashboard_data.template_query or ""
     update_template_selector(dashboard_data)
 
     -- surface selection widget
@@ -176,8 +177,8 @@ local function template_info_gui(dashboard_data)
         datafield,
         {"gui-label.template-output"}
     )
-    local inputs = backend.get_inputs(template_name)
-    common.sprite_button_panel(section, inputs)
+    local outputs = backend.get_outputs(template_name)
+    common.sprite_button_panel(section, outputs)
     -- energy production and pollution (same section)
     local energy_prod = backend.get_energy_production(template_name)
     add_bold_label(section, {"", {"gui-label.template-energy-output"}, ": ", energy_prod})

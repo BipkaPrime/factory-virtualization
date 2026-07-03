@@ -1,5 +1,18 @@
 local Helper = {}
 
+-- Gets the name of a a given entity or ghost-entity assuming it's valid
+-- @returns string: name of given entity or ghost-entity
+-- @returns bool: true if entity is ghost
+function Helper.get_entity_name(entity)
+    local entity_name = entity.name
+    local is_ghost = false
+    if entity_name == "entity-ghost" then
+        entity_name = entity.ghost_name
+        is_ghost = true
+    end
+    return entity_name, is_ghost
+end
+
 -- Converts double value to human-readable format
 local prefixes = {
     {suffix = "", value = 1},

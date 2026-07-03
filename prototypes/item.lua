@@ -89,6 +89,16 @@ local energy_downlink = {
 	stack_size = 10,
 }
 
+local virtualization_mainframe = {
+	type = "item",
+	name = "virtualization-mainframe",
+	subgroup = "virtualization",
+	icon = iconpath.."virtualization-mainframe.png",
+	icon_size = 64,
+	place_result = names.prefix .. "virtualization-mainframe",
+	stack_size = 10,
+}
+
 
 data.extend({
 	virtualization_subgroup,
@@ -97,5 +107,6 @@ data.extend({
 	fluid_uplink,
 	fluid_downlink,
 	energy_uplink,
-	energy_downlink
+	energy_downlink,
+	virtualization_mainframe,
 })

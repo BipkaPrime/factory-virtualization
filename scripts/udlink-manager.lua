@@ -1,4 +1,4 @@
--- This file contains on-tick handlers for entities tracked by entity registry
+-- This file contains on-tick handlers for uplinks and downlinks.
 
 local Helper = {}
 

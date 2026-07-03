@@ -82,4 +82,26 @@ local energy_downlink = {
 	results = {{type="item", name="energy-downlink", amount = 1}},
 }
 
-data:extend({item_uplink, item_downlink, fluid_uplink, fluid_downlink, energy_uplink, energy_downlink})
+local virtualization_mainframe = {
+	type = "recipe",
+	name = "virtualization-mainframe",
+	enabled = true,
+	ingredients =
+	{
+		{type = "item", name = "steel-plate", amount = 150},
+		{type = "item", name = "stone-brick", amount = 40},
+		{type = "item", name = "iron-chest", amount = 40},
+	},
+	energy_required = 30,
+	results = {{type="item", name="virtualization-mainframe", amount = 1}},
+}
+
+data:extend({
+	item_uplink,
+	item_downlink,
+	fluid_uplink,
+	fluid_downlink,
+	energy_uplink,
+	energy_downlink,
+	virtualization_mainframe,
+})

@@ -6,8 +6,7 @@ local gui = require("scripts.gui.main")
 
 
 -- TODO: If entity is no longer valid, its interface will not close by itself.
--- TODO: udlinks ghosts are clickable. And when clicked vanilla gui pops up.
--- This is a big problem for energy udlinks since they are electric energy interfaces.
+-- TODO: fix research compilation inaccuracies (probably by looking at consumed packs statistics)
 
 -------------------------------------------------------------------------------
 -- Initialization and lifecycle

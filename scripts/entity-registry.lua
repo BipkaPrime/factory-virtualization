@@ -24,8 +24,9 @@ storage.entity_registry = {
 -- selected_fluid (table): {name} fluid name selected in fluid udlink
 
 
-local entity_manager = require("scripts.entity-manager")
+local udlink_manager = require("scripts.udlink-manager")
 local names = require("scripts.gui.names")
+local mainframe_manager = require("scripts.vmainframe-manager")
 
 local Helper = {}
 
@@ -67,12 +68,13 @@ end
 
 -- Maps entity names to their on-tick handlers
 local entity_router = {
-    [names.prefix .. "item-uplink"] = entity_manager.update_item_uplink,
-    [names.prefix .. "item-downlink"] = entity_manager.update_item_downlink,
-    [names.prefix .. "fluid-uplink"] = entity_manager.update_fluid_uplink,
-    [names.prefix .. "fluid-downlink"] = entity_manager.update_fluid_downlink,
-    [names.prefix .. "energy-uplink"] = entity_manager.update_energy_uplink,
-    [names.prefix .. "energy-downlink"] = entity_manager.update_energy_downlink,
+    [names.prefix .. "item-uplink"] = udlink_manager.update_item_uplink,
+    [names.prefix .. "item-downlink"] = udlink_manager.update_item_downlink,
+    [names.prefix .. "fluid-uplink"] = udlink_manager.update_fluid_uplink,
+    [names.prefix .. "fluid-downlink"] = udlink_manager.update_fluid_downlink,
+    [names.prefix .. "energy-uplink"] = udlink_manager.update_energy_uplink,
+    [names.prefix .. "energy-downlink"] = udlink_manager.update_energy_downlink,
+    [names.prefix .. "virtualization-mainframe"] = mainframe_manager.update_vmainframe,
 }
 
 -- Subscribing to all build events 
