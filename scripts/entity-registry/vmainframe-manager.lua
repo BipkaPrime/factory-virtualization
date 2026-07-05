@@ -21,12 +21,36 @@
 -- unit_number uint64: unit number of this entity (not really relevant while entity is valid)
 -- selected_template string: selected template for a given entity if any (user input)
 -- active_template string: name of template currently in operation (constructing or running)
--- requesting bool: true if mainframe is requesting anything for constructions
 -- operational bool: true if mainframe has constructed a template and can operate
--- requesting_buildings table: contains buildings that are being requested for template construction
+-- building_requests table: contains buildings that are being requested for template construction
 --      2-level hmap: table[name][quality] = value
 -- contained_buildings table: all buildings that are currently "contained" in the mainframe
+-- cluster table: reference to virtualization cluster that has this mainframe as a member
 
+
+-- Virtualization mainframes and uplinks/downlinks placed on the same surface and 
+-- having the same template selected form a "Virtualization Cluster".
+-- This cluster is associated with a table in storage.vclusters[template_name][surface_idx]
+-- It stores everything needed for operation of the system.
+-- We need to keep track of all members of the same system for several reasons.
+-- First, we want to adjust IO buffers based on number of VMs in the system.
+-- Second, we want to discourage players from building members of the same system too far apart,
+-- because in this case they get free item teleportation. To solve this we introduce an energy penalty.
+-- When entity is processed in the entity registry, it checks the distance from it to the center of mass
+-- of the system it is a part of and subtracts the penalty from input energy buffer.
+
+-- For energy penalty idea to work properly, we want several accurate datapoints.
+-- First, we need entity properties from registry to contain a reference to associated
+-- virtual cluster in order to easily access it during an on-tick entity update.
+-- Second, we need vcluster to contain table with all members
+-- with key being unit number and value being a table containing all necessery information
+-- like pos_x, pos_y of entity.
+-- Third, we want to store information needed to calculate center of mass of a system.
+-- sum_x, sum_y, total_weight (member count if we assume that all members have a weight of 1).
+-- This allows to calculate center of mass in O(1) time as well as addition and deletion
+-- of entities in O(1) time.
+
+local vcluster = require("scripts.entity-registry.vcluster")
 
 local Helper = {}
 
@@ -49,22 +73,23 @@ local function deconstruct_old_template(properties)
             end
         end
     end
-    properties.contained_buildings = nil
+    properties.contained_buildings = {}
 end
 
 -- Prepares for construction of new template: copies template building
 -- cost to requesting table, makes sure containing table has sections for
 -- all requesting items.
-local function construct_new_template(properties)
+local function request_new_template(properties)
+    properties.building_requests = {}
     local template_name = properties.selected_template
     if not template_name then return end
     local template = storage.compiled_templates[template_name]
+    if not template then return end
     local build_cost = template.building_cost
     if not build_cost then return end
     -- initializing requesting and containing tables
-    properties.requesting_buildings = {}
     properties.contained_buildings = properties.contained_buildings or {}
-    local requests = properties.requesting_buildings
+    local requests = properties.building_requests
     local contents = properties.contained_buildings
     -- processing all items from building cost of new template
     for name, q_counts in pairs(build_cost) do
@@ -80,18 +105,22 @@ end
 -- Handles template name being changed. This is called when
 -- selected_template ~= active template
 local function handle_template_change(properties)
+    -- managing template construction
     deconstruct_old_template(properties)
-    construct_new_template(properties)
+    request_new_template(properties)
+    -- moving VM to new vcluster
+    vcluster.remove_from_cluster(properties)
+    vcluster.add_to_cluster(properties)
     properties.active_template = properties.selected_template
     properties.operational = false
-    properties.requesting = true
 end
 
--- Adds everything from requesting_buildings to logistic
+-- Adds everything from requests table to logistic
 -- requests of given mainframe
 local function set_construction_requests(properties)
     local entity = properties.entity
     local log_point = entity.get_requester_point()
+    log_point.trash_not_requested = true
     local section_count = log_point.sections_count
     -- removing all logistic sections
     for i = section_count, 1, -1 do
@@ -100,8 +129,9 @@ local function set_construction_requests(properties)
     -- creating one logistic section
     log_point.add_section()
     local log_section = log_point.get_section(1)
-    local requests = properties.requesting_buildings
     local curr_slot = 1
+    local requests = properties.building_requests
+    if not requests then return end
     for name, q_counts in pairs(requests) do
         for quality, count in pairs(q_counts) do
             local filter = {
@@ -118,25 +148,20 @@ end
 -- Scans mainframe inventory and withdraws anything
 -- that is in building requests
 local function withdraw_building_materials(properties)
+    local requests = properties.building_requests
+    if not requests then return end
     local entity = properties.entity
     local inventory = entity.get_inventory(defines.inventory.chest)
-    game.print("1")
-    local requests = properties.requesting_buildings
-    if not requests then return end
-    game.print("2")
     local inv_contents = inventory.get_contents()
-    game.print("3")
     for _, item in ipairs(inv_contents) do
         local section = requests[item.name]
         if section and section[item.quality] then
-            game.print("4")
             local demand = section[item.quality]
             local removed_count = inventory.remove({
                 name = item.name,
                 quality = item.quality,
                 count = math.min(demand, item.count),
             })
-            game.print(removed_count)
             -- updating requests table
             section[item.quality] = section[item.quality] - removed_count
             if section[item.quality] == 0 then section[item.quality] = nil end
@@ -150,21 +175,58 @@ local function withdraw_building_materials(properties)
     end
 end
 
+-- Helps with processing "crafts". 
+-- @returns bool: true if all ingredients are available
+local function ingredients_available(cluster)
+    for _, buffer in pairs(cluster.input) do
+        if buffer[1] < buffer[2] then return false end
+    end
+    return true
+end
+
+-- Helps with processing "crafts". 
+-- @returns bool: true if output space is available
+local function output_space_available(cluster)
+    for _, buffer in pairs(cluster.output) do
+        if buffer[1] + buffer[2] > buffer[3] then return false end
+    end
+    return true
+end
+
+-- Handles 1 "operation" of operational VM
+local function perform_craft(properties)
+    local cluster = properties.cluster
+    if not cluster.research_producer then
+        if not ingredients_available(cluster) then return end
+        if not output_space_available(cluster) then return end
+        -- removing ingredients from input
+        for _, buffer in pairs(cluster.input) do
+            buffer[1] = buffer[1] - buffer[2]
+        end
+        -- adding products to output
+        for _, buffer in pairs(cluster.output) do
+            buffer[1] = buffer[1] + buffer[2]
+        end
+    end
+end
+
 -- On-tick processor for virtualization mainframes
 function Helper.update_vmainframe(properties)
     if properties.selected_template ~= properties.active_template then
         handle_template_change(properties)
     end
-    if properties.requesting then
+    -- handling building requests (only if mainframe is not operational)
+    if not properties.operational then
         withdraw_building_materials(properties)
         set_construction_requests(properties)
-        local requests = properties.requesting_building
-        if not requests or not next(requests) then
-            properties.requesting = false
+        local requests = properties.building_requests
+        if properties.active_template and (not requests or not next(requests)) then
             properties.operational = true
         end
+        return
     end
-    --game.print(serpent.block(properties.requesting_buildings))
+    -- if mainframe is operational, we perform a craft
+    perform_craft(properties)
 end
 
 

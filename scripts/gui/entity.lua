@@ -13,10 +13,11 @@
 -- This table also contains important data like reference to opened entity, registry data, etc.
 -- When gui is closed, this table is deleted.
 
-local entity_registry = require("scripts.entity-registry")
+local entity_registry = require("scripts.entity-registry.main")
 local names = require("scripts.gui.names")
 local common = require("scripts.gui.common")
-local entity_elem = require("scripts.gui.entity-elements")
+local entity_controls = require("scripts.gui.entity-controls")
+local info_elem = require("scripts.gui.info-elem")
 local misc = require("scripts.misc")
 
 local Helper = {}
@@ -82,32 +83,44 @@ end
 local function item_udlink_gui(player, entity)
     local gui_data = entity_gui_base(player, entity)
     local left_frame = gui_data.elements.left_frame
-    entity_elem.add_udlink_io_checkbox(left_frame, gui_data)
-    entity_elem.add_template_selection_widget(left_frame, gui_data)
-    entity_elem.add_udlink_choose_item_button(left_frame, gui_data)
+    entity_controls.add_udlink_io_checkbox(left_frame, gui_data)
+    entity_controls.add_template_selection_widget(left_frame, gui_data)
+    entity_controls.add_udlink_choose_item_button(left_frame, gui_data)
 end
 
 -- Gui for fluid uplink/downlink
 local function fluid_udlink_gui(player, entity)
     local gui_data = entity_gui_base(player, entity)
     local left_frame = gui_data.elements.left_frame
-    entity_elem.add_udlink_io_checkbox(left_frame, gui_data)
-    entity_elem.add_template_selection_widget(left_frame, gui_data)
-    entity_elem.add_udlink_choose_fluid_button(left_frame, gui_data)
+    entity_controls.add_udlink_io_checkbox(left_frame, gui_data)
+    entity_controls.add_template_selection_widget(left_frame, gui_data)
+    entity_controls.add_udlink_choose_fluid_button(left_frame, gui_data)
 end
 
 local function energy_udlink_gui(player, entity)
     local gui_data = entity_gui_base(player, entity)
     local left_frame = gui_data.elements.left_frame
-    entity_elem.add_udlink_io_checkbox(left_frame, gui_data)
-    entity_elem.add_template_selection_widget(left_frame, gui_data)
+    entity_controls.add_udlink_io_checkbox(left_frame, gui_data)
+    entity_controls.add_template_selection_widget(left_frame, gui_data)
 end
 
+-- Updates virtualization mainframe datafield
+local function update_vmainframe_datafield(gui_data)
+    local datafield = gui_data.elements.datafield
+    local reg_data = gui_data.registry_data
+    datafield.clear()
+    info_elem.vmainframe_status_display(datafield, reg_data)
+    info_elem.vmainframe_building_requests(datafield, reg_data)
+end
+
+-- Creates custom gui for virtualization mainframe
 local function vmainframe_gui(player, entity)
     local gui_data = entity_gui_base(player, entity)
     local left_frame = gui_data.elements.left_frame
-    entity_elem.add_template_selection_widget(left_frame, gui_data)
+    entity_controls.add_template_selection_widget(left_frame, gui_data)
+    update_vmainframe_datafield(gui_data)
 end
+
 
 -- key (string): entity name, value (function): handler that creates gui
 local entity_gui_router = {
@@ -136,6 +149,23 @@ script.on_event(defines.events.on_gui_opened, function(event)
     if not player or not player.valid then return end
     handler(player, entity)
 end)
+
+
+local entity_datafield_router = {
+    [names.prefix .. "virtualization-mainframe"] = update_vmainframe_datafield,
+}
+-- Time-based updater for entity gui datafields
+function Helper.update_entity_gui_datafield()
+    for _, gui_data in pairs(storage.entity_gui) do
+        if not gui_data.registry_data then goto continue end
+        local entity = gui_data.entity
+        if not entity or not entity.valid then goto continue end
+        local handler = entity_datafield_router[entity.name]
+        if not handler then goto continue end
+        handler(gui_data)
+        ::continue::
+    end
+end
 
 -- Closes the custom entity gui when player.opened changes.
 -- Used when on_gui_closed event is triggered

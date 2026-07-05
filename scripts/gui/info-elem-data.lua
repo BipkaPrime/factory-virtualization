@@ -1,17 +1,12 @@
+-- This file helps in creation of information gui elements
+-- It's used to fetch data from storage and aggregate in a way
+-- that can be easily displayed.
+
 local misc = require("scripts.misc")
 
 local Helper = {}
 
--- collects all compiled template names that exist
-function Helper.get_all_templates()
-    local result = {}
-    for name, _ in pairs(storage.compiled_templates) do
-        table.insert(result, name)
-    end
-    return result
-end
-
--- converts template data section containing items from 2-level hmap
+-- converts table section containing items from 2-level hmap
 -- of form "table[item_name][quality_name] = count" to displayable form
 -- of array of {type, name, count, quality}. Appends data to the end of
 -- output_table if it's provided.
@@ -32,7 +27,7 @@ local function collect_item_table(input_table, output_table)
     return result
 end
 
--- converts template data section containing fluids from hmap
+-- converts table section containing fluids from hmap
 -- of form "table[fluid_name] = count" to displayable form
 -- of array of {type, name, count, quality}. Appends data to the end of
 -- output_table if it's provided.
@@ -114,15 +109,6 @@ function Helper.get_energy_production(template_name)
     return misc.format_double(energy_prod) .. "W"
 end
 
--- collects template pollution per second.
--- @returns string: for example "123", "5.1 k"
-function Helper.get_pollution(template_name)
-    local template = storage.compiled_templates[template_name]
-    if not template or not template.pollution then return "0" end
-    local pollution = template.pollution
-    return misc.format_double(pollution)
-end
-
 -- converts template data section containing science production from hmap
 -- of form "table[ingredient_name] = value" to displayable form
 -- of array of {type, name, count, quality}.
@@ -151,6 +137,13 @@ function Helper.get_science_production(template_name)
     local logistics = collect_science_table(template.science.logistics_potential)
     local ppi = collect_science_table(template.science.points_per_item)
     return labs, logistics, ppi
+end
+
+-- Collects building requests of a given vmainframe
+function Helper.get_vmainframe_requests(reg_data)
+    if not reg_data or not reg_data.building_requests then return {} end
+    local requests = reg_data.building_requests
+    return collect_item_table(requests)
 end
 
 

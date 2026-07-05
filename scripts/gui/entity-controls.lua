@@ -30,7 +30,6 @@
 
 
 local names = require("scripts.gui.names")
-local dashboard_backend = require("scripts.template-dashboard-backend")
 local common = require("scripts.gui.common")
 local misc = require("scripts.misc")
 
@@ -79,7 +78,7 @@ local function configure_template_selector(gui_data)
     -- if vsurface_io checked, display no template options
     local options
     if not reg_data.vsurface_io then
-        options = dashboard_backend.get_all_templates()
+        options = misc.get_all_templates()
     end
     local selected = reg_data.selected_template
     common.arrange_selector(selector, options, query, selected)

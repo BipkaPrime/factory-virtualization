@@ -23,10 +23,11 @@ storage.entity_registry = {
 -- selected_item (table) {name, quality}: item filter selected in item udlink
 -- selected_fluid (table): {name} fluid name selected in fluid udlink
 
-
-local udlink_manager = require("scripts.udlink-manager")
 local names = require("scripts.gui.names")
-local mainframe_manager = require("scripts.vmainframe-manager")
+local udlink_manager = require("scripts.entity-registry.udlink-manager")
+local mainframe_manager = require("scripts.entity-registry.vmainframe-manager")
+local vcluster = require("scripts.entity-registry.vcluster")
+
 
 local Helper = {}
 
@@ -46,6 +47,10 @@ end
 local function unregister_entity(unit_number)
     local reg = storage.entity_registry
     local index = reg.lookup[unit_number]
+
+    -- removing entity from vcluster
+    local properties = reg.array[index]
+    vcluster.remove_from_cluster(properties)
 
     -- swapping element we want to delete with the last one
     local last_element = reg.array[#reg.array]

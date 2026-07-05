@@ -54,7 +54,6 @@ type int 1/2: 1 means production, 2 means science
 building_cost table: contains items needed for construction of this template.
     Same 2-level structure as item inputs/outputs.
 area integer: area in tiles of this template
-pollution float: pollution per second
 input table: {items = {}, fluids = {}, energy = 0} inputs per second.
 output table: {items = {}, fluids = {}, energy = 0} outputs per second.
 science table: {labs_potential = {}, logistics_potential = {}, points_per_item = {}}.
@@ -245,18 +244,6 @@ local function collect_science_ppi(template_data, venv)
     end
 end
 
--- Helps in template creation. Collects pollution per second.
-local function collect_pollution(template_data, venv, surface)
-    local pollution_counts = surface.pollution_statistics.input_counts
-    local total = 0
-    for _, count in pairs(pollution_counts) do
-        total = total + count
-    end
-    if total > 0 then
-        template_data.pollution = total / venv.compilation_time
-    end
-end
-
 -- Helps in calculation of building cost of a surface
 local function add_to_cost(total_cost, name, count, quality)
     total_cost[name] = total_cost[name] or {}
@@ -300,7 +287,6 @@ end
 local function create_production_template(venv, surface, template_name)
     local template_data = {type = venv.surface_type}
     collect_building_cost(template_data, surface)
-    collect_pollution(template_data, venv, surface)
     -- gathering surface area
     local settings = surface.map_gen_settings
     template_data.area = settings.width * settings.height
@@ -399,9 +385,6 @@ function Helper.start_compilation(surface_name, template_name)
     -- surface exists and valid (checked above)
     local surface = game.get_surface(surface_name)
     local surface_type = storage.v_surfaces[surface.index].type
-
-    -- cleaning pollution statistics for given surface
-    surface.pollution_statistics.clear()
 
     -- switching vsurface state in chunk registry
     chunk_registry.set_compiling_flag(surface.index, true)

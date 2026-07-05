@@ -5,7 +5,7 @@ local names = require("scripts.gui.names")
 local surface_manager = require("scripts.gui.vsurface-manager")
 local template_dashboard = require("scripts.gui.template-dashboard")
 local entity_gui = require("scripts.gui.entity")
-local entity_elem = require("scripts.gui.entity-elements")
+local entity_controls = require("scripts.gui.entity-controls")
 
 local Helper = {}
 
@@ -31,6 +31,7 @@ end
 -- Time-based processing of custom gui windows
 function Helper.process_opened_windows()
     surface_manager.update_opened_managers()
+    entity_gui.update_entity_gui_datafield()
 end
 
 local on_gui_click_router = {
@@ -68,7 +69,7 @@ local on_gui_text_changed_router = {
     [names.prefix .. names.sm_new_surface_name] = surface_manager.process_new_surface_name_changed,
     [names.prefix .. names.sm_template_name] = surface_manager.process_template_name_textfield,
     [names.prefix .. names.td_template_search] = template_dashboard.process_template_search,
-    [names.prefix .. names.entity_template_search] = entity_elem.process_template_searchfield,
+    [names.prefix .. names.entity_template_search] = entity_controls.process_template_searchfield,
 }
 script.on_event(defines.events.on_gui_text_changed, function(event)
     gui_name_router(event, on_gui_text_changed_router)
@@ -79,22 +80,22 @@ local on_gui_selection_state_changed_router = {
     [names.prefix .. names.sm_new_surface_type] = surface_manager.process_new_surface_type,
     [names.prefix .. names.sm_new_surface_size] = surface_manager.process_new_surface_size,
     [names.prefix .. names.td_template_selector] = template_dashboard.process_template_selector,
-    [names.prefix .. names.entity_template_selector] = entity_elem.process_template_selector,
+    [names.prefix .. names.entity_template_selector] = entity_controls.process_template_selector,
 }
 script.on_event(defines.events.on_gui_selection_state_changed, function(event)
     gui_name_router(event, on_gui_selection_state_changed_router)
 end)
 
 local on_gui_checked_state_changed_router = {
-    [names.prefix .. names.udlink_io_checkbox] = entity_elem.process_udlink_io_checkbox,
+    [names.prefix .. names.udlink_io_checkbox] = entity_controls.process_udlink_io_checkbox,
 }
 script.on_event(defines.events.on_gui_checked_state_changed, function(event)
     gui_name_router(event, on_gui_checked_state_changed_router)
 end)
 
 local on_gui_elem_changed_router = {
-    [names.prefix .. names.udlink_choose_item_button] = entity_elem.process_udlink_choose_item_button,
-    [names.prefix .. names.udlink_choose_fluid_button] = entity_elem.process_udlink_choose_fluid_button,
+    [names.prefix .. names.udlink_choose_item_button] = entity_controls.process_udlink_choose_item_button,
+    [names.prefix .. names.udlink_choose_fluid_button] = entity_controls.process_udlink_choose_fluid_button,
 }
 script.on_event(defines.events.on_gui_elem_changed, function(event)
     gui_name_router(event, on_gui_elem_changed_router)

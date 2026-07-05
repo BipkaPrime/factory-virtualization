@@ -1,5 +1,14 @@
 local Helper = {}
 
+-- collects all compiled template names that exist
+function Helper.get_all_templates()
+    local result = {}
+    for name, _ in pairs(storage.compiled_templates) do
+        table.insert(result, name)
+    end
+    return result
+end
+
 -- Gets the name of a a given entity or ghost-entity assuming it's valid
 -- @returns string: name of given entity or ghost-entity
 -- @returns bool: true if entity is ghost

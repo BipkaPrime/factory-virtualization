@@ -28,7 +28,8 @@
 
 local names = require("scripts.gui.names")
 local common = require("scripts.gui.common")
-local backend = require("scripts.template-dashboard-backend")
+local info_elem = require("scripts.gui.info-elem")
+local misc = require("scripts.misc")
 
 local Helper = {}
 
@@ -37,7 +38,7 @@ local function update_template_selector(dashboard_data)
     if not selector or not selector.valid then return end
     local query = dashboard_data.template_query
     local selected = dashboard_data.template_name
-    local options = backend.get_all_templates()
+    local options = misc.get_all_templates()
     common.arrange_selector(selector, options, query, selected)
 end
 
@@ -112,96 +113,13 @@ local function template_dashboard_base(player)
     dashboard_data.elements.datafield = datafield
 end
 
--- Base gui element that datafield consists of
--- Basically bordered frame with set width and label
--- @returns LuaGuiElement: reference to main flow gui element
-local function dashboard_section_base(element, label)
-    local main_frame = element.add{
-        type = "frame",
-        style = "bordered_frame"
-    }
-    main_frame.style.minimal_width = 424
-
-    local main_flow = main_frame.add{
-        type = "flow",
-        direction = "vertical",
-    }
-
-    -- Label at the top of this section
-    local label_element = main_flow.add{
-        type = "label",
-        caption = label,
-        style = "bold_label",
-    }
-    label_element.style.font_color = {255, 230, 199}
-
-    return main_flow
-end
-
--- Adds bold label to a given element
-local function add_bold_label(element, caption)
-    element.add{
-        type = "label",
-        caption = caption,
-        style = "bold_label"
-    }
-end
-
 local function template_info_gui(dashboard_data)
     local datafield = dashboard_data.elements.datafield
     local template_name = dashboard_data.template_name
-
-    -- template build cost section
-    local section = dashboard_section_base(
-        datafield,
-        {"gui-label.construction-cost"}
-    )
-    local build_cost = backend.get_building_cost(template_name)
-    common.sprite_button_panel(section, build_cost)
-
-    -- template inputs per second section
-    local section = dashboard_section_base(
-        datafield,
-        {"gui-label.template-input"}
-    )
-    local inputs = backend.get_inputs(template_name)
-    common.sprite_button_panel(section, inputs)
-    -- energy inputs (same section)
-    local primary, simulation, total = backend.get_energy_costs(template_name)
-    add_bold_label(section, {"", {"gui-label.template-energy-input"}, ": ", primary})
-    add_bold_label(section, {"", {"gui-label.template-simulation-cost"}, ": ", simulation})
-    add_bold_label(section, {"", {"gui-label.template-total-energy"}, ": ", total})
-
-    -- template outputs per second section
-    local section = dashboard_section_base(
-        datafield,
-        {"gui-label.template-output"}
-    )
-    local outputs = backend.get_outputs(template_name)
-    common.sprite_button_panel(section, outputs)
-    -- energy production and pollution (same section)
-    local energy_prod = backend.get_energy_production(template_name)
-    add_bold_label(section, {"", {"gui-label.template-energy-output"}, ": ", energy_prod})
-    local pollution = backend.get_pollution(template_name)
-    add_bold_label(section, {"", {"gui-label.template-pollution-output"}, ": ", pollution})
-
-    -- research point generation (3 sections)
-    local labs, logistics, ppi = backend.get_science_production(template_name)
-    local section = dashboard_section_base(
-        datafield,
-        {"gui-label.research-per-second-labs"}
-    )
-    common.sprite_button_panel(section, labs)
-    local section = dashboard_section_base(
-        datafield,
-        {"gui-label.research-per-second-logistics"}
-    )
-    common.sprite_button_panel(section, logistics)
-    local section = dashboard_section_base(
-        datafield,
-        {"gui-label.research-points-per-item"}
-    )
-    common.sprite_button_panel(section, ppi)
+    info_elem.template_construction_cost(datafield, template_name)
+    info_elem.template_inputs_per_second(datafield, template_name)
+    info_elem.template_outputs_per_second(datafield, template_name)
+    info_elem.template_research_production(datafield, template_name)
 end
 
 local function venv_info_gui(dashboard_data)

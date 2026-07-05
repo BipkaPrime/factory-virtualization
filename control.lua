@@ -1,7 +1,8 @@
 local chunk_registry = require("scripts.vsurface-chunk-registry")
 local lab_force = require("scripts.lab-force")
-local entity_registry = require("scripts.entity-registry")
+local entity_registry = require("scripts.entity-registry.main")
 local template_compiler = require("scripts.template-compiler")
+local entity_params = require("scripts.entity_params")
 local gui = require("scripts.gui.main")
 
 
@@ -25,10 +26,9 @@ script.on_init(function()
     -- key: surface_id, value: virtual environment (table)
     storage.compiling_surfaces = {}
 
-    -- Used to track all operational virtual environments on all surfaces
-    -- key: template name, value: virtual environments for that template (table)
-    -- key: surface_id, value: venv (table)
-    storage.virtual_environments = {}
+    -- Used to track all operational virtualization clusters on all surfaces
+    -- storage.vclusters[template_name][surface_id] = table (cluster data)
+    storage.vclusters = {}
 
     -- Used to track all chunks on virtualization surfaces for charting and running
     -- services on them (like auto ghost reviving, instant deconstruction, etc.)
@@ -36,6 +36,9 @@ script.on_init(function()
 
     -- Used to keeps track of entities added by this mod that require on tick processing
     storage.entity_registry = {array = {}, lookup = {}}
+
+    -- Initializing params related to entities added by this mod
+    entity_params.storage_init()
 
     -- Initializing technical lab force that owns everything built on virtualization surfaces. 
     lab_force.init_lab_force()
