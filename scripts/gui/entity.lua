@@ -13,14 +13,50 @@
 -- This table also contains important data like reference to opened entity, registry data, etc.
 -- When gui is closed, this table is deleted.
 
-local entity_registry = require("scripts.entity-registry.main")
+-- This gui also works for ghost-entity. In this case user inputs are saved in entity tags
+-- instead of entity registry. They will be processed and added to registry when entity is built.
+
+--------------------------------------------------------------------------------------------
+-- STORAGE KEYS FOR CONVENIENCE
+--------------------------------------------------------------------------------------------
+-- table = storage.entity_gui[player_index]. table keys:
+-- entity LuaEntity: opened entity object
+-- entity_name string: name of entity or ghost
+-- is_ghost bool: true if entity is a ghost
+-- on_vsurface bool: true if entity is located on a vsurface
+-- properties table: entity properties from entity registry or table that
+--                   should be stored in entity.tags for ghosts
+-- elements table[LuaGuiElement]: references to different buttons in gui (check entity-controls.lua)
+
+
+local registry = require("scripts.entity.entity-registry")
 local names = require("scripts.gui.names")
 local common = require("scripts.gui.common")
 local entity_controls = require("scripts.gui.entity-controls")
-local info_elem = require("scripts.gui.info-elem")
+local entity_info = require("scripts.gui.entity-info")
+local vcluster_info = require("scripts.gui.vcluster-info")
 local misc = require("scripts.misc")
 
 local Helper = {}
+
+-- Adds data related to entity to gui_data
+local function add_entity_data(gui_data, entity)
+    gui_data.entity = entity
+    -- checking if entity is on a vsurface
+    if storage.v_surfaces[entity.surface_index] then
+        gui_data.on_vsurface = true
+    end
+    -- getting name and "ghost status"
+    local name, is_ghost = misc.get_entity_name(entity)
+    gui_data.entity_name = name
+    gui_data.is_ghost = is_ghost
+    -- entity properties from registry or entity.tags if it's a ghost
+    gui_data.properties = registry.get_entity_data(entity.unit_number) or {}
+    local key = names.prefix
+    if is_ghost and entity.tags and entity.tags[key] then
+        gui_data.properties = entity.tags[key]
+    end
+end
 
 -- key (string): entity name, value (localized string): title
 local entity_gui_title = {
@@ -39,22 +75,24 @@ local entity_gui_title = {
 -- @param entity LuaEntity: assumed to be valid
 -- @param title localized string: window title
 local function entity_gui_base(player, entity)
+    -- initializing entity_gui storage for given player
+    storage.entity_gui[player.index] = {}
+    local gui_data = storage.entity_gui[player.index]
+    gui_data.elements = {}
+    add_entity_data(gui_data, entity)
+
     -- creating base window and "opening" it
-    local entity_name = misc.get_entity_name(entity)
-    local title = entity_gui_title[entity_name]
-    local main_frame = common.gui_base_window(
+    local title = entity_gui_title[gui_data.entity_name]
+    local main_window = common.gui_base_window(
         player,
         names.prefix .. names.entity_window,
         title
     )
-    player.opened = main_frame
-    -- initializing entity_gui storage for given player
-    storage.entity_gui[player.index] = {entity = entity}
-    local gui_data = storage.entity_gui[player.index]
-    gui_data.elements = {main_window = main_frame}
-    gui_data.registry_data = entity_registry.get_entity_data(entity.unit_number)
+    player.opened = main_window
+    gui_data.elements.main_window = main_window
+
     -- invisible container for other frames
-    local main_flow = main_frame.add{
+    local main_flow = main_window.add{
         type="flow",
         direction="horizontal",
     }
@@ -79,6 +117,19 @@ local function entity_gui_base(player, entity)
     return gui_data
 end
 
+-- Updates udlink datafield. Displays vcluster information if
+-- entity is connected to one. Does nothing otherwise
+local function update_udlink_datafield(gui_data)
+    local datafield = gui_data.elements.datafield
+    local properties = gui_data.properties
+    datafield.clear()
+    local cluster = properties.cluster
+    -- if not connected to clusted, does nothing
+    if not cluster then return end
+    vcluster_info.vcluster_input_buffer(datafield, cluster)
+    vcluster_info.vcluster_output_buffer(datafield, cluster)
+end
+
 -- Gui for item uplink/downlink
 local function item_udlink_gui(player, entity)
     local gui_data = entity_gui_base(player, entity)
@@ -86,6 +137,7 @@ local function item_udlink_gui(player, entity)
     entity_controls.add_udlink_io_checkbox(left_frame, gui_data)
     entity_controls.add_template_selection_widget(left_frame, gui_data)
     entity_controls.add_udlink_choose_item_button(left_frame, gui_data)
+    update_udlink_datafield(gui_data)
 end
 
 -- Gui for fluid uplink/downlink
@@ -95,6 +147,7 @@ local function fluid_udlink_gui(player, entity)
     entity_controls.add_udlink_io_checkbox(left_frame, gui_data)
     entity_controls.add_template_selection_widget(left_frame, gui_data)
     entity_controls.add_udlink_choose_fluid_button(left_frame, gui_data)
+    update_udlink_datafield(gui_data)
 end
 
 local function energy_udlink_gui(player, entity)
@@ -102,15 +155,21 @@ local function energy_udlink_gui(player, entity)
     local left_frame = gui_data.elements.left_frame
     entity_controls.add_udlink_io_checkbox(left_frame, gui_data)
     entity_controls.add_template_selection_widget(left_frame, gui_data)
+    update_udlink_datafield(gui_data)
 end
 
 -- Updates virtualization mainframe datafield
 local function update_vmainframe_datafield(gui_data)
     local datafield = gui_data.elements.datafield
-    local reg_data = gui_data.registry_data
+    local properties = gui_data.properties
     datafield.clear()
-    info_elem.vmainframe_status_display(datafield, reg_data)
-    info_elem.vmainframe_building_requests(datafield, reg_data)
+    entity_info.vmainframe_status_display(datafield, properties)
+    entity_info.vmainframe_building_requests(datafield, properties)
+    -- cluster info if connected to one
+    local cluster = properties.cluster
+    if not cluster then return end
+    vcluster_info.vcluster_input_buffer(datafield, cluster)
+    vcluster_info.vcluster_output_buffer(datafield, cluster)
 end
 
 -- Creates custom gui for virtualization mainframe
@@ -120,7 +179,6 @@ local function vmainframe_gui(player, entity)
     entity_controls.add_template_selection_widget(left_frame, gui_data)
     update_vmainframe_datafield(gui_data)
 end
-
 
 -- key (string): entity name, value (function): handler that creates gui
 local entity_gui_router = {
@@ -150,14 +208,18 @@ script.on_event(defines.events.on_gui_opened, function(event)
     handler(player, entity)
 end)
 
-
 local entity_datafield_router = {
+    [names.prefix .. "item-uplink"] = update_udlink_datafield,
+    [names.prefix .. "item-downlink"] = update_udlink_datafield,
+    [names.prefix .. "fluid-uplink"] = update_udlink_datafield,
+    [names.prefix .. "fluid-downlink"] = update_udlink_datafield,
+    [names.prefix .. "energy-uplink"] = update_udlink_datafield,
+    [names.prefix .. "energy-downlink"] = update_udlink_datafield,
     [names.prefix .. "virtualization-mainframe"] = update_vmainframe_datafield,
 }
 -- Time-based updater for entity gui datafields
 function Helper.update_entity_gui_datafield()
     for _, gui_data in pairs(storage.entity_gui) do
-        if not gui_data.registry_data then goto continue end
         local entity = gui_data.entity
         if not entity or not entity.valid then goto continue end
         local handler = entity_datafield_router[entity.name]

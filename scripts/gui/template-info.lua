@@ -1,8 +1,8 @@
--- This file helps in creation of information gui elements
--- It's used to fetch data from storage and aggregate in a way
--- that can be easily displayed.
+-- This file is used to display information about compiled templates.
+-- Created gui element cannot be interacted with.
 
 local misc = require("scripts.misc")
+local common = require("scripts.gui.common")
 
 local Helper = {}
 
@@ -47,15 +47,25 @@ end
 
 -- collects template building cost in form
 -- of array of {type, name, count, quality}
-function Helper.get_building_cost(template_name)
+local function get_building_cost(template_name)
     local template = storage.compiled_templates[template_name]
     if not template then return {} end
     return collect_item_table(template.building_cost)
 end
 
+-- Adds section describing template construction cost
+function Helper.template_construction_cost(parent, template_name)
+    local section = common.info_element_base(
+        parent,
+        {"gui-label.construction-cost"}
+    )
+    local build_cost = get_building_cost(template_name)
+    common.sprite_button_panel(section, build_cost)
+end
+
 -- collects template inputs in form
 -- of array of {type, name, count, quality}
-function Helper.get_inputs(template_name)
+local function get_inputs(template_name)
     local template = storage.compiled_templates[template_name]
     if not template or not template.input then return {} end
     local inputs = {}
@@ -67,7 +77,7 @@ end
 -- collects template energy cost. Returns 3 strings representing
 -- energy demand like "105 GW"/"10.7 kW"/etc.
 -- Returned values are: energy input, simulation cost, total cost
-function Helper.get_energy_costs(template_name)
+local function get_energy_costs(template_name)
     local template = storage.compiled_templates[template_name]
     if not template then return "0 W", "0 W", "0 W" end
     -- regular energy input
@@ -86,9 +96,24 @@ function Helper.get_energy_costs(template_name)
     return input_formated, sim_formated, total_formated
 end
 
+-- Adds section describing template inputs per second
+function Helper.template_inputs_per_second(parent, template_name)
+    local section = common.info_element_base(
+        parent,
+        {"gui-label.template-input"}
+    )
+    local inputs = get_inputs(template_name)
+    common.sprite_button_panel(section, inputs)
+    -- energy inputs
+    local primary, simulation, total = get_energy_costs(template_name)
+    common.add_bold_label(section, {"", {"gui-label.template-energy-input"}, ": ", primary})
+    common.add_bold_label(section, {"", {"gui-label.template-simulation-cost"}, ": ", simulation})
+    common.add_bold_label(section, {"", {"gui-label.template-total-energy"}, ": ", total})
+end
+
 -- collects template outputs in form
 -- of array of {type, name, count, quality}
-function Helper.get_outputs(template_name)
+local function get_outputs(template_name)
     local template = storage.compiled_templates[template_name]
     if not template or not template.output then return {} end
     local outputs = {}
@@ -99,7 +124,7 @@ end
 
 -- collects template energy production.
 -- @returns string: for example "105 GW", "10.7 kW"
-function Helper.get_energy_production(template_name)
+local function get_energy_production(template_name)
     local template = storage.compiled_templates[template_name]
     if not template then return "0 W" end
     local energy_prod = 0
@@ -107,6 +132,19 @@ function Helper.get_energy_production(template_name)
         energy_prod = template.output.energy
     end
     return misc.format_double(energy_prod) .. "W"
+end
+
+-- Adds section describing template outputs per second
+function Helper.template_outputs_per_second(parent, template_name)
+    local section = common.info_element_base(
+        parent,
+        {"gui-label.template-output"}
+    )
+    local outputs = get_outputs(template_name)
+    common.sprite_button_panel(section, outputs)
+    -- energy production
+    local energy_prod = get_energy_production(template_name)
+    common.add_bold_label(section, {"", {"gui-label.template-energy-output"}, ": ", energy_prod})
 end
 
 -- converts template data section containing science production from hmap
@@ -130,7 +168,7 @@ end
 -- collects template research capability consisting of 3 arrays
 -- labs potential, logistics potential, research points per item
 -- {type, name, count, quality = "normal"}.
-function Helper.get_science_production(template_name)
+local function get_science_production(template_name)
     local template = storage.compiled_templates[template_name]
     if not template or not template.science then return {}, {}, {} end
     local labs = collect_science_table(template.science.labs_potential)
@@ -139,12 +177,24 @@ function Helper.get_science_production(template_name)
     return labs, logistics, ppi
 end
 
--- Collects building requests of a given vmainframe
-function Helper.get_vmainframe_requests(reg_data)
-    if not reg_data or not reg_data.building_requests then return {} end
-    local requests = reg_data.building_requests
-    return collect_item_table(requests)
+-- Adds 3 sections describing template research capabilities
+function Helper.template_research_production(parent, template_name)
+    local labs, logistics, ppi = get_science_production(template_name)
+    local section1 = common.info_element_base(
+        parent,
+        {"gui-label.research-per-second-labs"}
+    )
+    common.sprite_button_panel(section1, labs)
+    local section2 = common.info_element_base(
+        parent,
+        {"gui-label.research-per-second-logistics"}
+    )
+    common.sprite_button_panel(section2, logistics)
+    local section3 = common.info_element_base(
+        parent,
+        {"gui-label.research-points-per-item"}
+    )
+    common.sprite_button_panel(section3, ppi)
 end
-
 
 return Helper

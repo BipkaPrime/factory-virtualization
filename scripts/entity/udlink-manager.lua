@@ -8,9 +8,12 @@
 -- unit_number uint64: unit number of this entity (not really relevant while entity is valid)
 -- selected_template string: selected template for a given entity if any (user input)
 -- active_template string: name of template currently in operation
+-- selected_item (table) {name, quality}: item filter selected in item udlink
+-- selected_fluid (table): {name} fluid name selected in fluid udlink
+-- vsurface_io bool: true if given uplink/downlink is a vsurface IO
 -- cluster table: reference to virtualization cluster that has this udlink as a member
 
-local vcluster = require("scripts.entity-registry.vcluster")
+local vcluster = require("scripts.entity.vcluster")
 local names = require("scripts.gui.names")
 
 local Helper = {}

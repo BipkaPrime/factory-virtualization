@@ -50,7 +50,7 @@
 -- This allows to calculate center of mass in O(1) time as well as addition and deletion
 -- of entities in O(1) time.
 
-local vcluster = require("scripts.entity-registry.vcluster")
+local vcluster = require("scripts.entity.vcluster")
 
 local Helper = {}
 

@@ -58,6 +58,39 @@ function Helper.process_close_button(event)
     player.opened = nil
 end
 
+-- Base gui element for all info elements
+-- Basically a bordered frame with set width and label
+-- @returns LuaGuiElement: reference to main flow 
+function Helper.info_element_base(parent, label)
+    local main_frame = parent.add{
+        type = "frame",
+        style = "bordered_frame"
+    }
+    main_frame.style.minimal_width = 424
+    local main_flow = main_frame.add{
+        type = "flow",
+        direction = "vertical",
+    }
+    -- Label at the top of this section
+    local subtitle = main_flow.add{
+        type = "label",
+        caption = label,
+        style = "bold_label",
+    }
+    subtitle.style.font_color = {255, 230, 199}
+
+    return main_flow
+end
+
+-- Adds bold label to a given element
+function Helper.add_bold_label(parent, caption)
+    parent.add{
+        type = "label",
+        caption = caption,
+        style = "bold_label"
+    }
+end
+
 -- Add a selectrion widget to a given gui element, consisting of subtitle "label",
 -- "textfield" for searching and "list-box" for selection.
 -- Added widget is empty. To add items use function below

@@ -13,7 +13,11 @@
 --------------------------------------------------------------------------------------------
 -- table = storage.entity_gui[player_index]. table keys:
 -- entity LuaEntity: opened entity object
--- registry_data table: entity data from entity registry
+-- entity_name string: name of entity or ghost
+-- is_ghost bool: true if entity is a ghost
+-- on_vsurface bool: true if entity is on a vsurface
+-- properties table: entity properties from entity registry or table that
+--                   should be stored in entity.tags for ghosts
 -- template_search_query sting: search query in template selector widget
 -- elements.main_window LuaGuiElement: reference to main entity gui window
 -- elements.left_frame LuaGuiElement: reference to main container on the left side
@@ -43,9 +47,8 @@ local function close_opened_window(player_index)
     player.opened = nil
 end
 
--- Standart check performed before handling any user inputs into
--- entity gui that can affect entity and/or entity registry data
--- Checks that gui_data exists, entity is valid and we have its registry data
+-- Standart check performed before handling any user inputs
+-- Checks that gui_data exists and entity is valid
 -- If any check fails, the window is closed (player.opened is set to nil)
 -- @returns bool: true if everything is ok
 local function assert_entity_validity(player_index, gui_data)
@@ -60,42 +63,45 @@ local function assert_entity_validity(player_index, gui_data)
         close_opened_window(player_index)
         return false
     end
-    -- checking entity registry data
-    if not gui_data.registry_data then
-        close_opened_window(player_index)
-        return false
-    end
     return true
+end
+
+-- Updates table in entity tags with gui_data.properties 
+-- Does nothing if entity is not a ghost. Entity is assumed to be valid.
+local function update_entity_tags(gui_data)
+    if not gui_data.is_ghost then return end
+    local key = names.prefix
+    local entity = gui_data.entity
+    local tags = entity.tags or {}
+    tags[key] = gui_data.properties
+    entity.tags = tags
 end
 
 -- Configures only template selector. Used for handling search.
 local function configure_template_selector(gui_data)
     local selector = gui_data.elements.template_selector
     local query = gui_data.template_search_query
-    local reg_data = gui_data.registry_data
-    -- if registry data is unavailable, don't show options
-    if not reg_data then return end
+    local properties = gui_data.properties
     -- if vsurface_io checked, display no template options
     local options
-    if not reg_data.vsurface_io then
+    if not properties.vsurface_io then
         options = misc.get_all_templates()
     end
-    local selected = reg_data.selected_template
+    local selected = properties.selected_template
     common.arrange_selector(selector, options, query, selected)
 end
 
 -- Configures template selector as well as searchbox and label above 
 local function configure_template_selection_widget(gui_data)
     local entity = gui_data.entity
-    local _, is_ghost = misc.get_entity_name(entity)
     local label = gui_data.elements.template_selector_label
     local search = gui_data.elements.template_search
     -- setting searchbox text and label caption
     search.text = gui_data.template_search_query or ""
     label.caption = {"gui-label.select-template"}
     -- checking if selection widget should be enabled
-    local reg_data = gui_data.registry_data
-    if is_ghost or (reg_data and reg_data.vsurface_io) then
+    local properties = gui_data.properties
+    if properties.vsurface_io then
         label.enabled = false
         search.enabled = false
     else
@@ -131,20 +137,20 @@ end
 -- Used when on_gui_selection_state_changed event is triggered
 function Helper.process_template_selector(event)
     local gui_data = storage.entity_gui[event.player_index]
-    -- making sure entity is valid and we have registry data
     local status = assert_entity_validity(event.player_index, gui_data)
     if not status then return end
-    local reg_data = gui_data.registry_data
+    local properties = gui_data.properties
     local element = event.element
-    local old_selection = reg_data.selected_template
+    local old_selection = properties.selected_template
     local new_selection = element.items[element.selected_index]
     -- if selected item is clicked again, we want to unselect it
     if old_selection == new_selection then
-        reg_data.selected_template = nil
+        properties.selected_template = nil
         configure_template_selector(gui_data)
     else
-        reg_data.selected_template = new_selection
+        properties.selected_template = new_selection
     end
+    update_entity_tags(gui_data)
 end
 
 -- key (string): entity name, value (localized string): caption
@@ -158,18 +164,16 @@ local udlink_io_caption = {
 }
 -- Configures "Vsurface IO" checkbox according to gui_data
 local function configure_udlink_io_checkbox(gui_data)
-    local entity = gui_data.entity
-    local entity_name, is_ghost = misc.get_entity_name(entity)
     local label = gui_data.elements.udlink_io_label
     local checkbox = gui_data.elements.udlink_io_checkbox
-    -- setting label and button state according to entity data
-    local reg_data = gui_data.registry_data
-    label.caption = udlink_io_caption[entity_name]
-    if reg_data and reg_data.vsurface_io then
+    -- setting label and button state according to entity properties
+    local properties = gui_data.properties
+    label.caption = udlink_io_caption[gui_data.entity_name]
+    if properties.vsurface_io then
         checkbox.state = true
     end
-    -- disabling checkbox if entity is a ghost or not on a vsurface
-    if is_ghost or not storage.v_surfaces[entity.surface_index] then
+    -- disabling checkbox if entity is not on a vsurface
+    if not gui_data.on_vsurface then
         label.enabled = false
         checkbox.enabled = false
     end
@@ -191,33 +195,22 @@ function Helper.add_udlink_io_checkbox(parent, gui_data)
     configure_udlink_io_checkbox(gui_data)
 end
 
--- Clears entity inventory (item, fluids and energy) of a given
--- entity if it's located on a vsurface
-local function clear_inventory_vsurface(entity)
-    local surface_index = entity.surface_index
-    if not storage.v_surfaces[surface_index] then return end
-    local item_inventory = entity.get_inventory(defines.inventory.chest)
-    if item_inventory then item_inventory.clear() end
-    entity.clear_fluid_inside()
-    if entity.energy > 0 then entity.energy = 0 end
-end
-
 -- Handles uplink/downlink IO checkbox being pressed
 -- Used when on_gui_checked_state_changed event is triggered
 function Helper.process_udlink_io_checkbox(event)
     local gui_data = storage.entity_gui[event.player_index]
-    -- making sure entity is valid and we have registry data
     local status = assert_entity_validity(event.player_index, gui_data)
     if not status then return end
-    -- savind checkbox state to registry
-    local reg_data = gui_data.registry_data
-    reg_data.vsurface_io = event.element.state
+    -- savind checkbox state to properties
+    local properties = gui_data.properties
+    properties.vsurface_io = event.element.state
     -- whenever this changes we also want to clear selected template
-    reg_data.selected_template = nil
+    properties.selected_template = nil
     gui_data.template_search_query = nil
     configure_template_selection_widget(gui_data)
-    -- whenever this changer we also want to clear entity inventory
-    clear_inventory_vsurface(gui_data.entity)
+    update_entity_tags(gui_data)
+    -- when this changes we clear entity inventory
+    misc.clear_inventory_vsurface(gui_data.entity)
 end
 
 -- key (string): entity name, value (localized string): caption
@@ -227,22 +220,14 @@ local choose_item_button_label = {
 }
 -- Updates choose item button with its label
 local function configure_udlink_choose_item_button(gui_data)
-    local entity = gui_data.entity
-    local entity_name, is_ghost = misc.get_entity_name(entity)
     local label = gui_data.elements.udlink_choose_item_label
     local button = gui_data.elements.udlink_choose_item_button
     -- setting label caption
-    label.caption = choose_item_button_label[entity_name]
-    -- checking if choose item button should be enabled
-    if is_ghost then
-        label.enabled = false
-        button.enabled = false
-        return
-    end
-    -- setting chosen element according to registry data
-    local reg_data = gui_data.registry_data
-    if reg_data and reg_data.selected_item then
-        local item = reg_data.selected_item
+    label.caption = choose_item_button_label[gui_data.entity_name]
+    -- setting chosen element according to entity properties
+    local properties = gui_data.properties
+    if properties.selected_item then
+        local item = properties.selected_item
         button.elem_value = {
             name = item.name,
             quality = item.quality,
@@ -270,13 +255,21 @@ end
 function Helper.process_udlink_choose_item_button(event)
     local gui_data = storage.entity_gui[event.player_index]
     local status = assert_entity_validity(event.player_index, gui_data)
-    -- we want to clear entity inventory if this is clicked
-    clear_inventory_vsurface(gui_data.entity)
-    -- saving selection to entity registry
-    local reg_data = gui_data.registry_data
+    if not status then return end
+    -- saving selection to entity properties
+    local properties = gui_data.properties
     local item = event.element.elem_value
-    if not item then reg_data.selected_item = nil return end
-    reg_data.selected_item = {name = item.name, quality = item.quality}
+    if item then
+        properties.selected_item = {
+            name = item.name,
+            quality = item.quality
+        }
+    else
+        properties.selected_item = nil
+    end
+    update_entity_tags(gui_data)
+    -- we want to clear entity inventory if this is clicked
+    misc.clear_inventory_vsurface(gui_data.entity)
 end
 
 -- key (string): entity name, value (table): label caption and elem_type
@@ -286,22 +279,14 @@ local choose_fluid_button_label = {
 }
 -- Updates choose fluid button with its label, assuming entity is valid
 local function update_udlink_choose_fluid_button(gui_data)
-    local entity = gui_data.entity
-    local entity_name, is_ghost = misc.get_entity_name(entity)
     local label = gui_data.elements.udlink_choose_fluid_label
     local button = gui_data.elements.udlink_choose_fluid_button
     -- setting label caption
-    label.caption = choose_fluid_button_label[entity_name]
-    -- checking if choose fluid button should be enabled
-    if is_ghost then
-        label.enabled = false
-        button.enabled = false
-        return
-    end
-    -- setting selected fluid according to registry
-    local reg_data = gui_data.registry_data
-    if reg_data and reg_data.selected_fluid then
-        local fluid = reg_data.selected_fluid
+    label.caption = choose_fluid_button_label[gui_data.entity_name]
+    -- setting selected fluid according to entity properties
+    local properties = gui_data.properties
+    if properties.selected_fluid then
+        local fluid = properties.selected_fluid
         button.elem_value = fluid.name
     end
 end
@@ -325,16 +310,19 @@ end
 -- Used when on_gui_elem_changed event is triggered
 function Helper.process_udlink_choose_fluid_button(event)
     local gui_data = storage.entity_gui[event.player_index]
-    -- making sure entity is valid and we have registry data
     local status = assert_entity_validity(event.player_index, gui_data)
     if not status then return end
-    -- we want to clear entity inventory if this is clicked
-    clear_inventory_vsurface(gui_data.entity)
-    -- saving selection to entity registry
-    local reg_data = gui_data.registry_data
+    -- saving selection to entity properties
+    local properties = gui_data.properties
     local fluid_name = event.element.elem_value
-    if not fluid_name then reg_data.selected_fluid = nil return end
-    reg_data.selected_fluid = {name = fluid_name}
+    if fluid_name then
+        properties.selected_fluid = {name = fluid_name}
+    else
+        properties.selected_fluid = nil
+    end
+    update_entity_tags(gui_data)
+    -- if this is clicked on a vsurface, clear entity inventory
+    misc.clear_inventory_vsurface(gui_data.entity)
 end
 
 return Helper

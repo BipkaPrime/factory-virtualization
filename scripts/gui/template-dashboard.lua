@@ -28,7 +28,7 @@
 
 local names = require("scripts.gui.names")
 local common = require("scripts.gui.common")
-local info_elem = require("scripts.gui.info-elem")
+local template_info = require("scripts.gui.template-info")
 local misc = require("scripts.misc")
 
 local Helper = {}
@@ -116,10 +116,10 @@ end
 local function template_info_gui(dashboard_data)
     local datafield = dashboard_data.elements.datafield
     local template_name = dashboard_data.template_name
-    info_elem.template_construction_cost(datafield, template_name)
-    info_elem.template_inputs_per_second(datafield, template_name)
-    info_elem.template_outputs_per_second(datafield, template_name)
-    info_elem.template_research_production(datafield, template_name)
+    template_info.template_construction_cost(datafield, template_name)
+    template_info.template_inputs_per_second(datafield, template_name)
+    template_info.template_outputs_per_second(datafield, template_name)
+    template_info.template_research_production(datafield, template_name)
 end
 
 local function venv_info_gui(dashboard_data)

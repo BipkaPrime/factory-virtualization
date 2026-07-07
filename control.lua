@@ -1,8 +1,8 @@
 local chunk_registry = require("scripts.vsurface-chunk-registry")
 local lab_force = require("scripts.lab-force")
-local entity_registry = require("scripts.entity-registry.main")
+local entity_registry = require("scripts.entity.main")
 local template_compiler = require("scripts.template-compiler")
-local entity_params = require("scripts.entity_params")
+local entity_params = require("scripts.entity.entity-params")
 local gui = require("scripts.gui.main")
 
 
