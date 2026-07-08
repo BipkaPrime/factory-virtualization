@@ -67,7 +67,7 @@ function Helper.format_double(value)
         -- rounding to whole number
         value_str = string.format("%d", math.floor(scaled_value + 0.5))
     end
-    
+
     return value_str .. " " .. selected.suffix
 end
 

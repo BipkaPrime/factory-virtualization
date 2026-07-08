@@ -3,6 +3,7 @@ local lab_force = require("scripts.lab-force")
 local entity_registry = require("scripts.entity.main")
 local template_compiler = require("scripts.template-compiler")
 local entity_params = require("scripts.entity.entity-params")
+local vcluster_processor = require("scripts.entity.vcluster-processor")
 local gui = require("scripts.gui.main")
 
 
@@ -29,6 +30,9 @@ script.on_init(function()
     -- Used to track all operational virtualization clusters on all surfaces
     -- storage.vclusters[template_name][surface_id] = table (cluster data)
     storage.vclusters = {}
+
+    -- Used to store all existing clusters in a flat array for processing.
+    storage.cluster_list = {}
 
     -- Used to track all chunks on virtualization surfaces for charting and running
     -- services on them (like auto ghost reviving, instant deconstruction, etc.)
@@ -86,6 +90,7 @@ end)
 script.on_event(defines.events.on_tick, function(event)
     entity_registry.entity_processor(event)
     chunk_registry.chunk_processor(event)
+    vcluster_processor.process_clusters(event)
 end)
 
 script.on_nth_tick(60, function()

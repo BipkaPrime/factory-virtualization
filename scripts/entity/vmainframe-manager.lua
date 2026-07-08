@@ -102,19 +102,6 @@ local function request_new_template(properties)
     end
 end
 
--- Handles template name being changed. This is called when
--- selected_template ~= active template
-local function handle_template_change(properties)
-    -- managing template construction
-    deconstruct_old_template(properties)
-    request_new_template(properties)
-    -- moving VM to new vcluster
-    vcluster.remove_from_cluster(properties)
-    vcluster.add_to_cluster(properties)
-    properties.active_template = properties.selected_template
-    properties.operational = false
-end
-
 -- Adds everything from requests table to logistic
 -- requests of given mainframe
 local function set_construction_requests(properties)
@@ -175,45 +162,18 @@ local function withdraw_building_materials(properties)
     end
 end
 
--- Helps with processing "crafts". 
--- @returns bool: true if all ingredients are available
-local function ingredients_available(cluster)
-    for _, buffer in pairs(cluster.input) do
-        if buffer[1] < buffer[2] then return false end
-    end
-    return true
-end
-
--- Helps with processing "crafts". 
--- @returns bool: true if output space is available
-local function output_space_available(cluster)
-    for _, buffer in pairs(cluster.output) do
-        if buffer[1] + buffer[2] > buffer[3] then return false end
-    end
-    return true
-end
-
--- Handles 1 "operation" of operational VM
-local function perform_craft(properties)
-    local cluster = properties.cluster
-    if not cluster.research_producer then
-        if not ingredients_available(cluster) then return end
-        if not output_space_available(cluster) then return end
-        -- removing ingredients from input
-        for _, buffer in pairs(cluster.input) do
-            buffer[1] = buffer[1] - buffer[2]
-        end
-        -- adding products to output
-        for _, buffer in pairs(cluster.output) do
-            buffer[1] = buffer[1] + buffer[2]
-        end
-    end
-end
-
 -- On-tick processor for virtualization mainframes
 function Helper.update_vmainframe(properties)
+    -- handling template being changed
     if properties.selected_template ~= properties.active_template then
-        handle_template_change(properties)
+        -- managing template construction
+        deconstruct_old_template(properties)
+        request_new_template(properties)
+        -- moving VM to new vcluster
+        vcluster.remove_from_cluster(properties)
+        vcluster.add_to_cluster(properties)
+        properties.active_template = properties.selected_template
+        properties.operational = false
     end
     -- handling building requests (only if mainframe is not operational)
     if not properties.operational then
@@ -221,12 +181,10 @@ function Helper.update_vmainframe(properties)
         set_construction_requests(properties)
         local requests = properties.building_requests
         if properties.active_template and (not requests or not next(requests)) then
+            vcluster.set_mainframe_operational(properties)
             properties.operational = true
         end
-        return
     end
-    -- if mainframe is operational, we perform a craft
-    perform_craft(properties)
 end
 
 

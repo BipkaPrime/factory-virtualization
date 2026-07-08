@@ -57,7 +57,7 @@ local function vcluster_buffer_entry(parent, key, buffer)
     -- progressbar
     local bar = frame.add{
         type = "progressbar",
-        value = buffer[3]/buffer[1],
+        value = buffer[1]/buffer[3],
     }
     bar.style.bar_width = 12
     bar.style.width = 220
@@ -103,5 +103,26 @@ function Helper.vcluster_output_buffer(parent, vcluster)
     local output_buffer = vcluster.output
     vcluster_buffer_display(parent, "VCLUSTER OUTPUT", output_buffer)
 end
+
+function Helper.vcluster_member_counts(parent, vcluster)
+    local section = common.info_element_base(parent, "CLUSTER MEMBERS")
+    -- collecting sprite button data
+    local member_counts = vcluster.member_counts
+    local buttons = {}
+    for entity_name, count in pairs(member_counts) do
+        local data = {
+            type = "entity",
+            name = entity_name,
+            count = count,
+        }
+        table.insert(buttons, data)
+    end
+    common.sprite_button_panel(section, buttons)
+    local operational = vcluster.operational_vms
+    common.add_bold_label(section, "OPERATIONAL MAINFRAMES: " .. tostring(operational))
+end
+
+
+
 
 return Helper

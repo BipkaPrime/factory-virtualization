@@ -3,13 +3,13 @@
 --------------------------------------------------------------------------------------------
 -- VIRTUALIZATION CLUSTER KEYS
 --------------------------------------------------------------------------------------------
--- surface_index int: index of a surface this cluster is located at. Used for cluster deletion
---      in case last member was invalid.
+-- surface_index int: index of a surface this cluster is located at. Used for cluster deletion.
+-- template_name string: name of template associated with this cluster. Used for cluster deletion.
 -- research_producer bool: true if template is type 2
 -- input/output tables: store current, required and maximum counts for all inputs/outputs. These store
 --      items, fluid and energy. For fluids key is fluid name, for items: name//quality
 --      for energy: electric_energy. For example:
---[[  
+--[[
 input = {
     "iron-gear//rare" = {50, 150, 5000},
     "steel-plate//normal" = {500, 100, 500},
@@ -21,16 +21,23 @@ Third number is the maximum amount that can fit. That maximum buffer size is rec
 that number of members in the cluster changes. Keys for input/output tables are defined at the moment
 of cluster creation based on the template and never change.
 --]]
--- member_count int: number of members in the cluster
--- members table: key is unit_number, value is {} containing information like pos_x, pos_y of entity
+-- member_counts table: key is entity name (string), value is entity count (int)
+-- members table: key is unit_number, value is {} containing x, y, weight, name, operational_vm (bool) of an entity.
+--                it's needed for deletion of an invalid entity from the cluster
+-- operational_vms integer: number of operational virtualization mainframes in the cluster
 -- sum_x float: weighted sum of x coordinates of all members
 -- sum_y float: weighted sum of y coordinates of all members
 -- total_weight float: sum of weights of all members
+-- sum_squares float: weighted sum of squares of all member positions (x^2 + y^2) * weight
+-- total_energy_tax float: sum of all energy taxes (for distance from center) for all entities
+-- base_energy_per_craft float: base electric energy consumption per craft
+-- last_cycle_crafts integer/nil: number of crafts performed in the last crafting cycle
+-- deleted bool: true if cluster was deleted and should be removed from cluster processing
 
 local misc = require("scripts.misc")
+local names = require("scripts.gui.names")
 
 local Helper = {}
-
 
 -- Helps in creation of a new vcluster. Convers 2-level hmap input_table 
 -- containing item flows in the form table[name][quality] = count to the form
@@ -55,6 +62,17 @@ local function add_fluids(input_table, output_table)
     end
 end
 
+-- key: entity.name (string); value: entity weight (float).
+-- contains all building names which can be a part of a cluster.
+local entity_weights = {
+    [names.prefix .. "item-uplink"] = 1,
+    [names.prefix .. "item-downlink"] = 1,
+    [names.prefix .. "fluid-uplink"] = 1,
+    [names.prefix .. "fluid-downlink"] = 1,
+    [names.prefix .. "energy-uplink"] = 1,
+    [names.prefix .. "energy-downlink"] = 1,
+    [names.prefix .. "virtualization-mainframe"] = 4,
+}
 -- Gets an existing virtualization cluster from storage or creates one.
 -- @returns table/nil: cluster or nil if one could not have been created
 local function get_or_create_cluster(template_name, surface_index)
@@ -72,28 +90,37 @@ local function get_or_create_cluster(template_name, surface_index)
     -- creating the cluster if it was not found
     storage.vclusters[template_name][surface_index] = {
         surface_index = surface_index,
+        template_name = template_name,
+        research_producer = (template.type == 2),
         input = {},
         output = {},
-        member_count = 0,
+        member_counts = {},
         members = {},
+        operational_vms = 0,
         sum_x = 0,
         sum_y = 0,
         total_weight = 0,
+        sum_squares = 0,
+        total_energy_tax = 0,
     }
-    -- now we add all important data from template to vcluster
     local cluster = storage.vclusters[template_name][surface_index]
-    cluster.research_producer = (template.type == 2)
-    -- collecting inputs
+
+    -- collecting template inputs
     local t_input = template.input
+    local energy_input = 0
     if t_input then
         add_items(t_input.items, cluster.input)
         add_fluids(t_input.fluids, cluster.input)
-        -- adding input for energy
-        local area = template.area
-        local energy_drain = misc.template_area_to_power(area)
-        cluster.input.electric_energy = {0, (t_input.energy or 0) + energy_drain, 0}
+        energy_input = t_input.energy
     end
-    -- collecting outputs
+
+    -- adding input for energy
+    local area = template.area
+    local energy_drain = misc.template_area_to_power(area)
+    cluster.input.electric_energy = {0, energy_input + energy_drain, 0}
+    cluster.base_energy_per_craft = energy_input + energy_drain
+
+    -- collecting template outputs
     local t_output = template.output
     if t_output then
         add_items(t_output.items, cluster.output)
@@ -102,21 +129,51 @@ local function get_or_create_cluster(template_name, surface_index)
             cluster.output.electric_energy = {0, t_output.energy, 0}
         end
     end
+    -- adding created cluster to processing list
+    table.insert(storage.cluster_list, cluster)
     return cluster
 end
 
-
--- Recalculates buffer sizes for a given cluster
+-- Recalculates buffer sizes for a given cluster.
+-- Buffer sizes depend on number of operational vmainframes.
 local function update_buffer_size(cluster)
-    local member_count = cluster.member_count
+    local multiplier = cluster.operational_vms or 0
     local input = cluster.input
     for _, buffer in pairs(input) do
-        buffer[3] = 2 * member_count * buffer[2]
+        buffer[3] = 2 * buffer[2] * multiplier
     end
     local output = cluster.output
     for _, buffer in pairs(output) do
-        buffer[3] = 2 * member_count * buffer[2]
+        buffer[3] = 2 * buffer[2] * multiplier
     end
+end
+
+-- To encourage players to build compact clusters, we introduce 
+-- energy tax based on how far cluster members are from it's center.
+-- Tax for one building is calculated like this:
+-- BASE_COST*(dist(center, building_pos))^2, where center is a weighted
+-- average for coordinates of all members.
+-- Total tax should be equal to the sum of above expression for all members.
+-- It turns out that this sum can be calculated in O(1) time if we have
+-- access to the following values:
+-- center coordinates, total weight, weighted sum of (x^2 + y^2) for all members.
+local base_rate = 1e-5
+local function update_total_energy_tax(cluster)
+    -- if total weight of cluster is 0, tax is 0.
+    if cluster.total_weight == 0 then
+        cluster.total_energy_tax = 0
+        return
+    end
+    -- calculating weighted average of coordinates (center of cluster)
+    local center_x = cluster.sum_x / cluster.total_weight
+    local center_y = cluster.sum_y / cluster.total_weight
+    -- calculating total tax
+    local correction = cluster.total_weight * (center_x * center_x + center_y * center_y)
+    cluster.total_energy_tax = base_rate * (cluster.sum_squares - correction)
+    -- correcting energy consumption in cluster inputs
+    local base_cost = cluster.base_energy_per_craft
+    local energy_tax = cluster.total_energy_tax
+    cluster.input.electric_energy[2] = base_cost + energy_tax
 end
 
 -- Adds an entity from entity registry to a virtualization cluster.
@@ -137,17 +194,21 @@ function Helper.add_to_cluster(properties)
     properties.cluster = cluster
 
     -- updating cluster table
-    local position = entity.position
-    cluster.sum_x = cluster.sum_x + position.x
-    cluster.sum_y = cluster.sum_y + position.y
-    cluster.total_weight = cluster.total_weight + 1
-    cluster.member_count = cluster.member_count + 1
-    local members = cluster.members
-    members[entity.unit_number] = {
-        x = position.x,
-        y = position.y,
-        weight = 1
+    local x, y = entity.position.x, entity.position.y
+    local name = entity.name
+    local weight = entity_weights[name]
+    cluster.member_counts[name] = (cluster.member_counts[name] or 0) + 1
+    cluster.sum_x = cluster.sum_x + x * weight
+    cluster.sum_y = cluster.sum_y + y * weight
+    cluster.sum_squares = cluster.sum_squares + weight * (x * x + y * y)
+    cluster.total_weight = cluster.total_weight + weight
+    cluster.members[entity.unit_number] = {
+        x = x,
+        y = y,
+        weight = weight,
+        name = name
     }
+    update_total_energy_tax(cluster)
     update_buffer_size(cluster)
 end
 
@@ -160,19 +221,23 @@ function Helper.remove_from_cluster(properties)
     if not cluster then return end
     properties.cluster = nil
 
-    -- updating cluster table
+    -- getting member data from cluster members table
     local unit_number = properties.unit_number
-    local members = cluster.members
-    local member_data = members[unit_number]
-    cluster.sum_x = cluster.sum_x - member_data.x
-    cluster.sum_y = cluster.sum_y - member_data.y
-    cluster.total_weight = cluster.total_weight - member_data.weight
-    cluster.member_count = cluster.member_count - 1
-    members[unit_number] = nil
+    local member_data = cluster.members[unit_number]
+    local x, y = member_data.x, member_data.y
+    local weight, name = member_data.weight, member_data.name
+    local operational_vm = member_data.operational_vm
+    cluster.members[unit_number] = nil
 
-    -- cleanup: deleting cluster if it has no members
-    if cluster.member_count == 0 then
-        local template_name = properties.active_template
+    -- correcting member counts
+    local m_counts = cluster.member_counts
+    m_counts[name] = m_counts[name] - 1
+    if m_counts[name] == 0 then m_counts[name] = nil end
+
+    -- cleanup: deleting cluster if it has no members left
+    if not next(cluster.member_counts) then
+        cluster.deleted = true
+        local template_name = cluster.template_name
         local surface_index = cluster.surface_index
         storage.vclusters[template_name][surface_index] = nil
         if not next(storage.vclusters[template_name]) then
@@ -180,6 +245,31 @@ function Helper.remove_from_cluster(properties)
         end
         return
     end
+
+    -- correcting coordinate sums and total weight
+    cluster.sum_x = cluster.sum_x - x * weight
+    cluster.sum_y = cluster.sum_y - y * weight
+    cluster.sum_squares = cluster.sum_squares - weight * (x * x + y * y)
+    cluster.total_weight = cluster.total_weight - weight
+    -- correcting operational_vm count
+    if operational_vm then cluster.operational_vms = cluster.operational_vms - 1 end
+    -- correcting buffers and total energy tax
+    update_total_energy_tax(cluster)
+    update_buffer_size(cluster)
+end
+
+-- Marks a given virtualization mainframe operational inside
+-- its virtualization cluster and adjusts crafting potential and buffers.
+function Helper.set_mainframe_operational(properties)
+    local cluster = properties.cluster
+    if not cluster then return end
+
+    -- marking mainframe operational
+    local unit_number = properties.unit_number
+    local member_data = cluster.members[unit_number]
+    member_data.operational_vm = true
+    -- updating crafting potential and buffer sizes
+    cluster.operational_vms = cluster.operational_vms + 1
     update_buffer_size(cluster)
 end
 

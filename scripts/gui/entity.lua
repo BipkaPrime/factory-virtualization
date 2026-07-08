@@ -90,6 +90,7 @@ local function entity_gui_base(player, entity)
     )
     player.opened = main_window
     gui_data.elements.main_window = main_window
+    main_window.style.height = 500
 
     -- invisible container for other frames
     local main_flow = main_window.add{
@@ -170,6 +171,7 @@ local function update_vmainframe_datafield(gui_data)
     if not cluster then return end
     vcluster_info.vcluster_input_buffer(datafield, cluster)
     vcluster_info.vcluster_output_buffer(datafield, cluster)
+    vcluster_info.vcluster_member_counts(datafield, cluster)
 end
 
 -- Creates custom gui for virtualization mainframe
