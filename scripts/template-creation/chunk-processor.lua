@@ -80,7 +80,7 @@ end
 
 -- Force reveal chunk area on the map
 local function chart_chunk(surface, chunk_area)
-    game.forces["lab-technical"].chart(surface, chunk_area)
+    game.forces["player"].chart(surface, chunk_area)
 end
 
 -- Handles entities marked for deconstruction
@@ -165,10 +165,8 @@ end
 
 -- Used on-tick to process chunks in the registry
 function Helper.chunk_processor(event)
-    -- checking that registry is not empty
-    local chunks = storage.vsurface_chunks
-    if #chunks == 0 then return end
     -- processing every 60-th chunk
+    local chunks = storage.vsurface_chunks
     local offset = (event.tick % 60) + 1
     for i = offset, #chunks, 60 do
         local curr_chunk = chunks[i]

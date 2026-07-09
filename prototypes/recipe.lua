@@ -1,6 +1,6 @@
-local item_uplink = {
+local template_item_io = {
 	type = "recipe",
-	name = "item-uplink",
+	name = PREFIX .. "template-item-io",
 	enabled = true,
 	ingredients =
 	{
@@ -9,12 +9,12 @@ local item_uplink = {
 		{type = "item", name = "iron-chest", amount = 40},
 	},
 	energy_required = 30,
-	results = {{type="item", name="item-uplink", amount = 1}},
+	results = {{type = "item", name = PREFIX .. "template-item-io", amount = 1}},
 }
 
-local item_downlink = {
+local template_fluid_io = {
 	type = "recipe",
-	name = "item-downlink",
+	name = PREFIX .. "template-fluid-io",
 	enabled = true,
 	ingredients =
 	{
@@ -23,12 +23,12 @@ local item_downlink = {
 		{type = "item", name = "iron-chest", amount = 40},
 	},
 	energy_required = 30,
-	results = {{type="item", name="item-downlink", amount = 1}},
+	results = {{type = "item", name = PREFIX .. "template-fluid-io", amount = 1}},
 }
 
-local fluid_uplink = {
+local template_energy_io = {
 	type = "recipe",
-	name = "fluid-uplink",
+	name = PREFIX .. "template-energy-io",
 	enabled = true,
 	ingredients =
 	{
@@ -37,12 +37,12 @@ local fluid_uplink = {
 		{type = "item", name = "iron-chest", amount = 40},
 	},
 	energy_required = 30,
-	results = {{type="item", name="fluid-uplink", amount = 1}},
+	results = {{type = "item", name = PREFIX .. "template-energy-io", amount = 1}},
 }
 
-local fluid_downlink = {
+local mainframe_item_io = {
 	type = "recipe",
-	name = "fluid-downlink",
+	name = PREFIX .. "mainframe-item-io",
 	enabled = true,
 	ingredients =
 	{
@@ -51,12 +51,12 @@ local fluid_downlink = {
 		{type = "item", name = "iron-chest", amount = 40},
 	},
 	energy_required = 30,
-	results = {{type="item", name="fluid-downlink", amount = 1}},
+	results = {{type = "item", name = PREFIX .. "mainframe-item-io", amount = 1}},
 }
 
-local energy_uplink = {
+local mainframe_fluid_io = {
 	type = "recipe",
-	name = "energy-uplink",
+	name = PREFIX .. "mainframe-fluid-io",
 	enabled = true,
 	ingredients =
 	{
@@ -65,12 +65,12 @@ local energy_uplink = {
 		{type = "item", name = "iron-chest", amount = 40},
 	},
 	energy_required = 30,
-	results = {{type="item", name="energy-uplink", amount = 1}},
+	results = {{type = "item", name = PREFIX .. "mainframe-fluid-io", amount = 1}},
 }
 
-local energy_downlink = {
+local mainframe_energy_io = {
 	type = "recipe",
-	name = "energy-downlink",
+	name = PREFIX .. "mainframe-energy-io",
 	enabled = true,
 	ingredients =
 	{
@@ -79,12 +79,12 @@ local energy_downlink = {
 		{type = "item", name = "iron-chest", amount = 40},
 	},
 	energy_required = 30,
-	results = {{type="item", name="energy-downlink", amount = 1}},
+	results = {{type = "item", name = PREFIX .. "mainframe-energy-io", amount = 1}},
 }
 
 local virtualization_mainframe = {
 	type = "recipe",
-	name = "virtualization-mainframe",
+	name = PREFIX .. "virtualization-mainframe",
 	enabled = true,
 	ingredients =
 	{
@@ -93,15 +93,17 @@ local virtualization_mainframe = {
 		{type = "item", name = "iron-chest", amount = 40},
 	},
 	energy_required = 30,
-	results = {{type="item", name="virtualization-mainframe", amount = 1}},
+	results = {{type = "item", name = PREFIX .. "virtualization-mainframe", amount = 1}},
 }
 
+
+
 data:extend({
-	item_uplink,
-	item_downlink,
-	fluid_uplink,
-	fluid_downlink,
-	energy_uplink,
-	energy_downlink,
+	template_item_io,
+	template_fluid_io,
+	template_energy_io,
+	mainframe_item_io,
+	mainframe_fluid_io,
+	mainframe_energy_io,
 	virtualization_mainframe,
 })

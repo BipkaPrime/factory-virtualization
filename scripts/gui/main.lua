@@ -1,11 +1,7 @@
--- contains all gui-related scripts
-
 local common = require("scripts.gui.common")
-local names = require("scripts.gui.names")
 local surface_manager = require("scripts.gui.vsurface-manager")
 local template_dashboard = require("scripts.gui.template-dashboard")
 local entity_gui = require("scripts.gui.entity")
-local entity_controls = require("scripts.gui.entity-controls")
 
 local Helper = {}
 
@@ -31,32 +27,32 @@ end
 -- Time-based processing of custom gui windows
 function Helper.process_opened_windows()
     surface_manager.update_opened_managers()
-    entity_gui.update_entity_gui_datafield()
+    entity_gui.update_entity_gui()
 end
 
 local on_gui_click_router = {
-    [names.prefix .. names.close_button] = common.process_close_button,
-    [names.prefix .. names.sm_new_surface_btn] = surface_manager.process_new_surface_button,
-    [names.prefix .. names.sm_new_surface_confirm] = surface_manager.process_creation_confirm,
-    [names.prefix .. names.sm_start_compilation_btn] = surface_manager.process_compile_button,
-    [names.prefix .. names.sm_delete_surface_btn] = surface_manager.process_delete_surface_button,
+    [PREFIX .. "close-button"] = common.process_close_button,
+    [PREFIX .. "sm-new-surface-btn"] = surface_manager.process_new_surface_button,
+    [PREFIX .. "sm-new-surface-confirm"] = surface_manager.process_creation_confirm,
+    [PREFIX .. "sm-start-compilation-btn"] = surface_manager.process_compile_button,
+    [PREFIX .. "sm-delete-surface-btn"] = surface_manager.process_delete_surface_button,
 }
 script.on_event(defines.events.on_gui_click, function(event)
     gui_name_router(event, on_gui_click_router)
 end)
 
 local on_gui_closed_router = {
-    [names.prefix .. names.sm_window] = surface_manager.process_surface_manager_gui_closed,
-    [names.prefix .. names.td_window] = template_dashboard.process_template_dashboard_gui_closed,
-    [names.prefix .. names.entity_window] = entity_gui.process_entity_gui_closed,
+    [PREFIX .. "sm-window"] = surface_manager.process_surface_manager_gui_closed,
+    [PREFIX .. "td-window"] = template_dashboard.process_template_dashboard_gui_closed,
+    [PREFIX .. "entity-window"] = entity_gui.process_entity_gui_closed,
 }
 script.on_event(defines.events.on_gui_closed, function(event)
     gui_name_router(event, on_gui_closed_router)
 end)
 
 local on_lua_shortcut_router = {
-    [names.prefix .. names.sm_shortcut] = surface_manager.process_surface_manager_shortcut,
-    [names.prefix .. names.td_shortcut] = template_dashboard.process_dashboard_shortcut,
+    [PREFIX .. "sm-shortcut"] = surface_manager.process_surface_manager_shortcut,
+    [PREFIX .. "td-shortcut"] = template_dashboard.process_dashboard_shortcut,
 }
 script.on_event(defines.events.on_lua_shortcut, function(event)
     local handler = on_lua_shortcut_router[event.prototype_name]
@@ -65,40 +61,41 @@ script.on_event(defines.events.on_lua_shortcut, function(event)
 end)
 
 local on_gui_text_changed_router = {
-    [names.prefix .. names.sm_vsurface_search] = surface_manager.process_vsurface_searchfield,
-    [names.prefix .. names.sm_new_surface_name] = surface_manager.process_new_surface_name_changed,
-    [names.prefix .. names.sm_template_name] = surface_manager.process_template_name_textfield,
-    [names.prefix .. names.td_template_search] = template_dashboard.process_template_search,
-    [names.prefix .. names.entity_template_search] = entity_controls.process_template_searchfield,
+    [PREFIX .. "sm-vsurface-search"] = surface_manager.process_vsurface_searchfield,
+    [PREFIX .. "sm-new-surface-name"] = surface_manager.process_new_surface_name_changed,
+    [PREFIX .. "sm-template-name"] = surface_manager.process_template_name_textfield,
+    [PREFIX .. "td-template-search"] = template_dashboard.process_template_search,
+    [PREFIX .. "entity-template-search"] = entity_gui.process_template_searchfield,
 }
 script.on_event(defines.events.on_gui_text_changed, function(event)
     gui_name_router(event, on_gui_text_changed_router)
 end)
 
 local on_gui_selection_state_changed_router = {
-    [names.prefix .. names.sm_vsurface_selector] = surface_manager.process_vsurface_selector,
-    [names.prefix .. names.sm_new_surface_type] = surface_manager.process_new_surface_type,
-    [names.prefix .. names.sm_new_surface_size] = surface_manager.process_new_surface_size,
-    [names.prefix .. names.td_template_selector] = template_dashboard.process_template_selector,
-    [names.prefix .. names.entity_template_selector] = entity_controls.process_template_selector,
+    [PREFIX .. "sm-vsurface-selector"] = surface_manager.process_vsurface_selector,
+    [PREFIX .. "sm-new-surface-type"] = surface_manager.process_new_surface_type,
+    [PREFIX .. "sm-new-surface-size"] = surface_manager.process_new_surface_size,
+    [PREFIX .. "td-template-selector"] = template_dashboard.process_template_selector,
+    [PREFIX .. "entity-template-selector"] = entity_gui.process_template_selector,
 }
 script.on_event(defines.events.on_gui_selection_state_changed, function(event)
     gui_name_router(event, on_gui_selection_state_changed_router)
 end)
 
-local on_gui_checked_state_changed_router = {
-    [names.prefix .. names.udlink_io_checkbox] = entity_controls.process_udlink_io_checkbox,
-}
-script.on_event(defines.events.on_gui_checked_state_changed, function(event)
-    gui_name_router(event, on_gui_checked_state_changed_router)
-end)
-
 local on_gui_elem_changed_router = {
-    [names.prefix .. names.udlink_choose_item_button] = entity_controls.process_udlink_choose_item_button,
-    [names.prefix .. names.udlink_choose_fluid_button] = entity_controls.process_udlink_choose_fluid_button,
+    [PREFIX .. "choose-item-button"] = entity_gui.process_choose_item_button,
+    [PREFIX .. "choose-fluid-button"] = entity_gui.process_choose_fluid_button,
 }
 script.on_event(defines.events.on_gui_elem_changed, function(event)
     gui_name_router(event, on_gui_elem_changed_router)
+end)
+
+local on_gui_checked_state_changed_router = {
+    [PREFIX .. "input-radiobutton"] = entity_gui.process_input_chosen,
+    [PREFIX .. "output-radiobutton"] = entity_gui.process_output_chosen,
+}
+script.on_event(defines.events.on_gui_checked_state_changed, function(event)
+    gui_name_router(event, on_gui_checked_state_changed_router)
 end)
 
 return Helper

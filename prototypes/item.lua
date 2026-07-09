@@ -1,112 +1,98 @@
 local iconpath = "__factory-virtualization__/graphics/icons/"
-local item_sounds = require("__base__.prototypes.item_sounds")
-local names = require("scripts.gui.names")
 
 
-local virtualization_subgroup = {
+local vcluster_subgroup = {
 	type = "item-subgroup",
-    name = "virtualization",
+    name = "vcluster",
+    group = "production",
+    order = "y"
+}
+
+local template_io_subgroup = {
+	type = "item-subgroup",
+    name = "template-io",
     group = "production",
     order = "z"
 }
 
-
-local item_uplink = {
+local template_item_io = {
 	type = "item",
-	name = "item-uplink",
-	subgroup = "virtualization",
-	icon = iconpath.."item-uplink.png",
+	name = PREFIX .. "template-item-io",
+	subgroup = "template-io",
+	icon = iconpath .. "template-item-io.png",
 	icon_size = 64,
-	inventory_move_sound = item_sounds.metal_chest_inventory_move,
-	pick_sound = item_sounds.metal_chest_inventory_pickup,
-	drop_sound = item_sounds.metal_chest_inventory_move,
-	place_result = names.prefix .. "item-uplink",
+	place_result = PREFIX .. "template-item-io",
 	stack_size = 10,
 }
 
-local item_downlink = {
+local template_fluid_io = {
 	type = "item",
-	name = "item-downlink",
-	subgroup = "virtualization",
-	icon = iconpath.."item-downlink.png",
+	name = PREFIX .. "template-fluid-io",
+	subgroup = "template-io",
+	icon = iconpath .. "template-fluid-io.png",
 	icon_size = 64,
-	inventory_move_sound = item_sounds.metal_chest_inventory_move,
-	pick_sound = item_sounds.metal_chest_inventory_pickup,
-	drop_sound = item_sounds.metal_chest_inventory_move,
-	place_result = names.prefix .. "item-downlink",
+	place_result = PREFIX .. "template-fluid-io",
 	stack_size = 10,
 }
 
-local fluid_uplink = {
+local template_energy_io = {
 	type = "item",
-	name = "fluid-uplink",
-	subgroup = "virtualization",
-	icon = iconpath.."fluid-uplink.png",
+	name = PREFIX .. "template-energy-io",
+	subgroup = "template-io",
+	icon = iconpath .. "template-energy-io.png",
 	icon_size = 64,
-	inventory_move_sound = item_sounds.metal_chest_inventory_move,
-	pick_sound = item_sounds.metal_chest_inventory_pickup,
-	drop_sound = item_sounds.metal_chest_inventory_move,
-	place_result = names.prefix .. "fluid-uplink",
+	place_result = PREFIX .. "template-energy-io",
 	stack_size = 10,
 }
 
-local fluid_downlink = {
+local mainframe_item_io = {
 	type = "item",
-	name = "fluid-downlink",
-	subgroup = "virtualization",
-	icon = iconpath.."fluid-downlink.png",
+	name = PREFIX .. "mainframe-item-io",
+	subgroup = "vcluster",
+	icon = iconpath .. "mainframe-item-io.png",
 	icon_size = 64,
-	inventory_move_sound = item_sounds.metal_chest_inventory_move,
-	pick_sound = item_sounds.metal_chest_inventory_pickup,
-	drop_sound = item_sounds.metal_chest_inventory_move,
-	place_result = names.prefix .. "fluid-downlink",
+	place_result = PREFIX .. "mainframe-item-io",
 	stack_size = 10,
 }
 
-local energy_uplink = {
+local mainframe_fluid_io = {
 	type = "item",
-	name = "energy-uplink",
-	subgroup = "virtualization",
-	icon = iconpath.."energy-uplink.png",
+	name = PREFIX .. "mainframe-fluid-io",
+	subgroup = "vcluster",
+	icon = iconpath .. "mainframe-fluid-io.png",
 	icon_size = 64,
-	inventory_move_sound = item_sounds.metal_chest_inventory_move,
-	pick_sound = item_sounds.metal_chest_inventory_pickup,
-	drop_sound = item_sounds.metal_chest_inventory_move,
-	place_result = names.prefix .. "energy-uplink",
+	place_result = PREFIX .. "mainframe-fluid-io",
 	stack_size = 10,
 }
 
-local energy_downlink = {
+local mainframe_energy_io = {
 	type = "item",
-	name = "energy-downlink",
-	subgroup = "virtualization",
-	icon = iconpath.."energy-downlink.png",
+	name = PREFIX .. "mainframe-energy-io",
+	subgroup = "vcluster",
+	icon = iconpath .. "mainframe-energy-io.png",
 	icon_size = 64,
-	inventory_move_sound = item_sounds.metal_chest_inventory_move,
-	pick_sound = item_sounds.metal_chest_inventory_pickup,
-	drop_sound = item_sounds.metal_chest_inventory_move,
-	place_result = names.prefix .. "energy-downlink",
+	place_result = PREFIX .. "mainframe-energy-io",
 	stack_size = 10,
 }
 
 local virtualization_mainframe = {
 	type = "item",
-	name = "virtualization-mainframe",
-	subgroup = "virtualization",
-	icon = iconpath.."virtualization-mainframe.png",
+	name = PREFIX .. "virtualization-mainframe",
+	subgroup = "vcluster",
+	icon = iconpath .. "virtualization-mainframe.png",
 	icon_size = 64,
-	place_result = names.prefix .. "virtualization-mainframe",
+	place_result = PREFIX .. "virtualization-mainframe",
 	stack_size = 10,
 }
 
-
 data.extend({
-	virtualization_subgroup,
-	item_uplink,
-	item_downlink,
-	fluid_uplink,
-	fluid_downlink,
-	energy_uplink,
-	energy_downlink,
+	vcluster_subgroup,
+	template_io_subgroup,
+	template_item_io,
+	template_fluid_io,
+	template_energy_io,
+	mainframe_item_io,
+	mainframe_fluid_io,
+	mainframe_energy_io,
 	virtualization_mainframe,
 })

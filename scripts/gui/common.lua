@@ -1,7 +1,5 @@
 -- This file contains definition for common gui elements
 
-local names = require("scripts.gui.names")
-
 local Helper = {}
 
 -- Creates base gui window consisting of main frame with a top bar.
@@ -42,7 +40,7 @@ function Helper.gui_base_window(player, window_name, title)
     -- close button
     titlebar.add{
         type = "sprite-button",
-        name = names.prefix .. names.close_button,
+        name = PREFIX .. "close-button",
         style = "frame_action_button",
         sprite = "utility/close",
     }

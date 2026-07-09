@@ -1,8 +1,6 @@
 -- We need to make a technical research for each science pack in the game.
 -- Doing it here to let other mods add their science packs
 
-local names = require("scripts.gui.names")
-
 -- Table to store your collected science pack data
 local collected_science_packs = {}
 
@@ -31,10 +29,11 @@ for _, tech_data in pairs(data.raw["technology"]) do
 end
 
 -- adding technical research
+local technical_research_prefix = "FV-technical-"
 for _, pack in pairs(collected_science_packs) do
     data.extend({{
         type = "technology",
-        name = names.prefix .. pack.name,
+        name = technical_research_prefix .. pack.name,
         icon = pack.icon,
         icon_size = pack.icon_size,
         enabled = false,

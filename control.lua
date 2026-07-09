@@ -1,9 +1,11 @@
-local chunk_registry = require("scripts.vsurface-chunk-registry")
-local lab_force = require("scripts.lab-force")
-local entity_registry = require("scripts.entity.main")
-local template_compiler = require("scripts.template-compiler")
-local entity_params = require("scripts.entity.entity-params")
-local vcluster_processor = require("scripts.entity.vcluster-processor")
+PREFIX = "FV-"
+
+require("scripts.copy-paste")
+local chunk_processor = require("scripts.template-creation.chunk-processor")
+local entity_processor = require("scripts.entity-processor")
+local entity_params = require("scripts.entity-params")
+local vcluster = require("scripts.vcluster")
+local venv_processor = require "scripts.template-creation.venv-processor"
 local gui = require("scripts.gui.main")
 
 
@@ -44,8 +46,8 @@ script.on_init(function()
     -- Initializing params related to entities added by this mod
     entity_params.storage_init()
 
-    -- Initializing technical lab force that owns everything built on virtualization surfaces. 
-    lab_force.init_lab_force()
+    -- Creating technical force for research templates and collecting technical research
+    venv_processor.init_lab_force()
 
     ---------------------------------------------------------------------------------
     -- GUI ZONE
@@ -66,40 +68,28 @@ end)
 
 
 script.on_configuration_changed(function()
-    -- recollecting technical research
-    lab_force.init_lab_force()
+
 end)
 
--------------------------------------------------------------------------------
--- Technology researched/unresearched handlers
--------------------------------------------------------------------------------
 
-script.on_event(defines.events.on_research_finished, function(event)
-    lab_force.process_research_finished(event)
-end)
-
-script.on_event(defines.events.on_research_reversed, function(event)
-    lab_force.process_research_reversed(event)
-end)
+entity_processor.subscribe_to_build_events()
 
 -------------------------------------------------------------------------------
 -- Time based handlers for processing entity registry members, virtualization
--- surface chunks and processing compiling sufaces
+-- surface chunks, processing compiling sufaces, etc.
 -------------------------------------------------------------------------------
 
 script.on_event(defines.events.on_tick, function(event)
-    entity_registry.entity_processor(event)
-    chunk_registry.chunk_processor(event)
-    vcluster_processor.process_clusters(event)
+    entity_processor.entity_processor(event)
+    chunk_processor.chunk_processor(event)
+    vcluster.process_clusters(event)
 end)
 
 script.on_nth_tick(60, function()
-    template_compiler.process_compiling_surfaces()
+    venv_processor.process_compiling_surfaces()
     gui.process_opened_windows()
 end)
 
-
 script.on_event(defines.events.on_player_changed_surface, function(event)
-    lab_force.process_player_changed_surface(event)
     gui.process_player_changed_surface(event)
 end)

@@ -9,20 +9,19 @@
 -- on_redo_applied (probably will never be supported)
 -- on_undo_applied (probably will never be supported)
 
-local names = require("scripts.gui.names")
-local registry = require("scripts.entity.entity-registry")
 local util = require("util")
+local entity_processor = require("scripts.entity-processor")
 
 -- table containing names of all entities that require
 -- custom tags to be added to the blueprint
 local entities_with_custom_data = {
-    [names.prefix .. "item-uplink"] = true,
-    [names.prefix .. "item-downlink"] = true,
-    [names.prefix .. "fluid-uplink"] = true,
-    [names.prefix .. "fluid-downlink"] = true,
-    [names.prefix .. "energy-uplink"] = true,
-    [names.prefix .. "energy-downlink"] = true,
-    [names.prefix .. "virtualization-mainframe"] = true,
+    [PREFIX .. "template-item-io"] = true,
+    [PREFIX .. "template-fluid-io"] = true,
+    [PREFIX .. "template-energy-io"] = true,
+    [PREFIX .. "mainframe-item-io"] = true,
+    [PREFIX .. "mainframe-fluid-io"] = true,
+    [PREFIX .. "mainframe-energy-io"] = true,
+    [PREFIX .. "virtualization-mainframe"] = true,
 }
 -- table containing all fields from entity properties that should be copied.
 -- Basically only fields that user can directly influence from GUI.
@@ -30,7 +29,7 @@ local copyable_fields = {
     selected_template = true,
     selected_item = true,
     selected_fluid = true,
-    vsurface_io = true,
+    is_output = true,
 }
 -- Handles player setting up blueprint.
 script.on_event(defines.events.on_player_setup_blueprint, function(event)
@@ -47,12 +46,12 @@ script.on_event(defines.events.on_player_setup_blueprint, function(event)
         if not entities_with_custom_data[entity.name] then goto continue end
 
         -- if registry does not have entity properties we have to skip it
-        local properties = registry.get_entity_data(entity.unit_number)
+        local properties = entity_processor.get_entity_data(entity.unit_number)
         if not properties then goto continue end
         local entity_tags = blueprint.get_blueprint_entity_tags(b_entity_index) or {}
-        
+
         -- creating our own section in tags and adding all copyable properties there
-        local tag_key = names.prefix
+        local tag_key = PREFIX
         entity_tags[tag_key] = {}
         local tag_section = entity_tags[tag_key]
         for field, _ in pairs(copyable_fields) do

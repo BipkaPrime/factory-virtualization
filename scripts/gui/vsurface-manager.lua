@@ -37,13 +37,137 @@
 -- new_surface_name string: last user input into new surface name textfield
 -- template_name string: last user input into template name textfield
 
-local compiler = require("scripts.template-compiler")
-local backend = require("scripts.vsurface-manager-backend")
+local chunk_processor = require("scripts.template-creation.chunk-processor")
+local venv_processor = require("scripts.template-creation.venv-processor")
 local common = require("scripts.gui.common")
-local names = require("scripts.gui.names")
 local misc = require("scripts.misc")
 
 local Helper = {}
+
+-------------------------------------------------------------------------------
+-- VSURFACE CREATION/DELETION/LOOKUP
+-------------------------------------------------------------------------------
+
+-- Checks if a vsurface with given properties can be created, also trims surface name
+-- @returns bool: true if surface can be created
+-- @return string/nil: reason why surface cannot be created if any
+local function can_create_vsurface(properties)
+    -- checking that name is not empty
+    if not properties.name or properties.name == "" then
+        return false, "Surface name is missing"
+    end
+    -- trimming the name and checking if it's not empty
+    properties.name = properties.name:match("^%s*(.-)%s*$")
+    if properties.name == "" then
+        return false, "Surface name is missing"
+    end
+    -- checking if surface with given name already exists
+    if game.get_surface(properties.name) ~= nil then
+        return false, "Surface with provided name already exists"
+    end
+    -- checking if planet with provided name exists
+    if game.planets[properties.name] ~= nil then
+        return false, "Surface name not available"
+    end
+    -- checking if surface size is provided
+    if not properties.size then
+        return false, "Surface size not specified"
+    end
+    -- checking if surface type is provided
+    if not properties.type then
+        return false, "Surface type not specified"
+    end
+    return true
+end
+
+-- Creates a new square virtualization surface
+-- @param properties table: contains all data required for surface creation
+-- @returns bool: true if surface was created
+-- @returns string/nil: reason why surface was not created if any
+local function create_vsurface(properties, player)
+    -- checking that surface can be created
+    local status, reason = can_create_vsurface(properties)
+    if not status then return status, reason end
+
+    -- creating surface with specified properties
+    local surface = game.create_surface(properties.name, {
+        width = properties.size,
+        height = properties.size,
+        starting_area = 0
+    })
+    if not surface then
+        return false, "Could not create surface"
+    end
+
+    -- Modifying surface attributes
+    surface.generate_with_lab_tiles = true
+    surface.always_day = true
+    surface.show_clouds = false
+
+    local chunk_radius = math.ceil(properties.size / 64)
+    surface.request_to_generate_chunks({0, 0}, chunk_radius)
+    surface.force_generate_chunk_requests()
+    game.forces["player"].chart_all(surface)
+
+    -- adding created surface table with vsurfaces
+    storage.v_surfaces[surface.index] = {
+        research_surface = (properties.type == 2),
+        width = properties.size,
+        height = properties.size,
+    }
+    -- adding surface to chunk registry
+    chunk_processor.register_surface(surface.index)
+    -- move player's camera to created surface
+    if player and player.valid then
+        player.set_controller{
+            type = defines.controllers.remote,
+            surface = surface,
+            position = {0, 0}
+        }
+    end
+    return true
+end
+
+-- Fetches data about vsurface from storage
+local function get_vsurface_data(surface_name)
+    local surface = game.get_surface(surface_name)
+    if not surface or not surface.valid then return end
+    local vsurface_data = storage.v_surfaces[surface.index]
+    return vsurface_data
+end
+
+-- collects names of all existing vsurfaces
+-- @returns table[string]: collected names
+local function get_all_vsurfaces()
+    local result = {}
+    for surface_index, _ in pairs(storage.v_surfaces) do
+        local surface = game.get_surface(surface_index)
+        if surface and surface.valid then
+            table.insert(result, surface.name)
+        end
+    end
+    return result
+end
+
+-- Deletes vsurface provided it's name
+local function delete_vsurface(surface_name)
+    local surface = game.get_surface(surface_name)
+    if not surface or not surface.valid then return end
+    -- checking if provided surface is a vsurface
+    local vsurface_data = storage.v_surfaces[surface.index]
+    if not vsurface_data then return end
+    local status = game.delete_surface(surface.index)
+    if status then storage.v_surfaces[surface.index] = nil end
+end
+
+-- Erasing surface data from storage.vsurfaces when surface is deleted
+script.on_event(defines.events.on_surface_deleted, function(event)
+    storage.v_surfaces[event.surface_index] = nil
+end)
+
+-------------------------------------------------------------------------------
+-- MANAGER CONTROL ELEMENTS UPDATERS
+-------------------------------------------------------------------------------
 
 -- Updates vsurface selector located on the left side of interface
 local function update_vsurface_selector(manager_data)
@@ -51,7 +175,7 @@ local function update_vsurface_selector(manager_data)
     if not selector or not selector.valid then return end
     local query = manager_data.vsurface_search_query
     local selected_vsurface = manager_data.selected_vsurface
-    local options = backend.get_all_vsurfaces()
+    local options = get_all_vsurfaces()
     common.arrange_selector(selector, options, query, selected_vsurface)
 end
 
@@ -108,7 +232,7 @@ local function update_confirm_create_surface(manager_data)
     if not button or not button.valid or not label or not label.valid then return end
     local properties = assemble_new_surface_properties(manager_data)
     -- sending request to backend to decide if surface can be created
-    local can_create, code = backend.can_create_vsurface(properties)
+    local can_create, code = can_create_vsurface(properties)
     if can_create then
         button.enabled = true
         label.caption = ""
@@ -127,7 +251,7 @@ local function update_compile_button(manager_data)
     local surface_name = manager_data.selected_vsurface
     local template_name = manager_data.template_name
     -- sending request to compiler to decide if compilation can be started
-    local can_compile, code = compiler.can_start_compilation(surface_name, template_name)
+    local can_compile, code = venv_processor.can_start_compilation(surface_name, template_name)
     if can_compile then
         button.enabled = true
         label.caption = ""
@@ -144,7 +268,7 @@ local function update_compile_progressbar(manager_data)
     local label = manager_data.elements.compile_bar_label
     if not bar or not bar.valid or not label or not label.valid then return end
     local selected_surface = manager_data.selected_vsurface
-    local elapsed, remaining = compiler.get_compilation_progress(selected_surface)
+    local elapsed, remaining = venv_processor.get_compilation_progress(selected_surface)
 
     if elapsed then -- compilation in progress
         bar.value = elapsed/(elapsed + remaining)
@@ -162,7 +286,7 @@ local function update_template_name_textfield(manager_data)
     local label = manager_data.elements.template_name_label
     if not textfield or not textfield.valid or not label or not label.valid then return end
     local selected_surface = manager_data.selected_vsurface
-    local compiling = compiler.get_compilation_progress(selected_surface)
+    local compiling = venv_processor.get_compilation_progress(selected_surface)
     if compiling then
         textfield.enabled = false
         label.enabled = false
@@ -178,7 +302,7 @@ local function surface_manager_base(player)
     -- creating base window and "opening" it
     local main_frame = common.gui_base_window(
         player,
-        names.prefix .. names.sm_window,
+        PREFIX .. "sm-window",
         {"gui-title.surface-manager-window"}
     )
     player.opened = main_frame
@@ -205,8 +329,8 @@ local function surface_manager_base(player)
     -- vsurface selector widget
     local searchfield, selector = common.selection_widget(
         left_frame,
-        names.prefix .. names.sm_vsurface_search,
-        names.prefix .. names.sm_vsurface_selector,
+        PREFIX .. "sm-vsurface-search",
+        PREFIX .. "sm-vsurface-selector",
         {"gui-label.v-surface-selection"}
     )
     manager_data.elements.vsurface_selector = selector
@@ -217,7 +341,7 @@ local function surface_manager_base(player)
     -- create new surface button
     local create_button = left_frame.add{
         type = "button",
-        name = names.prefix .. names.sm_new_surface_btn,
+        name = PREFIX .. "sm-new-surface-btn",
         caption = {"gui-label.create-new-v-surface"},
     }
     create_button.style.horizontally_stretchable = true
@@ -228,7 +352,7 @@ local function surface_manager_base(player)
     -- delete current surface button
     local delete_button = left_frame.add{
         type = "button",
-        name = names.prefix .. names.sm_delete_surface_btn,
+        name = PREFIX .. "sm-delete-surface-btn",
         caption = {"gui-label.delete-selected-surface"},
         style = "red_button",
     }
@@ -259,7 +383,7 @@ local function vsurface_creation_gui(manager_data)
     -- textfield for new surface name
     local textfield = right_frame.add{
         type = "textfield",
-        name = names.prefix .. names.sm_new_surface_name,
+        name = PREFIX .. "sm-new-surface-name",
     }
     textfield.text = manager_data.new_surface_name or ""
     textfield.style.bottom_margin = 12
@@ -272,7 +396,7 @@ local function vsurface_creation_gui(manager_data)
     -- surface type selection (production/science)
     local type_dropdown = right_frame.add{
         type = "drop-down",
-        name = names.prefix .. names.sm_new_surface_type,
+        name = PREFIX .. "sm-new-surface-type",
         items = {
             {"gui-label.production-type"},
             {"gui-label.science-type"},
@@ -289,7 +413,7 @@ local function vsurface_creation_gui(manager_data)
     -- surface size selection dropdown
     right_frame.add{
         type = "drop-down",
-        name = names.prefix .. names.sm_new_surface_size,
+        name = PREFIX .. "sm-new-surface-size",
         items = {
             "64 x 64",
             "128 x 128",
@@ -318,7 +442,7 @@ local function vsurface_creation_gui(manager_data)
     local confirm_label = confirm_flow.add{type = "label"}
     local confirm_btn = confirm_flow.add{
         type = "button",
-        name = names.prefix .. names.sm_new_surface_confirm,
+        name = PREFIX .. "sm-new-surface-confirm",
         caption = {"gui-label.confirm"},
         style = "confirm_button",
     }
@@ -337,7 +461,7 @@ local vsurface_type_description = {
 local function vsurface_info_gui(manager_data)
     local right_frame = manager_data.elements.right_frame
     local surface_name = manager_data.selected_vsurface
-    local vsurface_data = backend.get_surface_data(surface_name)
+    local vsurface_data = get_vsurface_data(surface_name)
     if not vsurface_data then return end
 
     -- surface type info (production/science)
@@ -377,7 +501,7 @@ local function vsurface_info_gui(manager_data)
     -- textfield for template name
     local textfield = right_frame.add{
         type = "textfield",
-        name = names.prefix .. names.sm_template_name,
+        name = PREFIX .. "sm-template-name",
     }
     manager_data.elements.template_name_textfield = textfield
     manager_data.elements.template_name_label = label
@@ -409,7 +533,7 @@ local function vsurface_info_gui(manager_data)
     local status_label = compile_flow.add{type = "label"}
     local compile_btn = compile_flow.add{
         type = "button",
-        name = names.prefix .. names.sm_start_compilation_btn,
+        name = PREFIX .. "sm-start-compilation-btn",
         caption = {"gui-label.start-compilation"},
         style = "confirm_button",
     }
@@ -461,7 +585,7 @@ end
 function Helper.process_delete_surface_button(event)
     local manager_data = storage.surface_manager[event.player_index]
     local surface_name = manager_data.selected_vsurface
-    backend.delete_vsurface(surface_name)
+    delete_vsurface(surface_name)
     manager_data.selected_vsurface = nil
     update_delete_surface_btn(manager_data)
     update_vsurface_selector(manager_data)
@@ -548,7 +672,7 @@ function Helper.process_creation_confirm(event)
     player.opened = nil
 
     -- creating surface and moving player's camera to it
-    backend.create_vsurface(surface_properties, player)
+    create_vsurface(surface_properties, player)
 end
 
 -- Handles template name textfield being changed
@@ -566,7 +690,7 @@ function Helper.process_compile_button(event)
     local surface_name = manager_data.selected_vsurface
     local template_name = manager_data.template_name
     -- starting the compilation
-    compiler.start_compilation(surface_name, template_name)
+    venv_processor.start_compilation(surface_name, template_name)
     manager_data.template_name = nil
     update_right_frame(manager_data)
 end
@@ -600,7 +724,7 @@ function Helper.process_surface_manager_shortcut(event)
 end
 
 -- Toggles surface manager when custom hotkey is pressed
-script.on_event(names.prefix .. names.sm_hotkey, function(event)
+script.on_event(PREFIX .. "sm-hotkey", function(event)
     local player = game.get_player(event.player_index)
     if not player or not player.valid then return end
     toggle_surface_manager(player)

@@ -57,23 +57,22 @@ local function vcluster_buffer_entry(parent, key, buffer)
     -- progressbar
     local bar = frame.add{
         type = "progressbar",
-        value = buffer[1]/buffer[3],
+        value = buffer.current/buffer.maximum,
     }
     bar.style.bar_width = 12
     bar.style.width = 220
 
     -- label to the right of progressbar (curr / max)
-    local curr = misc.format_double(buffer[1])
-    local maximum = misc.format_double(buffer[3])
+    local curr = misc.format_double(buffer.current)
+    local maximum = misc.format_double(buffer.maximum)
     local caption = curr .. " / " .. maximum
     frame.add{type = "label", caption = caption}
 end
 
--- Adds element displaying current state of a given buffer of a vcluster
+-- Adds cluster buffer base
 -- @param parent LuaGuiElement: information will be added here
 -- @param title localized string: title displayed on the top of info element
--- @param buffer table: input/output buffer from vcluster
-local function vcluster_buffer_display(parent, title, buffer)
+local function vcluster_buffer_base(parent, title)
     local section = common.info_element_base(parent, title)
     local main_container = section.add{
         type = "scroll-pane",
@@ -88,30 +87,43 @@ local function vcluster_buffer_display(parent, title, buffer)
         direction = "vertical",
     }
     inner_flow.style.vertical_spacing = 2
+    return inner_flow
+end
 
-    for key, counts in pairs(buffer) do
-        vcluster_buffer_entry(inner_flow, key, counts)
+function Helper.input_buffer(parent, vcluster)
+    local container = vcluster_buffer_base(parent, "INPUT BUFFER")
+
+    -- input buffer for items and fluids
+    for key, counts in pairs(vcluster.input) do
+        vcluster_buffer_entry(container, key, counts)
+    end
+    -- input buffer for energy
+    if vcluster.energy_input then
+        vcluster_buffer_entry(container, "electric_energy", vcluster.energy_input)
     end
 end
 
-function Helper.vcluster_input_buffer(parent, vcluster)
-    local input_buffer = vcluster.input
-    vcluster_buffer_display(parent, "VCLUSTER INPUT", input_buffer)
+function Helper.output_buffer(parent, vcluster)
+    local container = vcluster_buffer_base(parent, "OUTPUT BUFFER")
+
+    -- output buffer for items and fluids
+    for key, counts in pairs(vcluster.output) do
+        vcluster_buffer_entry(container, key, counts)
+    end
+    -- output buffer for energy
+    if vcluster.energy_output then
+        vcluster_buffer_entry(container, "electric_energy", vcluster.energy_output)
+    end
 end
 
-function Helper.vcluster_output_buffer(parent, vcluster)
-    local output_buffer = vcluster.output
-    vcluster_buffer_display(parent, "VCLUSTER OUTPUT", output_buffer)
-end
-
-function Helper.vcluster_member_counts(parent, vcluster)
+function Helper.member_counts(parent, vcluster)
     local section = common.info_element_base(parent, "CLUSTER MEMBERS")
     -- collecting sprite button data
     local member_counts = vcluster.member_counts
     local buttons = {}
     for entity_name, count in pairs(member_counts) do
         local data = {
-            type = "entity",
+            type = "item",
             name = entity_name,
             count = count,
         }
@@ -121,8 +133,5 @@ function Helper.vcluster_member_counts(parent, vcluster)
     local operational = vcluster.operational_vms
     common.add_bold_label(section, "OPERATIONAL MAINFRAMES: " .. tostring(operational))
 end
-
-
-
 
 return Helper
