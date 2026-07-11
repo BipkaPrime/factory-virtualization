@@ -1,13 +1,15 @@
 -- This file is for managing parameters of entities added by this mod.
 -- For example: flow limits of mainframe-IOs.
 
-local Helper = {}
+local EntityParams = {}
 
--- Initializes values to thier defaults
-function Helper.storage_init()
+local PREFIX = "FV-"
+
+-- Initializes values to their defaults
+function EntityParams.storage_init()
     storage.entity_params = {
         [PREFIX .. "mainframe-item-io"] = {
-            flow_limit = 1000,
+            flow_limit = 500,
         },
         [PREFIX .. "mainframe-fluid-io"] = {
             flow_limit = 10000,
@@ -18,4 +20,8 @@ function Helper.storage_init()
     }
 end
 
-return Helper
+function EntityParams.get_entity_params(entity_name)
+    return storage.entity_params[entity_name]
+end
+
+return EntityParams

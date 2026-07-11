@@ -1,37 +1,57 @@
--- For virtualization surfaces we want to have several services working on them
--- For example, auto reviving ghosts, auto deconstructing marked, auto upgrade, charting.
--- To achieve this and not cause performance issues, we need to spread the load.
--- Also there are 2 states vsurface can be in: "compiling" and "not compiling".
--- To account for all that we want a flat array with chunk information
--- (surface_index (int), bbox (), compiling (bool)).
+--[[ 
+This mod allows the player to create special "virtualization surfaces" or "vsurfaces".
+Vsurface is basically a sandbox where player can build anything for free.
+Vsurfaces are created as a sterile environment generated with lab tiles.
 
-local Helper = {}
+We want to have several services working on virtualization surfaces.
+For example, auto reviving ghosts, auto deconstructing marked, auto upgrade, charting.
+Also there are 2 states vsurface can be in: "compiling" and "not compiling". And services
+working on a vsurface depend on compilation flag.
+To account for all that we want a flat array with chunk information
+chunk_data = {
+    surface = LuaSurface,
+    surface_index = integer,
+    area = BoundingBox,
+    compiling = bool,
+    force = LuaForce,
+}
+All registered chunks are stored at: storage.vsurface_chunks.
+
+Chunk processor has only 3 public operations: on-tick processor, add surface
+and set compilation flag. Delete surface operation is integrated in the on-tick
+processor. Chunks of the surface are deleted from registry when surface becomes invalid.
+--]]
+
+local ChunkProcessor = {}
 
 ------------------------------------------------------------------------------------
--- Registry Operations: register, unregister, set compiling flag
+-- REGISTRY OPERATIONS: register, unregister, set compiling flag
 ------------------------------------------------------------------------------------
 
--- Adds all chunks of a given surface to chunk registry
-function Helper.register_surface(surface_index)
-    -- getting the surface and checking its validity
-    local surface = game.get_surface(surface_index)
+---Adds all chunks of a given surface to chunk registry
+---@param surface LuaSurface|nil surface identification
+function ChunkProcessor.register_surface(surface)
     if not surface or not surface.valid then return end
+
     -- getting all chunks of a surface and adding them to registry
+    local player_force = game.forces["player"]
     for chunk in surface.get_chunks() do
         local chunk_data = {
-            surface_index = surface_index,
+            surface = surface,
+            surface_index = surface.index,
             area = chunk.area,
-            compiling = false
+            compiling = false,
+            force = player_force
         }
         table.insert(storage.vsurface_chunks, chunk_data)
     end
 end
 
--- Removes all chunks of a given surface from chunk registry.
--- Will be executed automatically in the main processor surface is invalid.
--- Uses the fact that all chunks of the same surface are adjacent to each other.
--- @param surface_index: unique surface identifier
--- @param chunk_index: index of the known invalid chunk from the main loop
+---Removes all chunks of a given surface from chunk registry.
+---Will be executed automatically in the main processor if surface is invalid.
+---Uses the fact that all chunks of the same surface are adjacent to each other.
+---@param surface_index integer unique surface identifier
+---@param chunk_index integer index of the known invalid chunk from the main loop
 local function unregister_surface(surface_index, chunk_index)
     local chunks = storage.vsurface_chunks
     local total_chunks = #chunks
@@ -59,9 +79,10 @@ local function unregister_surface(surface_index, chunk_index)
     end
 end
 
--- Sets compiling flag of a given surface to state.
--- Uses the fact that all chunks of the same surface are adjacent to each other.
-function Helper.set_compiling_flag(surface_index, state)
+---Sets compiling flag of a given surface to state.
+---Uses the fact that all chunks of the same surface are adjacent to each other.
+---@param surface_index integer unique surface identifier
+function ChunkProcessor.set_compiling_flag(surface_index, state)
     local chunks = storage.vsurface_chunks
     local inside_block = false
     for i = 1, #chunks do
@@ -78,12 +99,17 @@ end
 -- Virtual Surface Services
 ------------------------------------------------------------------------------------
 
--- Force reveal chunk area on the map
-local function chart_chunk(surface, chunk_area)
-    game.forces["player"].chart(surface, chunk_area)
+---Force reveal chunk area on the map
+---@param surface LuaSurface surface that should be charted
+---@param chunk_area BoundingBox area that is charted
+---@param force LuaForce force for which area is charted
+local function chart_chunk(surface, chunk_area, force)
+    force.chart(surface, chunk_area)
 end
 
--- Handles entities marked for deconstruction
+---Handles entities marked for deconstruction
+---@param surface LuaSurface surface being processed
+---@param chunk_area BoundingBox area that is processed
 local function process_deconstruction(surface, chunk_area)
     local to_deconstruct = surface.find_entities_filtered{
         area = chunk_area,
@@ -97,7 +123,9 @@ local function process_deconstruction(surface, chunk_area)
     end
 end
 
--- Find and revive entity ghosts
+---Find and revive entity ghosts
+---@param surface LuaSurface surface being processed
+---@param chunk_area BoundingBox area that is processed
 local function process_ghosts(surface, chunk_area)
     local ghosts = surface.find_entities_filtered{
         area = chunk_area,
@@ -115,7 +143,9 @@ local function process_ghosts(surface, chunk_area)
     end
 end
 
--- Handles entities marked for upgrade
+---Handles entities marked for upgrade
+---@param surface LuaSurface surface being processed
+---@param chunk_area BoundingBox area that is processed
 local function process_upgrades(surface, chunk_area)
     local to_upgrade = surface.find_entities_filtered{
         area = chunk_area,
@@ -133,8 +163,10 @@ local function process_upgrades(surface, chunk_area)
     end
 end
 
--- TODO: fix this. Currently it works strange with item deletion requests
--- Find and satisfy item request proxies (modules)
+---TODO: fix this. Currently it works strange with item deletion requests
+---Find and satisfy item request proxies (modules)
+---@param surface LuaSurface surface being processed
+---@param chunk_area BoundingBox area that is processed
 local function process_item_requests(surface, chunk_area)
     local proxies = surface.find_entities_filtered{
         area = chunk_area,
@@ -163,27 +195,29 @@ local function process_item_requests(surface, chunk_area)
     end
 end
 
--- Used on-tick to process chunks in the registry
-function Helper.chunk_processor(event)
+---On-tick processors of chunks in the registry
+---@param event EventData.on_tick
+function ChunkProcessor.chunk_processor(event)
     -- processing every 60-th chunk
     local chunks = storage.vsurface_chunks
     local offset = (event.tick % 60) + 1
     for i = offset, #chunks, 60 do
         local curr_chunk = chunks[i]
-        local surface = game.get_surface(curr_chunk.surface_index)
-        if not surface or not surface.valid then
+        local surface = curr_chunk.surface
+        if not surface.valid then
             -- auto cleanup in case surface was deleted
             unregister_surface(curr_chunk.surface_index, i)
             return
         end
+        -- processing all services sequentially
         if not curr_chunk.compiling then
             process_deconstruction(surface, curr_chunk.area)
             process_ghosts(surface, curr_chunk.area)
             process_upgrades(surface, curr_chunk.area)
             process_item_requests(surface, curr_chunk.area)
         end
-        chart_chunk(surface, curr_chunk.area)
+        chart_chunk(surface, curr_chunk.area, curr_chunk.force)
     end
 end
 
-return Helper
+return ChunkProcessor

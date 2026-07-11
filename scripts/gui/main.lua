@@ -9,7 +9,7 @@ local Helper = {}
 -- Only useful when routing is done by element.name
 local function gui_name_router(event, router)
     local element = event.element
-    if not element then return end
+    if not element or not element.valid then return end
     local handler = router[element.name]
     if not handler then return end
     handler(event)

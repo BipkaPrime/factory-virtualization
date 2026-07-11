@@ -1,5 +1,3 @@
-PREFIX = "FV-"
-
 require("scripts.copy-paste")
 local chunk_processor = require("scripts.template-creation.chunk-processor")
 local entity_processor = require("scripts.entity-processor")
@@ -92,4 +90,39 @@ end)
 
 script.on_event(defines.events.on_player_changed_surface, function(event)
     gui.process_player_changed_surface(event)
+end)
+
+
+-- Used to subscibe to all "build events" allowing 
+function Helper.subscribe_to_build_events()
+    -- all events that can be triggered when entity is built
+    local build_events = {
+        defines.events.on_built_entity,
+        defines.events.on_robot_built_entity,
+        defines.events.on_space_platform_built_entity,
+        defines.events.script_raised_revive
+    }
+
+    -- function that is called when entity is built
+    local function on_entity_built(event)
+        local entity = event.entity
+        if not entity or not entity.valid then return end
+        register_entity(entity, event.tags)
+    end
+    
+    -- subsribing to all "build events"
+    for _, event in ipairs(build_events) do
+        script.on_event(event, on_entity_built, build_filter)
+    end
+end
+
+-- Handles player setting up blueprint.
+script.on_event(defines.events.on_player_setup_blueprint, function(event)
+    
+end)
+
+
+commands.add_command("save_template_data", "Saves all compiled template data to json", function()
+    helpers.write_file("compiled_templates.json", serpent.block(storage.compiled_templates), false)
+    game.print("Template data saved to compiled_templates.json")
 end)
