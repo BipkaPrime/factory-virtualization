@@ -1,16 +1,18 @@
 --[[
 Mainframe IOs are used for transfering items to/from vclusters.
 
-Mainframe IOs have following properties in entity registry.
-entity LuaEntity: reference to entity
-unit_number uint64: unit number of this entity (not really relevant while entity is valid)
-selected_template string|nil: selected template for a given entity if any (user input)
-is_output bool|nil: true if IO is an output. By default IO is considered an input.
-active_template string|nil: name of template currently in operation
-selected_item table|nil (only item IO): {name = string, quality = string}
-selected_fluid string|nil (only fluid IO): name of selected fluid if any
-buffer_key string|nil: key in cluster buffer
-cluster table: reference to virtualization cluster that owns this IO if any.
+-------------------------------------------------------------------------------
+MAINFRAME IO PROPERTIES
+-------------------------------------------------------------------------------
+entity LuaEntity: reference to entity object 
+unit_number number: unique entity identifier
+selected_template string|nil: name of selected template (user input)
+active_template string|nil: name of template in operation (assigned by processor)
+cluster table|nil: reference to virtualization cluster that includes this entity
+is_output bool|nil: true if entity is output
+selected_item table|nil (item-io): {name = string, quality = string} (user input)
+buffer_key string|nil (item-io): "name//quality" (assigned by processor for fast access)
+selected_fluid string|nil (fluid-io): name of selected fluid if any (user input)
 --]]
 
 local ClusterProcessor = require("src.simulation.cluster-processor")
@@ -93,8 +95,8 @@ function MainframeIO.process_mainframe_fluid_io(properties)
     process_template_change(properties)
 
     -- does not operate without selected fluid
-    local buffer_key = properties.buffer_key
-    if not buffer_key then return end
+    local fluid_name = properties.selected_fluid
+    if not fluid_name then return end
 
     -- does not operate without connecting to a cluster
     local cluster = properties.cluster
@@ -102,29 +104,28 @@ function MainframeIO.process_mainframe_fluid_io(properties)
 
     local entity = properties.entity
     local flow_limit = EntityParams.get_entity_params(entity.name).flow_limit
-    local fluid = properties.selected_fluid
     if properties.is_output then
         -- getting available products
-        local available = ClusterProcessor.get_output_capacity(cluster, buffer_key)
+        local available = ClusterProcessor.get_output_capacity(cluster, fluid_name)
         if available <= 0 then return end
 
         -- moving fluid from vcluster to physical inventory
         local inserted_amount = entity.insert_fluid({
-            name = fluid,
+            name = fluid_name,
             amount = math.min(flow_limit, available)
         })
-        ClusterProcessor.process_buffer_output(cluster, buffer_key, inserted_amount)
+        ClusterProcessor.process_buffer_output(cluster, fluid_name, inserted_amount)
     else
         -- getting available space
-        local available = ClusterProcessor.get_input_space(cluster, buffer_key)
+        local available = ClusterProcessor.get_input_space(cluster, fluid_name)
         if available <= 0 then return end
 
         -- moving fluid from physical inventory to vcluster
         local removed_amount = entity.extract_fluid({
-            name = fluid,
+            name = fluid_name,
             amount = math.min(flow_limit, available)
         })
-        ClusterProcessor.process_buffer_input(cluster, buffer_key, removed_amount)
+        ClusterProcessor.process_buffer_input(cluster, fluid_name, removed_amount)
     end
 end
 

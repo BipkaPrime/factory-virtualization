@@ -121,6 +121,14 @@ script.on_event(defines.events.on_player_setup_blueprint, function(event)
     
 end)
 
+-- 
+script.on_event(PREFIX .. "sm-hotkey", function(event)
+    
+end)
+
+script.on_event(PREFIX .. "td-hotkey", function(event)
+    
+end)
 
 commands.add_command("save_template_data", "Saves all compiled template data to json", function()
     helpers.write_file("compiled_templates.json", serpent.block(storage.compiled_templates), false)

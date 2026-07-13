@@ -128,11 +128,40 @@ local function delete_cluster(cluster_id)
     lookup[cluster_id] = nil
 end
 
+---Creates vcluster buffer from template io_flow
+---@param io_flow table<string, number> io flow counts
+---@return table<string, table> buffer
+local function create_buffer(io_flow)
+    buffer = {}
+    for key, flow in pairs(io_flow) do
+        buffer[key] = {
+            current = 0,
+            per_craft = flow,
+            maximum = 0,
+        }
+        if key:find("//", 1, true) then
+            -- item key "name//quality"
+            buffer[key].name, buffer[key].quality = key:match("^(.+)//(.+)$")
+            buffer[key].type = "item"
+        elseif key == "electric_energy" then
+            -- energy key 
+            buffer[key].type = "energy"
+        else
+            -- fluid key "name"
+            buffer[key].name = key
+            buffer[key].type = "fluid"
+        end
+    end
+    return buffer
+end
+
 ---Adds all important data from template to vcluster
 ---@param cluster table new cluster data
 ---@param template table compiled template
 local function add_template_data(cluster, template)
-    --TODO
+    cluster.research_producer = template.research_template
+    cluster.input = create_buffer(template.input)
+    cluster.output = create_buffer(template.output)
 end
 
 

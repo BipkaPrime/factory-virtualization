@@ -2,13 +2,15 @@
 Template IOs help in creation of templates. They serve as inputs and outputs
 of items, fluids and electric energy on virtualization surfaces.
 
-Template IOs can have following properties:
-entity LuaEntity: reference to entity
-unit_number uint64: unit number of this entity (not really relevant while entity is valid)
-is_output bool: true if IO is an output. By default IO is considered an input.
-buffer_key string|nil: key in venv IO where item/fluid/energy should be added
-selected_item table (only for item IOs): {name = name, quality = quality}
-selected_fluid string (only for fluid IOs): fluid name, for example "water", "oil", etc.
+-------------------------------------------------------------------------------
+TEMPLATE IO PROPERTIES
+-------------------------------------------------------------------------------
+entity LuaEntity: reference to entity object 
+unit_number number: unique entity identifier
+is_output bool|nil (mainframe-io, template-io): true if entity is output
+selected_item table|nil (item-io): {name = string, quality = string} (user input)
+buffer_key string|nil (item-io): "name//quality" (assigned by processor for fast access)
+selected_fluid string|nil (fluid-io): name of selected fluid if any (user input)
 --]]
 
 local TemplateIO = {}
@@ -53,8 +55,8 @@ end
 ---@param properties table entity data from entity registry
 function TemplateIO.process_template_fluid_io(properties)
     -- does not operate without selected fluid
-    local buffer_key = properties.buffer_key
-    if not buffer_key then return end
+    local fluid_name = properties.selected_fluid
+    if not fluid_name then return end
 
     -- does not operate on any surfaces except vsufaces
     local entity = properties.entity
@@ -63,20 +65,19 @@ function TemplateIO.process_template_fluid_io(properties)
 
     -- removing or adding selected fluid to physical inventory
     -- and storing delta in venv if surface is compiling
-    local fluid = properties.selected_fluid
     local delta = 0
     if properties.is_output then
         delta = entity.extract_fluid({
-            name = fluid,
+            name = fluid_name,
             amount = 1000000
         })
     else
         delta = entity.insert_fluid({
-            name = fluid,
+            name = fluid_name,
             amount = 1000000
         })
     end
-    VEnvProcessor.add_io_count(surface_index, properties.is_output, buffer_key, delta)
+    VEnvProcessor.add_io_count(surface_index, properties.is_output, fluid_name, delta)
 end
 
 ---Updates given template energy io

@@ -5,16 +5,19 @@ VM is a fancy requester chest. This manager does following things:
 1. Checks selected_template and connects VM to appropriate cluster when necessery
 2. Requests construction materials for selected template and makes it operational when necessery
 
-Virtualization mainframe has the following properties in entity registry:
-entity LuaEntity: reference to entity
-unit_number uint64: unit number of this entity (not really relevant while entity is valid)
-selected_template string|nil: selected template for a given entity if any (user input)
-active_template string|nil: name of template currently in operation (constructing or running)
-operational bool|nil: true if mainframe has constructed a template and can operate
+-------------------------------------------------------------------------------
+VIRTUALIZATION MAINFRAME PROPERTIES
+-------------------------------------------------------------------------------
+entity LuaEntity: reference to entity object 
+unit_number number: unique entity identifier
+selected_template string|nil (mainframe-io, mainframe): name of selected template (user input)
+active_template string|nil (mainframe-io, mainframe): name of template in operation (assigned by processor)
+cluster table|nil (mainframe-io, mainframe): reference to virtualization cluster that includes this entity
+operational bool|nil (mainframe): true if mainframe has constructed a template and can operate
 building_requests table|nil: contains buildings that are being requested for template construction
     2-level hmap: table[name][quality] = value
-contained_buildings table|nil: all buildings that are currently "contained" in the mainframe
-cluster table|nil: reference to virtualization cluster that has this mainframe as a member
+contained_buildings table|nil (mainframe): all buildings that are currently "contained" in the mainframe
+    2-level hmap: table[name][quality] = value
 --]]
 
 local ClusterProcessor = require("src.simulation.cluster-processor")
@@ -52,24 +55,20 @@ end
 ---table, makes sure contained_buildings table has sections for all requesting items.
 ---@param properties table entity properties from entity processor
 local function prepare_new_template_construction(properties)
-    -- getting template building cost
     local template_name = properties.selected_template
-    if not template_name then return end
-    local template = TemplateCompiler.get_template(template_name)
-    if not template then return end
-    local build_cost = template.building_cost
-    if not build_cost then return end
+    local build_cost = TemplateCompiler.get_building_cost(template_name)
 
     -- processing all items from building cost of new template
     local requests = {}
     local contents = {}
-    for name, q_counts in pairs(build_cost) do
-        requests[name] = {}
-        contents[name] = {}
-        for quality, count in pairs(q_counts) do
-            requests[name][quality] = count
-            contents[name][quality] = 0
-        end
+    for key, count in pairs(build_cost) do
+        local name, quality = key:match("^(.+)//(.+)$")
+
+        requests[name] = requests[name] or {}
+        requests[name][quality] = count
+
+        contents[name] = contents[name] or {}
+        contents[name][quality] = 0
     end
     properties.building_requests = requests
     properties.contained_buildings = contents

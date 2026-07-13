@@ -1,7 +1,7 @@
 -- Common gui elements and operations
 
 local PREFIX = "FV-"
-local GuiCommon = {}
+local CommonGui = {}
 
 -- used to convert large numbers to human-readable format
 local number_prefixes = {
@@ -16,7 +16,7 @@ local number_prefixes = {
 ---Converts given number to human-readable format
 ---@param value number number to format
 ---@return string formated_value for example: "105 M", "5.1 G"
-function GuiCommon.format_number(value)
+function CommonGui.format_number(value)
     local selected = number_prefixes[1]
     for _, prefix in ipairs(number_prefixes) do
         if value < prefix.value then
@@ -69,8 +69,8 @@ end
 ---@param player LuaPlayer player for which window should be created. Assumed to be valid
 ---@param window_name string internal window name for element
 ---@param title string|LocalisedString text displayed on the top bar
----@return LuaGuiElement|nil created_window returns nil if nothing was created
-function GuiCommon.create_base_window(player, window_name, title)
+---@return LuaGuiElement created_window returns nil if nothing was created
+function CommonGui.create_base_window(player, window_name, title)
     local main_window = player.gui.screen.add{
         type = "frame",
         name = window_name,
@@ -114,7 +114,7 @@ end
 ---Handles close button being pressed. Closes whatever is opened for
 ---a player who pressed the button.
 ---@param event EventData.on_gui_click
-function GuiCommon.process_close_button(event)
+function CommonGui.process_close_button(event)
     local player = game.get_player(event.player_index)
     if not player or not player.valid then return end
     player.opened = nil
@@ -124,7 +124,7 @@ end
 ---@param parent LuaGuiElement element will be added here
 ---@param label string|LocalisedString text to display at top of element
 ---@return LuaGuiElement flow
-function GuiCommon.create_info_element_base(parent, label)
+function CommonGui.create_info_element_base(parent, label)
     local main_frame = parent.add{
         type = "frame",
         style = "bordered_frame"
@@ -145,10 +145,10 @@ function GuiCommon.create_info_element_base(parent, label)
     return main_flow
 end
 
----Adds a bold label to a given element
+---Creates a bold label in given element
 ---@param parent LuaGuiElement element will be added here
 ---@param caption string|LocalisedString label caption
-function GuiCommon.add_bold_label(parent, caption)
+function CommonGui.create_bold_label(parent, caption)
     parent.add{
         type = "label",
         caption = caption,
@@ -164,7 +164,7 @@ end
 ---@param selector_name string internal name of selector element
 ---@param caption string|LocalisedString caption above searchfield
 ---@return LuaGuiElement searchfield, LuaGuiElement selector, LuaGuiElement label
-function GuiCommon.create_selection_widget(parent, search_name, selector_name, caption)
+function CommonGui.create_selection_widget(parent, search_name, selector_name, caption)
     local flow = parent.add{type = "flow", direction = "vertical"}
     flow.style.bottom_margin = 12
     local label = flow.add{type = "label", caption = caption}
@@ -182,7 +182,7 @@ end
 ---@param options string[]|nil list of options to display
 ---@param query string|nil search query that options should matched against
 ---@param selected_option string|nil option that should be selected 
-function GuiCommon.arrange_selector(selector, options, query, selected_option)
+function CommonGui.configure_selector(selector, options, query, selected_option)
     local filtered_options = filter_strings(options, query)
     local displayed_items = {}
 
@@ -213,7 +213,7 @@ local quality_rank = {
 }
 ---Comparison function that is used to sort sprite buttons by count.
 ---Table that is being sorted must contain following keys:
----count: float, name: prototype name, type: "item"/"fluid", quality (for items): "rare"/"epic", etc.
+---count: float, name: prototype name, type: "item"/"fluid", quality (for items): "rare"/"epic"/etc.
 local function sprite_buttons_comparison(a, b)
     -- priority 1: higher count first
     if a.count ~= b.count then
@@ -241,7 +241,7 @@ end
 ---Each table describing button must contain following keys:
 ---type "item"/"fluid"; name str: prototype name; count number: displayed number;
 ---quality (if type == "item") string: "uncommon", "epic", etc.
-function GuiCommon.create_sprite_button_table(parent, buttons)
+function CommonGui.create_sprite_button_table(parent, buttons)
     -- deep container element
     local container = parent.add{
         type = "scroll-pane",
@@ -272,4 +272,4 @@ function GuiCommon.create_sprite_button_table(parent, buttons)
     end
 end
 
-return GuiCommon
+return CommonGui

@@ -31,6 +31,10 @@ local VSurfaceManager = require("src.world.vsurface-manager")
 
 local TemplateCompiler = {}
 
+-------------------------------------------------------------------------------
+-- INFORMATION REQUEST HANDLERS
+-------------------------------------------------------------------------------
+
 ---Retrieves a compiled template data from storage
 ---@param template_name string unique template identifier
 ---@return table|nil template compiled template data if found
@@ -47,6 +51,64 @@ function TemplateCompiler.get_all_template_names()
     end
     return result
 end
+
+---Gets all inputs of a given template
+---@param template_name string|nil unique template identifier
+---@return table<string, number> inputs
+---Key is "name//quality" for items, "name" for fluids, "electric_energy" for energy
+function TemplateCompiler.get_inputs(template_name)
+    if not template_name then return {} end
+    local template = storage.templates[template_name]
+    if not template then return {} end
+    return template.input
+end
+
+---Gets all outputs of a given template
+---@param template_name string|nil unique template identifier
+---@return table<string, number> outputs
+---Key is "name//quality" for items, "name" for fluids, "electric_energy" for energy
+function TemplateCompiler.get_outputs(template_name)
+    if not template_name then return {} end
+    local template = storage.templates[template_name]
+    if not template then return {} end
+    return template.output
+end
+
+---Gets building cost of a given template
+---@param template_name string|nil unique template identifier
+---@return table<string, number> items key is "name//quality"
+function TemplateCompiler.get_building_cost(template_name)
+    if not template_name then return {} end
+    local template = storage.templates[template_name]
+    if not template then return {} end
+    return template.building_cost
+end
+
+---Gets energy consumption and energy drain of a given template
+---@param template_name string|nil unique template identifier
+---@return number energy_input, number energy_drain 
+function TemplateCompiler.get_energy_consumption(template_name)
+    if not template_name then return 0, 0 end
+    local template = storage.templates[template_name]
+    if not template then return 0, 0 end
+    local energy_input = template.input.electric_energy or 0
+    local energy_drain = template.energy_drain or 0
+    return energy_input, energy_drain
+end
+
+---Gets energy production of a given template
+---@param template_name string|nil unique template identifier
+---@return number energy_production
+function TemplateCompiler.get_energy_production(template_name)
+    if not template_name then return 0 end
+    local template = storage.templates[template_name]
+    if not template then return 0 end
+    return template.output.electric_energy or 0
+end
+
+-------------------------------------------------------------------------------
+-- TEMPLATE CREATION FUNCTIONS
+-------------------------------------------------------------------------------
 
 ---Helps in template creation. Calculates flow per second.
 ---@param counts table<string, number> total counts over a period of time
