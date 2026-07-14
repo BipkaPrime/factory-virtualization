@@ -38,11 +38,8 @@ elements.compile_btn LuaGuiElement: reference to compile button
 elements.compile_btn_status LuaGuiElement: reference to status label above compile button
 elements.compile_progressbar LuaGuiElement: reference to progressbar indicating surface compilation progress
 elements.compile_bar_label LuaGuiElement: reference to label above compilation progressbar
-
-
--- TODO: ADD
-elements.new_surface_width_field LuaGuiElement: reference to new surface width textfield
-elements.new_surface_height_field LuaGuiElement: reference to new surface height textfield
+elements.new_surface_width LuaGuiElement: reference to new surface width textfield
+elements.new_surface_height LuaGuiElement: reference to new surface height textfield
 elements.new_surface_drain LuaGuiElement: reference to new surface energy drain label
 --]]
 
@@ -51,7 +48,7 @@ local VEnvProcessor = require("src.simulation.venv-processor")
 local CommonGui = require("src.gui.common")
 
 local PREFIX = "FV-"
-local VSurfaceManagerGui = {}
+local SurfaceManagerGui = {}
 
 -------------------------------------------------------------------------------
 -- CONTROL ELEMENTS: CREATE/CONFIGURE FUNCTIONS
@@ -105,7 +102,7 @@ local function create_create_new_surface_btn(parent, manager_data)
     local create_button = parent.add{
         type = "button",
         name = PREFIX .. "sm-new-surface-btn",
-        caption = {"gui-label.create-new-v-surface"},
+        caption = {"gui-label.create-new-vsurface"},
     }
     create_button.style.horizontally_stretchable = true
     create_button.style.bottom_margin = 12
@@ -131,7 +128,7 @@ local function create_delete_surface_btn(parent, manager_data)
     local delete_button = parent.add{
         type = "button",
         name = PREFIX .. "sm-delete-surface-btn",
-        caption = {"gui-label.delete-selected-surface"},
+        caption = {"gui-label.delete-selected-vsurface"},
         style = "red_button",
     }
     delete_button.style.horizontally_stretchable = true
@@ -150,22 +147,85 @@ end
 ---@param parent LuaGuiElement button will be added here
 ---@param manager_data table vsurface manager data from storage
 local function create_new_surface_name_field(parent, manager_data)
-    parent.add{type = "label", caption = {"gui-label.enter-surface-name"}}
+    parent.add{type = "label", caption = {"gui-label.new-surface-name"}}
     local textfield = parent.add{
         type = "textfield",
         name = PREFIX .. "sm-new-surface-name",
+        lose_focus_on_confirm = true,
     }
     textfield.style.bottom_margin = 12
     manager_data.elements.new_surface_name_textfield = textfield
     configure_new_surface_name_field(manager_data)
 end
 
-local function configure_new_surface_size_widget(manager_data)
-    --TODO
+---Configured new surface energy drain label
+---@param manager_data table vsurface manager data from storage
+local function configure_new_surface_drain(manager_data)
+    local drain_label = manager_data.elements.new_surface_drain
+    local width = tonumber(manager_data.new_surface_width)
+    local height = tonumber(manager_data.new_surface_height)
+    local drain = VSurfaceManager.calculate_energy_drain(width, height)
+    local formated_drain = CommonGui.format_number(drain) .. "W"
+    drain_label.caption = {"", {"gui-label.template-energy-drain"}, ": ", formated_drain}
 end
 
+---Configures new surface size widget. Loads last user input and
+---updates template energy drain label.
+---@param manager_data table vsurface manager data from storage
+local function configure_new_surface_size_widget(manager_data)
+    local width_field = manager_data.elements.new_surface_width
+    local height_field = manager_data.elements.new_surface_height
+
+    -- loading last user input into height and width fields
+    local saved_width = manager_data.new_surface_width
+    local seved_height = manager_data.new_surface_height
+
+    width_field.text = saved_width and tostring(saved_width) or ""
+    height_field.text = seved_height and tostring(seved_height) or ""
+
+    configure_new_surface_drain(manager_data)
+end
+
+---Adds 2 textfields where height and width of new surface can be specified.
+---@param parent LuaGuiElement widget will be added here
+---@param manager_data table vsurface manager data from storage
 local function create_new_surface_size_widget(parent, manager_data)
-    --TODO
+    local main_flow = parent.add{type = "flow", direction = "vertical"}
+
+    -- width and height textfields with their labels and spacer between
+    local h_flow = main_flow.add{type = "flow", direction = "horizontal"}
+    h_flow.style.horizontal_spacing = 0
+    local v_flow1 = h_flow.add{type = "flow", direction = "vertical"}
+    v_flow1.add{type = "label", caption = {"gui-label.width"}}
+    local width_field = v_flow1.add{
+        type = "textfield",
+        name = PREFIX .. "sm-new-surface-width",
+        numeric = true,
+        allow_decimal = false,
+        allow_negative = false,
+        lose_focus_on_confirm = true,
+    }
+    width_field.style.width = 75
+    manager_data.elements.new_surface_width = width_field
+    local spacer = h_flow.add{type = "flow"}
+    spacer.style.width = 50
+    local v_flow2 = h_flow.add{type = "flow", direction = "vertical"}
+    v_flow2.add{type = "label", caption = {"gui-label.height"}}
+    local height_field = v_flow2.add{
+        type = "textfield",
+        name = PREFIX .. "sm-new-surface-height",
+        numeric = true,
+        allow_decimal = false,
+        allow_negative = false,
+        lose_focus_on_confirm = true,
+    }
+    height_field.style.width = 75
+    manager_data.elements.new_surface_height = height_field
+
+    -- template energy drain label
+    local drain = main_flow.add{type = "label", style = "bold_label"}
+    manager_data.elements.new_surface_drain = drain
+    configure_new_surface_size_widget(manager_data)
 end
 
 ---Configures confirm create new surface button.
@@ -178,6 +238,7 @@ local function configure_new_surface_confirm_btn(manager_data)
         manager_data.new_surface_width,
         manager_data.new_surface_height
     )
+
     button.enabled = can_create
     label.caption = (response or "")
 end
@@ -238,6 +299,7 @@ local function create_template_name_textfield(parent, manager_data)
     local textfield = parent.add{
         type = "textfield",
         name = PREFIX .. "sm-template-name",
+        lose_focus_on_confirm = true,
     }
     manager_data.elements.template_name_textfield = textfield
     manager_data.elements.template_name_label = label
@@ -340,10 +402,10 @@ end
 ---@param player LuaPlayer player for which window is created. Assumed to be valid.
 local function create_surface_manager_base(player)
     -- creating base window and "opening" it
-    local main_frame = CommonGui.gui_base_window(
+    local main_frame = CommonGui.create_base_window(
         player,
         PREFIX .. "sm-window",
-        {"gui-title.surface-manager-window"}
+        {"gui-label.vsurface-manager-window"}
     )
     player.opened = main_frame
 
@@ -407,7 +469,7 @@ end
 
 ---Handles vsurface selector searchfield being changed
 ---@param event EventData.on_gui_text_changed
-function VSurfaceManagerGui.process_vsurface_selection_search(event)
+function SurfaceManagerGui.process_vsurface_selection_search(event)
     local manager_data = storage.surface_manager[event.player_index]
     manager_data.vsurface_search_query = event.text
     configure_vsurface_selector(manager_data)
@@ -415,7 +477,7 @@ end
 
 ---Handles vsurface being changed in the selector
 ---@param event EventData.on_gui_selection_state_changed
-function VSurfaceManagerGui.process_vsurface_selection_changed(event)
+function SurfaceManagerGui.process_vsurface_selection_changed(event)
     local manager_data = storage.surface_manager[event.player_index]
     local selector = event.element
     local old_name = manager_data.selected_vsurface
@@ -437,7 +499,7 @@ end
 
 ---Handles "create new v-surface" button being pressed. Opens new vsurface creation gui.
 ---@param event EventData.on_gui_click
-function VSurfaceManagerGui.process_create_new_surface_btn(event)
+function SurfaceManagerGui.process_create_new_surface_btn(event)
     local manager_data = storage.surface_manager[event.player_index]
     manager_data.new_surface_pressed = true
     manager_data.selected_vsurface = nil
@@ -449,7 +511,7 @@ end
 
 ---Handles "delete current surface" being pressed. Requests deletion of the surface.
 ---@param event EventData.on_gui_click
-function VSurfaceManagerGui.process_delete_surface_btn(event)
+function SurfaceManagerGui.process_delete_surface_btn(event)
     local manager_data = storage.surface_manager[event.player_index]
     local surface_name = manager_data.selected_vsurface
     VSurfaceManager.delete_vsurface(surface_name)
@@ -461,25 +523,37 @@ end
 
 ---Handles new surface name textfield being changed. Saves entered text.
 ---@param event EventData.on_gui_text_changed
-function VSurfaceManagerGui.process_new_surface_name_changed(event)
+function SurfaceManagerGui.process_new_surface_name_changed(event)
     local manager_data = storage.surface_manager[event.player_index]
     local textfield = event.element
     manager_data.new_surface_name = textfield.text
     configure_new_surface_confirm_btn(manager_data)
 end
 
-function VSurfaceManagerGui.process_new_surface_width_changed(event)
-    --TODO
+---Handles new surface width textfield being changed.
+---@param event EventData.on_gui_text_changed
+function SurfaceManagerGui.process_new_surface_width_changed(event)
+    local manager_data = storage.surface_manager[event.player_index]
+    local element = event.element
+    manager_data.new_surface_width = tonumber(element.text)
+    configure_new_surface_drain(manager_data)
+    configure_new_surface_confirm_btn(manager_data)
 end
 
-function VSurfaceManagerGui.process_new_surface_height_changed(event)
-    --TODO
+---Handles new surface height textfield being changed.
+---@param event EventData.on_gui_text_changed
+function SurfaceManagerGui.process_new_surface_height_changed(event)
+    local manager_data = storage.surface_manager[event.player_index]
+    local element = event.element
+    manager_data.new_surface_height = tonumber(element.text)
+    configure_new_surface_drain(manager_data)
+    configure_new_surface_confirm_btn(manager_data)
 end
 
 ---Handles confirm create new surface button being pressed. Requests surface creation.
 ---Closes opened window because creation function moves camera to created surface.
 ---@param event EventData.on_gui_click
-function VSurfaceManagerGui.process_new_surface_confirm_btn(event)
+function SurfaceManagerGui.process_new_surface_confirm_btn(event)
     local manager_data = storage.surface_manager[event.player_index]
 
     -- getting LuaPlayer object and closing window
@@ -505,7 +579,7 @@ end
 
 ---Handles template name textfield being changed. Saves user input.
 ---@param event EventData.on_gui_text_changed
-function VSurfaceManagerGui.process_template_name_changed(event)
+function SurfaceManagerGui.process_template_name_changed(event)
     local manager_data = storage.surface_manager[event.player_index]
     manager_data.template_name = event.text
     configure_start_compilation_btn(manager_data)
@@ -513,7 +587,7 @@ end
 
 ---Handles start compilation button being pressed. Requests compilation start.
 ---@param event EventData.on_gui_click
-function VSurfaceManagerGui.process_start_compilation_btn(event)
+function SurfaceManagerGui.process_start_compilation_btn(event)
     local manager_data = storage.surface_manager[event.player_index]
     local surface_name = manager_data.selected_vsurface
     local template_name = manager_data.template_name
@@ -545,7 +619,7 @@ end
 ---Closes the surface manager when player.opened changes from
 ---vsurface manager window to something else.
 ---@param event EventData.on_gui_closed 
-function VSurfaceManagerGui.process_surface_manager_gui_closed(event)
+function SurfaceManagerGui.process_surface_manager_gui_closed(event)
     local manager_data = storage.surface_manager[event.player_index]
     manager_data.opened = nil
     manager_data.elements.main_window.destroy()
@@ -554,7 +628,7 @@ end
 
 ---Toggles surface manager when shortcut bar element is clicked
 ---@param event EventData.on_lua_shortcut
-function VSurfaceManagerGui.process_surface_manager_shortcut(event)
+function SurfaceManagerGui.process_surface_manager_shortcut(event)
     local player = game.get_player(event.player_index)
     if not player or not player.valid then return end
     toggle_surface_manager(player)
@@ -562,7 +636,7 @@ end
 
 ---Toggles surface manager when custom hotkey is pressed
 ---@param event EventData.CustomInputEvent
-function VSurfaceManagerGui.process_surface_manager_hotkey(event)
+function SurfaceManagerGui.process_surface_manager_hotkey(event)
     local player = game.get_player(event.player_index)
     if not player or not player.valid then return end
     toggle_surface_manager(player)
@@ -572,7 +646,7 @@ end
 ---player.opened can be assigned nil with window still opened
 ---So if window should be opened, we set player.opened to it.
 ---@param event EventData.on_player_changed_surface
-function VSurfaceManagerGui.process_player_changed_surface(event)
+function SurfaceManagerGui.process_player_changed_surface(event)
     local manager_data = storage.surface_manager[event.player_index]
     if not manager_data or not manager_data.opened then return end
     local player = game.get_player(event.player_index)
@@ -581,7 +655,7 @@ function VSurfaceManagerGui.process_player_changed_surface(event)
 end
 
 ---Time-based vsurface manager updater
-function VSurfaceManagerGui.update_opened_windows()
+function SurfaceManagerGui.update_opened_windows()
     for _, manager_data in pairs(storage.surface_manager) do
         -- updating info panel if surface is selected
         if manager_data.opened and manager_data.selected_vsurface then
@@ -592,4 +666,4 @@ function VSurfaceManagerGui.update_opened_windows()
     end
 end
 
-return VSurfaceManagerGui
+return SurfaceManagerGui

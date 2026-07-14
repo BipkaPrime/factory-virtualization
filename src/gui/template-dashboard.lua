@@ -45,7 +45,7 @@ local function configure_template_selector(dashboard_data)
     local options = TemplateCompiler.get_all_template_names()
     local query = dashboard_data.template_query
     local selected = dashboard_data.template_name
-    CommonGui.arrange_selector(selector, options, query, selected)
+    CommonGui.configure_selector(selector, options, query, selected)
 end
 
 ---Configures template selector and searchbox above
@@ -89,7 +89,7 @@ local function create_surface_selection_widget(parent, dashboard_data)
         parent,
         PREFIX .. "td-surface-search",
         PREFIX .. "td-surface-selector",
-        {"gui-label.surface-selection"}
+        {"gui-label.select-surface"}
     )
     dashboard_data.elements.surface_search = search
     dashboard_data.elements.surface_selector = selector
@@ -184,7 +184,7 @@ local function create_template_outputs_section(parent, dashboard_data)
     local outputs = TemplateCompiler.get_outputs(template_name)
     if not next(outputs) then return end
 
-    local section = CommonGui.info_element_base(
+    local section = CommonGui.create_info_element_base(
         parent,
         {"gui-label.template-output"}
     )
@@ -207,10 +207,10 @@ end
 ---@param player LuaPlayer player for which window is created. Assumed to be valid.
 local function create_template_dashboard_base(player)
     -- creating base window and "opening" it
-    local main_window = CommonGui.gui_base_window(
+    local main_window = CommonGui.create_base_window(
         player,
         PREFIX .. "td-window",
-        {"gui-title.td-window"}
+        {"gui-label.template-dashboard"}
     )
     player.opened = main_window
 

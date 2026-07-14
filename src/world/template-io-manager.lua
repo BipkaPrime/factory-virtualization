@@ -13,10 +13,10 @@ buffer_key string|nil (item-io): "name//quality" (assigned by processor for fast
 selected_fluid string|nil (fluid-io): name of selected fluid if any (user input)
 --]]
 
-local TemplateIO = {}
-
 local VSurfaceManager = require("src.world.vsurface-manager")
 local VEnvProcessor = require("src.simulation.venv-processor")
+
+local TemplateIO = {}
 
 ---Updates given template item io
 ---@param properties table entity data from entity registry

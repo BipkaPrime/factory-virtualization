@@ -16,10 +16,15 @@ selected_fluid string|nil (fluid-io): name of selected fluid if any (user input)
 --]]
 
 local ClusterProcessor = require("src.simulation.cluster-processor")
-local EntityParams = require("world.entity-params")
 
+local PREFIX = "FV-"
 local MainframeIO = {}
 
+local flow_limits = {
+    [PREFIX .. "mainframe-item-io"] = 500,
+    [PREFIX .. "mainframe-fluid-io"] = 10000,
+    [PREFIX .. "mainframe-energy-io"] = 1e9,
+}
 
 ---Checks if template change has occured and in case it did,
 ---moves mainframe IO to the new virtualization cluster
@@ -58,8 +63,7 @@ function MainframeIO.process_mainframe_item_io(properties)
     -- getting inventory and flow limit
     local entity = properties.entity
     local inventory = entity.get_inventory(defines.inventory.chest)
-    local params = EntityParams.get_entity_params(entity.name)
-    local flow_limit = params.flow_limit
+    local flow_limit = flow_limits[entity.name]
 
     local item = properties.selected_item
     if properties.is_output then
@@ -73,7 +77,7 @@ function MainframeIO.process_mainframe_item_io(properties)
             quality = item.quality,
             count = math.min(flow_limit, available)
         })
-        ClusterProcessor.process_buffer_output(cluster, buffer_key, inserted_count)
+        ClusterProcessor.remove_from_buffer(cluster, buffer_key, inserted_count)
     else
         local available = ClusterProcessor.get_input_space(cluster, buffer_key)
         if available <= 0 then return end
@@ -84,7 +88,7 @@ function MainframeIO.process_mainframe_item_io(properties)
             quality = item.quality,
             count = math.min(flow_limit, available)
         })
-        ClusterProcessor.process_buffer_input(cluster, buffer_key, removed_count)
+        ClusterProcessor.add_to_buffer(cluster, buffer_key, removed_count)
     end
 end
 
@@ -103,7 +107,7 @@ function MainframeIO.process_mainframe_fluid_io(properties)
     if not cluster then return end
 
     local entity = properties.entity
-    local flow_limit = EntityParams.get_entity_params(entity.name).flow_limit
+    local flow_limit = flow_limits[entity.name]
     if properties.is_output then
         -- getting available products
         local available = ClusterProcessor.get_output_capacity(cluster, fluid_name)
@@ -114,7 +118,7 @@ function MainframeIO.process_mainframe_fluid_io(properties)
             name = fluid_name,
             amount = math.min(flow_limit, available)
         })
-        ClusterProcessor.process_buffer_output(cluster, fluid_name, inserted_amount)
+        ClusterProcessor.remove_from_buffer(cluster, fluid_name, inserted_amount)
     else
         -- getting available space
         local available = ClusterProcessor.get_input_space(cluster, fluid_name)
@@ -125,7 +129,7 @@ function MainframeIO.process_mainframe_fluid_io(properties)
             name = fluid_name,
             amount = math.min(flow_limit, available)
         })
-        ClusterProcessor.process_buffer_input(cluster, fluid_name, removed_amount)
+        ClusterProcessor.add_to_buffer(cluster, fluid_name, removed_amount)
     end
 end
 
@@ -141,7 +145,7 @@ function MainframeIO.process_mainframe_energy_io(properties)
 
     local buffer_key = "electric_energy"
     local entity = properties.entity
-    local flow_limit = EntityParams.get_entity_params(entity.name).flow_limit
+    local flow_limit = flow_limits[entity.name]
     if properties.is_output then
         -- getting available products
         local available_amount = ClusterProcessor.get_output_capacity(cluster, buffer_key)
@@ -151,7 +155,7 @@ function MainframeIO.process_mainframe_energy_io(properties)
         local available_space = entity.electric_buffer_size - entity.energy
         local transfered = math.min(flow_limit, available_amount, available_space)
         entity.energy = entity.energy + transfered
-        ClusterProcessor.process_buffer_output(cluster, buffer_key, transfered)
+        ClusterProcessor.remove_from_buffer(cluster, buffer_key, transfered)
     else
         -- getting available space in cluster input
         local available_space = ClusterProcessor.get_input_space(cluster, buffer_key)
@@ -160,7 +164,7 @@ function MainframeIO.process_mainframe_energy_io(properties)
         -- moving energy from entity to vcluster
         local transfered = math.min(available_space, flow_limit, entity.energy)
         entity.energy = entity.energy - transfered
-        ClusterProcessor.process_buffer_input(cluster, buffer_key, transfered)
+        ClusterProcessor.add_to_buffer(cluster, buffer_key, transfered)
     end
 end
 

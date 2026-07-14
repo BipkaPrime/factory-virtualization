@@ -274,6 +274,47 @@ function EntityGui.process_choose_fluid_button(event)
 end
 
 -------------------------------------------------------------------------------
+-- INFORMATION ELEMENTS
+-------------------------------------------------------------------------------
+
+---Adds a status display for virtualization mainframe
+---@param parent LuaGuiElement section will be added here
+---@param entity LuaEntity mainframe itself
+local function create_mainframe_status_display(parent, entity)
+    local status = EntityProcessor.get_mainframe_status(entity)
+    local caption = {"", {"gui-label.entity-status"}, ": " , status}
+    CommonGui.create_info_element_base(parent, caption)
+end
+
+---Adds section displaying current mainframe requests if there are any.
+---@param parent LuaGuiElement section will be added here
+---@param entity LuaEntity mainframe itself
+local function create_mainframe_requests(parent, entity)
+    local requests = EntityProcessor.get_building_requests(entity)
+    if not requests or not next(requests) then return end
+
+    -- creating sprite button data to display
+    local buttons = {}
+    for name, q_counts in pairs(requests) do
+        for quality, count in pairs(q_counts) do
+            local data = {
+                type = "item",
+                name = name,
+                count = count,
+                quality = quality
+            }
+            table.insert(buttons, data)
+        end
+    end
+
+    local section = CommonGui.create_info_element_base(
+        parent,
+        {"gui-label.missing-construction-materials"}
+    )
+    CommonGui.create_sprite_button_table(section, buttons)
+end
+
+-------------------------------------------------------------------------------
 -- GUI CONSTRUCTORS
 -------------------------------------------------------------------------------
 
@@ -335,52 +376,134 @@ local function create_entity_gui_base(player, entity)
     return gui_data
 end
 
-
-local function template_item_io(player, entity)
-    local gui_data = entity_gui_base(player, entity)
+---Creates template item IO interface
+---@param player LuaPlayer assumed to be valid
+---@param entity LuaEntity assumed to be valid
+local function create_template_item_io_gui(player, entity)
+    local gui_data = create_entity_gui_base(player, entity)
     local left_frame = gui_data.elements.left_frame
-    add_choose_io_buttons(left_frame, gui_data)
-    add_choose_item_button(left_frame, gui_data)
+    create_choose_io_buttons(left_frame, gui_data)
+    create_choose_item_button(left_frame, gui_data)
 end
 
-local function template_fluid_io(player, entity)
-    local gui_data = entity_gui_base(player, entity)
+---Creates template fluid IO interface
+---@param player LuaPlayer assumed to be valid
+---@param entity LuaEntity assumed to be valid
+local function create_template_fluid_io_gui(player, entity)
+    local gui_data = create_entity_gui_base(player, entity)
     local left_frame = gui_data.elements.left_frame
-    add_choose_io_buttons(left_frame, gui_data)
-    add_choose_fluid_button(left_frame, gui_data)
+    create_choose_io_buttons(left_frame, gui_data)
+    create_choose_fluid_button(left_frame, gui_data)
 end
 
-local function template_energy_io(player, entity)
-    local gui_data = entity_gui_base(player, entity)
+---Creates template energy IO interface
+---@param player LuaPlayer assumed to be valid
+---@param entity LuaEntity assumed to be valid
+local function create_template_energy_io_gui(player, entity)
+    local gui_data = create_entity_gui_base(player, entity)
     local left_frame = gui_data.elements.left_frame
-    add_choose_io_buttons(left_frame, gui_data)
+    create_choose_io_buttons(left_frame, gui_data)
 end
 
-local function mainframe_item_io(player, entity)
-    local gui_data = entity_gui_base(player, entity)
+---Creates mainframe item IO interface
+---@param player LuaPlayer assumed to be valid
+---@param entity LuaEntity assumed to be valid
+local function create_mainframe_item_io_gui(player, entity)
+    local gui_data = create_entity_gui_base(player, entity)
     local left_frame = gui_data.elements.left_frame
-    add_choose_io_buttons(left_frame, gui_data)
-    add_template_selection_widget(left_frame, gui_data)
-    add_choose_item_button(left_frame, gui_data)
+    create_choose_io_buttons(left_frame, gui_data)
+    create_template_selection_widget(left_frame, gui_data)
+    create_choose_item_button(left_frame, gui_data)
 end
 
-local function mainframe_fluid_io(player, entity)
-    local gui_data = entity_gui_base(player, entity)
+---Creates mainframe fluid IO interface
+---@param player LuaPlayer assumed to be valid
+---@param entity LuaEntity assumed to be valid
+local function create_mainframe_fluid_io_gui(player, entity)
+    local gui_data = create_entity_gui_base(player, entity)
     local left_frame = gui_data.elements.left_frame
-    add_choose_io_buttons(left_frame, gui_data)
-    add_template_selection_widget(left_frame, gui_data)
-    add_choose_fluid_button(left_frame, gui_data)
+    create_choose_io_buttons(left_frame, gui_data)
+    create_template_selection_widget(left_frame, gui_data)
+    create_choose_fluid_button(left_frame, gui_data)
 end
 
-local function mainframe_energy_io(player, entity)
-    local gui_data = entity_gui_base(player, entity)
+---Creates mainframe energy IO interface
+---@param player LuaPlayer assumed to be valid
+---@param entity LuaEntity assumed to be valid
+local function create_mainframe_energy_io_gui(player, entity)
+    local gui_data = create_entity_gui_base(player, entity)
     local left_frame = gui_data.elements.left_frame
-    add_choose_io_buttons(left_frame, gui_data)
-    add_template_selection_widget(left_frame, gui_data)
+    create_choose_io_buttons(left_frame, gui_data)
+    create_template_selection_widget(left_frame, gui_data)
 end
 
-local function virtualization_mainframe(player, entity)
-    local gui_data = entity_gui_base(player, entity)
+---Creates virtualization mainframe interface
+---@param player LuaPlayer assumed to be valid
+---@param entity LuaEntity assumed to be valid
+local function create_virtualization_mainframe_gui(player, entity)
+    local gui_data = create_entity_gui_base(player, entity)
     local left_frame = gui_data.elements.left_frame
-    add_template_selection_widget(left_frame, gui_data)
+    create_template_selection_widget(left_frame, gui_data)
+    local datafield = gui_data.elements.datafield
+    create_mainframe_status_display(datafield, entity)
+    create_mainframe_requests(datafield, entity)
 end
+
+-------------------------------------------------------------------------------
+-- OPEN/CLOSE ENTITY GUI
+-------------------------------------------------------------------------------
+
+-- key (string): entity name, value (function): handler that creates gui
+local entity_gui_router = {
+    [PREFIX .. "template-item-io"] = create_template_item_io_gui,
+    [PREFIX .. "template-fluid-io"] = create_template_fluid_io_gui,
+    [PREFIX .. "template-energy-io"] = create_template_energy_io_gui,
+    [PREFIX .. "mainframe-item-io"] = create_mainframe_item_io_gui,
+    [PREFIX .. "mainframe-fluid-io"] = create_mainframe_fluid_io_gui,
+    [PREFIX .. "mainframe-energy-io"] = create_mainframe_energy_io_gui,
+    [PREFIX .. "virtualization-mainframe"] = create_virtualization_mainframe_gui,
+}
+---Handles gui being opened by the player. If entity gui from the table above is
+---opened, closes it's vanilla gui and opens a custom one.
+---@param event EventData.on_gui_opened
+function EntityGui.process_gui_opened(event)
+    -- checking opened gui type
+    if event.gui_type ~= defines.gui_type.entity then return end
+    local entity = event.entity
+    if not entity or not entity.valid then return end
+    -- getting entity name (handling ghosts)
+    local entity_name = entity.name
+    if entity_name == "entity-ghost" then entity_name = entity.ghost_name end
+    -- checking if we need to open a custom gui
+    local handler = entity_gui_router[entity_name]
+    if not handler then return end
+    local player = game.get_player(event.player_index)
+    if not player or not player.valid then return end
+    handler(player, entity)
+end
+
+---Closes the custom entity gui when player.opened changes from it to something else.
+---@param event EventData.on_gui_closed
+function EntityGui.process_entity_gui_closed(event)
+    local player_idx = event.player_index
+    local gui_data = storage.entity_gui[player_idx]
+    storage.entity_gui.currently_opened[player_idx] = nil
+    gui_data.elements.main_window.destroy()
+    gui_data.elements = nil
+    gui_data.entity = nil
+end
+
+---After player changes surface with this window opened
+---player.opened can be assigned nil with window still opened
+---So if window should be opened, we set player.opened to it.
+---@param event EventData.on_player_changed_surface
+function EntityGui.process_player_changed_surface(event)
+    local player_idx = event.player_index
+    if not storage.entity_gui.currently_opened[player_idx] then return end
+    local player = game.get_player(player_idx)
+    if not player or not player.valid then return end
+    local gui_data = storage.entity_gui[player_idx]
+    player.opened = gui_data.elements.main_window
+end
+
+return EntityGui

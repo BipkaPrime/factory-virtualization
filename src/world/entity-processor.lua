@@ -258,6 +258,49 @@ function EntityProcessor.get_output_flag(entity)
     return is_output
 end
 
+---Gets building requests of a given entity. Currently only virtualization
+---mainframes can have this field.
+---@param entity LuaEntity
+---@return table<string, table>|nil 2-level hmap requests[name][quality] = count
+function EntityProcessor.get_building_requests(entity)
+    local building_requests = get_entity_property(entity, "building_requests")
+    ---@cast building_requests table<string, table>|nil
+    return building_requests
+end
+
+---Gets status of a given virtualization mainframe.
+---@param entity LuaEntity
+---@return LocalisedString status
+function EntityProcessor.get_mainframe_status(entity)
+    -- mainframe is invalid
+    if not entity.valid then
+        return {"entity-status.invalid"}
+    end
+    -- mainframe is a ghost
+    if entity.name == "entity-ghost" then
+        return {"entity-status.ghost"}
+    end
+    local properties = get_entity_data(entity.unit_number)
+    -- mainframe is not registered: critical error
+    if not properties then
+        return {"entity-status.not-registered"}
+    end
+    -- no selected template: mainframe is idle
+    if not properties.active_template then
+        return {"entity-status.template-not-selected"}
+    end
+    -- something is being requested
+    local requests = properties.building_requests
+    if requests and next(requests) then
+        return {"entity-status.requesting-construction-materials"}
+    end
+    -- template constructed: mainframe operational
+    if properties.operational then
+        return {"entity-status.operational"}
+    end
+    return {"entity-status.unknown"}
+end
+
 -------------------------------------------------------------------------------
 -- COPY PASTE
 -------------------------------------------------------------------------------

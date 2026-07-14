@@ -168,7 +168,11 @@ function CommonGui.create_selection_widget(parent, search_name, selector_name, c
     local flow = parent.add{type = "flow", direction = "vertical"}
     flow.style.bottom_margin = 12
     local label = flow.add{type = "label", caption = caption}
-    local searchfield = flow.add{type = "textfield", name = search_name}
+    local searchfield = flow.add{
+        type = "textfield",
+        name = search_name,
+        lose_focus_on_confirm = true,
+    }
     local selector = flow.add{type = "list-box", name = selector_name}
     selector.style.width = 200
     selector.style.height = 200

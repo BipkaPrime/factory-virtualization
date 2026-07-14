@@ -197,7 +197,7 @@ end
 
 ---On-tick processors of chunks in the registry
 ---@param event EventData.on_tick
-function ChunkProcessor.chunk_processor(event)
+function ChunkProcessor.process_chunks(event)
     -- processing every 60-th chunk
     local chunks = storage.vsurface_chunks
     local offset = (event.tick % 60) + 1

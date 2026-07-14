@@ -1,136 +1,192 @@
-require("scripts.copy-paste")
-local chunk_processor = require("scripts.template-creation.chunk-processor")
-local entity_processor = require("scripts.entity-processor")
-local entity_params = require("scripts.entity-params")
-local vcluster = require("scripts.vcluster")
-local venv_processor = require "scripts.template-creation.venv-processor"
-local gui = require("scripts.gui.main")
+local EntityProcessor = require("src.world.entity-processor")
+local ChunkProcessor = require("src.world.vsurface-chunk-processor")
+local ClusterProcessor = require("src.simulation.cluster-processor")
+local VEnvProcessor = require("src.simulation.venv-processor")
+local CommonGui = require("src.gui.common")
+local EntityGui = require("src.gui.entity")
+local SurfaceManagerGui = require("src.gui.vsurface-manager")
+local TemplateDashboard = require("src.gui.template-dashboard")
 
-
--- TODO: If entity is no longer valid, its interface will not close by itself.
--- TODO: fix research compilation inaccuracies (probably by looking at consumed packs statistics)
+local PREFIX = "FV-"
 
 -------------------------------------------------------------------------------
 -- Initialization and lifecycle
 -------------------------------------------------------------------------------
 
 script.on_init(function()
-    -- Used to track special virtualization surfaces added by this mod
-    -- key: surface_id, value: table describing surface
-    storage.v_surfaces = {}
-
-    -- Used to track compiled production templates added by this mod
-    -- key: template name, value: compiled templates (table)
-    storage.compiled_templates = {}
-
-    -- Used to compile virtualization surfaces into production templates 
-    -- key: surface_id, value: virtual environment (table)
-    storage.compiling_surfaces = {}
-
-    -- Used to track all operational virtualization clusters on all surfaces
-    -- storage.vclusters[template_name][surface_id] = table (cluster data)
-    storage.vclusters = {}
-
-    -- Used to store all existing clusters in a flat array for processing.
-    storage.cluster_list = {}
-
-    -- Used to track all chunks on virtualization surfaces for charting and running
-    -- services on them (like auto ghost reviving, instant deconstruction, etc.)
-    storage.vsurface_chunks = {}
-
-    -- Used to keeps track of entities added by this mod that require on tick processing
+    -- world/entity-processor
     storage.entity_registry = {array = {}, lookup = {}}
-
-    -- Initializing params related to entities added by this mod
-    entity_params.storage_init()
-
-    -- Creating technical force for research templates and collecting technical research
-    venv_processor.init_lab_force()
-
-    ---------------------------------------------------------------------------------
-    -- GUI ZONE
-    ---------------------------------------------------------------------------------
-
-    -- Used to store data of dashboard gui window for all players
-    -- keys: player id, value = table (selected_template, selected_surface, etc.)
+    -- world/vsurface-chunk-processor
+    storage.vsurface_chunks = {}
+    -- world/vsurface-manager
+    storage.vsurfaces = {}
+    -- simulation/cluster-processor
+    storage.vclusters = {array = {}, lookup = {}}
+    -- simulation/template-compiler
+    storage.templates = {}
+    -- simulation/venv-processor
+    storage.venvs = {}
+    -- gui/template-dashboard
     storage.template_dashboard = {}
-
-    -- Used to store data of surface manager gui window for all players
-    -- keys: player id, value = table (selected_surface, etc.)
+    -- gui/vsurface-manager
     storage.surface_manager = {}
-
-    -- Used to track of last opened entity with cusom gui.
-    -- key: player_index, value: table
-    storage.entity_gui = {}
+    -- gui/entity-gui
+    storage.entity_gui = {currently_opened = {}}
 end)
-
 
 script.on_configuration_changed(function()
 
 end)
 
-
-entity_processor.subscribe_to_build_events()
-
 -------------------------------------------------------------------------------
--- Time based handlers for processing entity registry members, virtualization
--- surface chunks, processing compiling sufaces, etc.
+-- TIME-BASED SCRIPTS
 -------------------------------------------------------------------------------
 
 script.on_event(defines.events.on_tick, function(event)
-    entity_processor.entity_processor(event)
-    chunk_processor.chunk_processor(event)
-    vcluster.process_clusters(event)
+    ClusterProcessor.process_clusters(event)
+    EntityProcessor.process_entities(event)
+    ChunkProcessor.process_chunks(event)
 end)
 
 script.on_nth_tick(60, function()
-    venv_processor.process_compiling_surfaces()
-    gui.process_opened_windows()
+    SurfaceManagerGui.update_opened_windows()
+    VEnvProcessor.process_compiling_surfaces()
 end)
 
-script.on_event(defines.events.on_player_changed_surface, function(event)
-    gui.process_player_changed_surface(event)
-end)
+-------------------------------------------------------------------------------
+-- ENTITY PROCESSOR TAGS AND REGISTRATION
+-------------------------------------------------------------------------------
 
+local build_events = {
+    defines.events.on_built_entity,
+    defines.events.on_robot_built_entity,
+    defines.events.on_space_platform_built_entity,
+    defines.events.script_raised_revive
+}
 
--- Used to subscibe to all "build events" allowing 
-function Helper.subscribe_to_build_events()
-    -- all events that can be triggered when entity is built
-    local build_events = {
-        defines.events.on_built_entity,
-        defines.events.on_robot_built_entity,
-        defines.events.on_space_platform_built_entity,
-        defines.events.script_raised_revive
-    }
-
-    -- function that is called when entity is built
-    local function on_entity_built(event)
-        local entity = event.entity
-        if not entity or not entity.valid then return end
-        register_entity(entity, event.tags)
-    end
-    
-    -- subsribing to all "build events"
-    for _, event in ipairs(build_events) do
-        script.on_event(event, on_entity_built, build_filter)
-    end
+---Handles entity buing built. Adds it to entity registry.
+---@param event EventData.on_built_entity
+local function on_entity_built(event)
+    local entity = event.entity
+    if not entity or not entity.valid then return end
+    EntityProcessor.register_entity(entity, event.tags)
 end
 
--- Handles player setting up blueprint.
+-- subsribing to all "build events"
+for _, event in ipairs(build_events) do
+    script.on_event(event, on_entity_built, EntityProcessor.build_filter)
+end
+
 script.on_event(defines.events.on_player_setup_blueprint, function(event)
-    
+    EntityProcessor.setup_blueprint_tags(event)
 end)
 
--- 
-script.on_event(PREFIX .. "sm-hotkey", function(event)
-    
+-------------------------------------------------------------------------------
+-- GUI HANDLERS
+-------------------------------------------------------------------------------
+
+---After player changes surface with custom gui window opened
+---player.opened can be assigned nil with window still opened
+---So if window should be opened, we set player.opened to it.
+script.on_event(defines.events.on_player_changed_surface, function(event)
+    SurfaceManagerGui.process_player_changed_surface(event)
+    TemplateDashboard.process_player_changed_surface(event)
+    EntityGui.process_player_changed_surface(event)
 end)
 
-script.on_event(PREFIX .. "td-hotkey", function(event)
-    
+script.on_event(defines.events.on_gui_opened, function(event)
+    EntityGui.process_gui_opened(event)
 end)
+
+local on_lua_shortcut_router = {
+    [PREFIX .. "sm-shortcut"] = SurfaceManagerGui.process_surface_manager_shortcut,
+    [PREFIX .. "td-shortcut"] = TemplateDashboard.process_dashboard_shortcut,
+}
+script.on_event(defines.events.on_lua_shortcut, function(event)
+    local handler = on_lua_shortcut_router[event.prototype_name]
+    if not handler then return end
+    handler(event)
+end)
+
+---Picks a handler for event.element from router table.
+---Only useful when routing is done by element.name
+---@param event EventData 
+---@param router table<string, function>
+local function element_name_router(event, router)
+    ---@diagnostic disable-next-line: undefined-field
+    local element = event.element
+    if not element or not element.valid then return end
+    local handler = router[element.name]
+    if not handler then return end
+    handler(event)
+end
+
+local on_gui_click_router = {
+    [PREFIX .. "close-button"] = CommonGui.process_close_button,
+    [PREFIX .. "sm-new-surface-btn"] = SurfaceManagerGui.process_create_new_surface_btn,
+    [PREFIX .. "sm-delete-surface-btn"] = SurfaceManagerGui.process_delete_surface_btn,
+    [PREFIX .. "sm-new-surface-confirm"] = SurfaceManagerGui.process_new_surface_confirm_btn,
+    [PREFIX .. "sm-start-compilation-btn"] = SurfaceManagerGui.process_start_compilation_btn,
+}
+script.on_event(defines.events.on_gui_click, function(event)
+    element_name_router(event, on_gui_click_router)
+end)
+
+local on_gui_closed_router = {
+    [PREFIX .. "sm-window"] = SurfaceManagerGui.process_surface_manager_gui_closed,
+    [PREFIX .. "td-window"] = TemplateDashboard.process_template_dashboard_gui_closed,
+    [PREFIX .. "entity-window"] = EntityGui.process_entity_gui_closed,
+}
+script.on_event(defines.events.on_gui_closed, function(event)
+    element_name_router(event, on_gui_closed_router)
+end)
+
+local on_gui_text_changed_router = {
+    [PREFIX .. "sm-vsurface-search"] = SurfaceManagerGui.process_vsurface_selection_search,
+    [PREFIX .. "sm-new-surface-name"] = SurfaceManagerGui.process_new_surface_name_changed,
+    [PREFIX .. "sm-new-surface-width"] = SurfaceManagerGui.process_new_surface_width_changed,
+    [PREFIX .. "sm-new-surface-height"] = SurfaceManagerGui.process_new_surface_height_changed,
+    [PREFIX .. "sm-template-name"] = SurfaceManagerGui.process_template_name_changed,
+    [PREFIX .. "td-template-search"] = TemplateDashboard.process_template_search,
+    [PREFIX .. "entity-template-search"] = EntityGui.process_template_searchfield,
+}
+script.on_event(defines.events.on_gui_text_changed, function(event)
+    element_name_router(event, on_gui_text_changed_router)
+end)
+
+local on_gui_selection_state_changed_router = {
+    [PREFIX .. "sm-vsurface-selector"] = SurfaceManagerGui.process_vsurface_selection_changed,
+    [PREFIX .. "td-template-selector"] = TemplateDashboard.process_template_selector,
+    [PREFIX .. "entity-template-selector"] = EntityGui.process_template_selector,
+}
+script.on_event(defines.events.on_gui_selection_state_changed, function(event)
+    element_name_router(event, on_gui_selection_state_changed_router)
+end)
+
+local on_gui_elem_changed_router = {
+    [PREFIX .. "choose-item-button"] = EntityGui.process_choose_item_button,
+    [PREFIX .. "choose-fluid-button"] = EntityGui.process_choose_fluid_button,
+}
+script.on_event(defines.events.on_gui_elem_changed, function(event)
+    element_name_router(event, on_gui_elem_changed_router)
+end)
+
+local on_gui_checked_state_changed_router = {
+    [PREFIX .. "input-radiobutton"] = EntityGui.process_input_chosen,
+    [PREFIX .. "output-radiobutton"] = EntityGui.process_output_chosen,
+}
+script.on_event(defines.events.on_gui_checked_state_changed, function(event)
+    element_name_router(event, on_gui_checked_state_changed_router)
+end)
+
+script.on_event(PREFIX .. "sm-hotkey", SurfaceManagerGui.process_surface_manager_hotkey)
+script.on_event(PREFIX .. "td-hotkey", TemplateDashboard.process_dashboard_hotkey)
+
+-------------------------------------------------------------------------------
+-- DEBUG COMMANDS
+-------------------------------------------------------------------------------
 
 commands.add_command("save_template_data", "Saves all compiled template data to json", function()
-    helpers.write_file("compiled_templates.json", serpent.block(storage.compiled_templates), false)
+    helpers.write_file("compiled_templates.json", serpent.block(storage.templates), false)
     game.print("Template data saved to compiled_templates.json")
 end)

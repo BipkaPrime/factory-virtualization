@@ -97,6 +97,9 @@ function VSurfaceManager.create_vsurface(player, name, width, height, research_s
         return false, "Could not create surface"
     end
 
+    local chunk_radius = math.ceil(math.max(width, height) / 64)
+    surface.request_to_generate_chunks({0, 0}, chunk_radius)
+
     -- modifying surface attributes
     surface.generate_with_lab_tiles = true
     surface.always_day = true
@@ -191,11 +194,11 @@ function VSurfaceManager.check_surface_validity(surface_id)
 end
 
 ---Calculates template energy drain for provided vsurface dimensions
----@param width number surface width
----@param height number surface height
+---@param width number|nil surface width
+---@param height number|nil surface height
 ---@return number energy_drain passive template energy drain
 function VSurfaceManager.calculate_energy_drain(width, height)
-    local area = width * height
+    local area = (width or 0) * (height or 0)
     return 500 * math.sqrt(area) * area
 end
 

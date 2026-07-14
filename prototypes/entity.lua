@@ -132,8 +132,7 @@ local template_energy_io = {
     energy_source = {
         type = "electric",
         buffer_capacity = "10GJ",
-        usage_priority = "secondary-input",
-        output_flow_limit = "0W",
+        usage_priority = "dynamic",
     },
     name = PREFIX .. "template-energy-io",
     icon = iconpath .. "template-energy-io.png",
@@ -161,8 +160,7 @@ local mainframe_energy_io = {
     energy_source = {
         type = "electric",
         buffer_capacity = "10GJ",
-        usage_priority = "secondary-input",
-        output_flow_limit = "0W",
+        usage_priority = "dynamic",
     },
     name = PREFIX .. "mainframe-energy-io",
     icon = iconpath .. "mainframe-energy-io.png",

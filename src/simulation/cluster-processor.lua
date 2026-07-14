@@ -69,6 +69,19 @@ base_energy_per_craft float: base electric energy consumption per craft
 last_cycle_crafts integer/nil: number of crafts performed in the last crafting cycle
 --]]
 
+--[[
+TODO: FIX error when choosing template without energy input field 
+Error while running event factory-virtualization::on_tick (ID 0)
+...ry-virtualization__/src/simulation/cluster-processor.lua:286: attempt to index field 'electric_energy' (a nil value)
+stack traceback:
+	...ry-virtualization__/src/simulation/cluster-processor.lua:286: in function 'update_total_energy_tax'
+	...ry-virtualization__/src/simulation/cluster-processor.lua:319: in function 'add_to_cluster'
+	__factory-virtualization__/src/world/vmainframe-manager.lua:157: in function 'handler'
+	__factory-virtualization__/src/world/entity-processor.lua:324: in function 'process_entities'
+	__factory-virtualization__/control.lua:47: in function <__factory-virtualization__/control.lua:45>
+--]]
+
+
 local TemplateCompiler = require("src.simulation.template-compiler")
 
 local ClusterProcessor = {}
@@ -225,7 +238,7 @@ end
 ---@param cluster table cluster data
 ---@param key string buffer identifier
 ---@param amount number number of items to add
-function ClusterProcessor.process_buffer_input(cluster, key, amount)
+function ClusterProcessor.add_to_buffer(cluster, key, amount)
     local buffer = cluster.input[key]
     buffer.current = buffer.current + amount
 end
@@ -234,7 +247,7 @@ end
 ---@param cluster table cluster data
 ---@param key string buffer identifier
 ---@param amount number number of items to remove
-function ClusterProcessor.process_buffer_output(cluster, key, amount)
+function ClusterProcessor.remove_from_buffer(cluster, key, amount)
     local buffer = cluster.output[key]
     buffer.current = buffer.current - amount
 end
@@ -287,8 +300,7 @@ local function update_total_energy_tax(cluster)
 end
 
 ---Adds an entity to a virtualization cluster. Сluster_id is decided automatically
----based on template name and surface entity is located on. This function is only called
----by entity processor when selected_template changes.
+---based on template name and surface entity is located on.
 ---@param entity LuaEntity assumed to be valid
 ---@param template_name string|nil unique template identifier
 ---@return table|nil: cluster that was assigned to this entity if any
@@ -360,7 +372,7 @@ function ClusterProcessor.remove_from_cluster(cluster, unit_number)
 end
 
 ---Marks given entity as an operational VM inside a cluster.
----Also adjusts creating potential and buffer sizes.
+---Also adjusts crafting potential and buffer sizes.
 ---@param cluster table|nil cluster data
 ---@param unit_number integer unique entity identifier
 function ClusterProcessor.set_mainframe_operational(cluster, unit_number)
