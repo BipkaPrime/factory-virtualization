@@ -38,6 +38,7 @@ elements.output_radiobutton LuaGuiElement: reference to output radiobutton
 local EntityProcessor = require("src.world.entity-processor")
 local TemplateCompiler = require("src.simulation.template-compiler")
 local CommonGui = require("src.gui.common")
+local ClusterInfo = require("src.gui.cluster-info")
 
 local PREFIX = "FV-"
 local EntityGui = {}
@@ -288,28 +289,50 @@ end
 
 ---Adds section displaying current mainframe requests if there are any.
 ---@param parent LuaGuiElement section will be added here
----@param entity LuaEntity mainframe itself
+---@param entity LuaEntity virtualization mainframe
 local function create_mainframe_requests(parent, entity)
-    local requests = EntityProcessor.get_building_requests(entity)
+    local requests = EntityProcessor.get_construction_requests(entity)
     if not requests or not next(requests) then return end
 
-    -- creating sprite button data to display
+    -- Collecting sprite button data 
+    ---@type SpriteButtonData[]
     local buttons = {}
-    for name, q_counts in pairs(requests) do
-        for quality, count in pairs(q_counts) do
-            local data = {
-                type = "item",
-                name = name,
-                count = count,
-                quality = quality
-            }
-            table.insert(buttons, data)
-        end
+    for key, buffer in pairs(requests) do
+        table.insert(
+            buttons,
+            CommonGui.assemble_sprite_button_data(key, buffer.count)
+        )
     end
 
     local section = CommonGui.create_info_element_base(
         parent,
         {"gui-label.missing-construction-materials"}
+    )
+    CommonGui.create_sprite_button_table(section, buttons)
+end
+
+---Adds section displaying buildings contained in the mainframe.
+---@param parent LuaGuiElement section will be added here
+---@param entity LuaEntity
+local function create_mainframe_building_contents(parent, entity)
+    local contents = EntityProcessor.get_contained_buildings(entity)
+    if not contents or not next(contents) then return end
+
+    -- Collecting sprite button data 
+    ---@type SpriteButtonData[]
+    local buttons = {}
+    for key, buffer in pairs(contents) do
+        if buffer.count > 0 then
+            table.insert(
+                buttons,
+                CommonGui.assemble_sprite_button_data(key, buffer.count)
+            )
+        end
+    end
+
+    local section = CommonGui.create_info_element_base(
+        parent,
+        {"gui-label.collected-construction-materials"}
     )
     CommonGui.create_sprite_button_table(section, buttons)
 end
@@ -369,7 +392,7 @@ local function create_entity_gui_base(player, entity)
         style = "inside_shallow_frame",
         direction = "vertical"
     }
-    right_frame.style.width = 444
+    -- right_frame.style.width = 444
     local datafield = right_frame.add{type = "scroll-pane"}
     datafield.style.vertically_stretchable = true
     gui_data.elements.datafield = datafield
@@ -405,6 +428,16 @@ local function create_template_energy_io_gui(player, entity)
     create_choose_io_buttons(left_frame, gui_data)
 end
 
+---Used for time-based updates of mainframe IO interface
+function mainframe_io_updater(gui_data)
+    local entity = gui_data.entity
+    local datafield = gui_data.elements.datafield
+    datafield.clear()
+
+    local cluster = EntityProcessor.get_cluster(entity)
+    ClusterInfo.create_all_cluster_info(datafield, cluster)
+end
+
 ---Creates mainframe item IO interface
 ---@param player LuaPlayer assumed to be valid
 ---@param entity LuaEntity assumed to be valid
@@ -437,6 +470,20 @@ local function create_mainframe_energy_io_gui(player, entity)
     create_template_selection_widget(left_frame, gui_data)
 end
 
+---Used for time-based updates of mainframe interface
+function mainframe_updater(gui_data)
+    local entity = gui_data.entity
+    local datafield = gui_data.elements.datafield
+    datafield.clear()
+
+    create_mainframe_status_display(datafield, entity)
+    create_mainframe_requests(datafield, entity)
+    create_mainframe_building_contents(datafield, entity)
+
+    local cluster = EntityProcessor.get_cluster(entity)
+    ClusterInfo.create_all_cluster_info(datafield, cluster)
+end
+
 ---Creates virtualization mainframe interface
 ---@param player LuaPlayer assumed to be valid
 ---@param entity LuaEntity assumed to be valid
@@ -444,9 +491,7 @@ local function create_virtualization_mainframe_gui(player, entity)
     local gui_data = create_entity_gui_base(player, entity)
     local left_frame = gui_data.elements.left_frame
     create_template_selection_widget(left_frame, gui_data)
-    local datafield = gui_data.elements.datafield
-    create_mainframe_status_display(datafield, entity)
-    create_mainframe_requests(datafield, entity)
+    mainframe_updater(gui_data)
 end
 
 -------------------------------------------------------------------------------
@@ -504,6 +549,36 @@ function EntityGui.process_player_changed_surface(event)
     if not player or not player.valid then return end
     local gui_data = storage.entity_gui[player_idx]
     player.opened = gui_data.elements.main_window
+end
+
+-------------------------------------------------------------------------------
+-- TIME-BESED ENTITY GUI UPDATES
+-------------------------------------------------------------------------------
+
+-- key (string): entity name, value (function): handler that updates entity gui
+local gui_update_router = {
+    [PREFIX .. "mainframe-item-io"] = mainframe_io_updater,
+    [PREFIX .. "mainframe-fluid-io"] = mainframe_io_updater,
+    [PREFIX .. "mainframe-energy-io"] = mainframe_io_updater,
+    [PREFIX .. "virtualization-mainframe"] = mainframe_updater,
+}
+---Time-based updater for entity GUIs
+function EntityGui.time_based_update()
+    for player_index, _ in pairs(storage.entity_gui.currently_opened) do
+        local gui_data = storage.entity_gui[player_index]
+        local entity = gui_data.entity
+
+        if not entity or not entity.valid then
+            close_opened_window(player_index)
+            goto continue
+        end
+
+        local handler = gui_update_router[entity.name]
+        if not handler then goto continue end
+        handler(gui_data)
+
+        ::continue::
+    end
 end
 
 return EntityGui

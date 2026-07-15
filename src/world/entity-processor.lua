@@ -17,8 +17,6 @@ When entity is constructed/revived, ghost tags migrate to entity regstry.
 -------------------------------------------------------------------------------
 ENTITY PROPERTIES
 -------------------------------------------------------------------------------
-entity LuaEntity: reference to entity object 
-unit_number number: unique entity identifier
 selected_template string|nil (mainframe-io, mainframe): name of selected template (user input)
 active_template string|nil (mainframe-io, mainframe): name of template in operation (assigned by processor)
 cluster table|nil (mainframe-io, mainframe): reference to virtualization cluster that includes this entity
@@ -32,6 +30,12 @@ building_requests table|nil: contains buildings that are being requested for tem
 contained_buildings table|nil (mainframe): all buildings that are currently "contained" in the mainframe
     2-level hmap: table[name][quality] = value
 --]]
+
+---Abstract class for entity data in processor
+---@class EntityPropertiesBase
+---@field entity LuaEntity
+---@field unit_number number unique entity identifier
+
 
 local ClusterProcessor = require("src.simulation.cluster-processor")
 local VMManager = require("src.world.vmainframe-manager")
@@ -73,7 +77,7 @@ end
 
 ---List of functions to perform when setting a value in properties
 ---Also serves as a table with all copyable fields (keys)
-local internal_hooks = {
+local field_setting_hooks = {
     selected_template = {},
     selected_item = {
         generate_buffer_key
@@ -101,7 +105,7 @@ function EntityProcessor.register_entity(entity, tags)
     -- adding event tags to properties
     if tags and tags[ENTITY_TAG_KEY] then
         local relevant_tags = tags[ENTITY_TAG_KEY]
-        for field, hooks in pairs(internal_hooks) do
+        for field, hooks in pairs(field_setting_hooks) do
             properties[field] = relevant_tags[field]
             for _, hook in pairs(hooks) do
                 hook(properties)
@@ -164,7 +168,7 @@ local function set_entity_property(entity, field, value)
         local properties = get_entity_data(entity.unit_number)
         if not properties then return end
         properties[field] = value
-        local hooks = internal_hooks[field]
+        local hooks = field_setting_hooks[field]
         for _, hook in pairs(hooks) do
             hook(properties)
         end
@@ -206,7 +210,7 @@ end
 ---Abstract getter. Gets specified property for a given entity.
 ---@param entity LuaEntity entity for which data should be retrieved
 ---@param field string field in properties that is retrieved
----@return nil|boolean|table|string property for table returns reference, not a copy
+---@return any property for table returns reference, not a copy
 local function get_entity_property(entity, field)
     if not entity.valid then return end
     if entity.name == "entity-ghost" then
@@ -226,46 +230,50 @@ end
 ---@param entity LuaEntity entity for which data should be retrieved
 ---@return string|nil template_name
 function EntityProcessor.get_selected_template(entity)
-    local template_name = get_entity_property(entity, "selected_template")
-    ---@cast template_name string|nil
-    return template_name
+    return get_entity_property(entity, "selected_template")
 end
 
 ---Gets selected item for given entity or ghost-entity
 ---@param entity LuaEntity entity for which data should be retrieved
 ---@return table<string, string>|nil selected_item {name, quality}
 function EntityProcessor.get_selected_item(entity)
-    local selected_item = get_entity_property(entity, "selected_item")
-    ---@cast selected_item table<string, string>|nil
-    return selected_item
+    return get_entity_property(entity, "selected_item")
 end
 
 ---Gets selected fluid for given entity or ghost-entity
 ---@param entity LuaEntity entity for which data should be retrieved
 ---@return string|nil fluid_name
 function EntityProcessor.get_selected_fluid(entity)
-    local fluid_name = get_entity_property(entity, "selected_fluid")
-    ---@cast fluid_name string|nil
-    return fluid_name
+    return get_entity_property(entity, "selected_fluid")
 end
 
 ---Gets output flag for given entity or ghost-entity
 ---@param entity LuaEntity entity for which data should be retrieved
 ---@return boolean|nil is_output
 function EntityProcessor.get_output_flag(entity)
-    local is_output = get_entity_property(entity, "is_output")
-    ---@cast is_output boolean|nil
-    return is_output
+    return get_entity_property(entity, "is_output")
 end
 
 ---Gets building requests of a given entity. Currently only virtualization
 ---mainframes can have this field.
 ---@param entity LuaEntity
----@return table<string, table>|nil 2-level hmap requests[name][quality] = count
-function EntityProcessor.get_building_requests(entity)
-    local building_requests = get_entity_property(entity, "building_requests")
-    ---@cast building_requests table<string, table>|nil
-    return building_requests
+---@return table<ItemKeyString, ItemBuffer>|nil
+function EntityProcessor.get_construction_requests(entity)
+    if not entity.valid then return end
+    local properties = get_entity_data(entity.unit_number)
+    if not properties then return end
+    return VMManager.get_construction_requests(properties)
+end
+
+---Gets contained buildings of a given entity. Currently only virtualization
+---mainframes can have this field.
+---@param entity LuaEntity
+---@return table<ItemKeyString, ItemBuffer>|nil
+function EntityProcessor.get_contained_buildings(entity)
+    if not entity.valid then return end
+    local properties = get_entity_data(entity.unit_number)
+    if not properties then return end
+    return VMManager.get_contained_buildings(properties)
 end
 
 ---Gets status of a given virtualization mainframe.
@@ -285,20 +293,14 @@ function EntityProcessor.get_mainframe_status(entity)
     if not properties then
         return {"entity-status.not-registered"}
     end
-    -- no selected template: mainframe is idle
-    if not properties.active_template then
-        return {"entity-status.template-not-selected"}
-    end
-    -- something is being requested
-    local requests = properties.building_requests
-    if requests and next(requests) then
-        return {"entity-status.requesting-construction-materials"}
-    end
-    -- template constructed: mainframe operational
-    if properties.operational then
-        return {"entity-status.operational"}
-    end
-    return {"entity-status.unknown"}
+    return VMManager.get_mainframe_status(properties)
+end
+
+---Gets virtualization cluster entity is a part of
+---@param entity LuaEntity
+---@return ClusterData|nil
+function EntityProcessor.get_cluster(entity)
+    return get_entity_property(entity, "cluster")
 end
 
 -------------------------------------------------------------------------------
@@ -326,7 +328,7 @@ function EntityProcessor.setup_blueprint_tags(event)
 
         -- creating a shallow copy with all copyable properties
         local properties_copy = {}
-        for field, _ in pairs(internal_hooks) do
+        for field, _ in pairs(field_setting_hooks) do
             properties_copy[field] = properties[field]
         end
         blueprint.set_blueprint_entity_tag(b_entity_index, ENTITY_TAG_KEY, properties_copy)

@@ -140,14 +140,19 @@ end
 ---@param dashboard_data table template dashboard data from storage
 local function create_template_construction_cost(parent, dashboard_data)
     local template_name = dashboard_data.template_name
-    local items = TemplateCompiler.get_building_cost(template_name)
-    if not next(items) then return end
+    local build_cost = TemplateCompiler.get_building_cost(template_name)
 
     local section = CommonGui.create_info_element_base(
         parent,
         {"gui-label.construction-cost"}
     )
-    local buttons = assemble_sprite_buttons(items)
+
+    local buttons = {}
+    for key, count in pairs(build_cost) do
+        local button_data = CommonGui.assemble_sprite_button_data(key, count)
+        table.insert(buttons, button_data)
+    end
+
     CommonGui.create_sprite_button_table(section, buttons)
 end
 
@@ -164,8 +169,14 @@ local function create_template_inputs_section(parent, dashboard_data)
         {"gui-label.template-input"}
     )
     -- table with item and fluid inputs
-    local buttons = assemble_sprite_buttons(inputs)
-    if next(buttons) then CommonGui.create_sprite_button_table(section, buttons) end
+    local buttons = {}
+    for key, count in pairs(inputs) do
+        if key ~= "electric_energy" then
+            local button_data = CommonGui.assemble_sprite_button_data(key, count)
+            table.insert(buttons, button_data)
+        end
+    end
+    CommonGui.create_sprite_button_table(section, buttons)
 
     -- energy inputs
     local primary = CommonGui.format_number(energy_input) .. "W"
@@ -189,8 +200,14 @@ local function create_template_outputs_section(parent, dashboard_data)
         {"gui-label.template-output"}
     )
     -- table with item and fluid outputs
-    local buttons = assemble_sprite_buttons(outputs)
-    if next(buttons) then CommonGui.create_sprite_button_table(section, buttons) end
+    local buttons = {}
+    for key, count in pairs(outputs) do
+        if key ~= "electric_energy" then
+            local button_data = CommonGui.assemble_sprite_button_data(key, count)
+            table.insert(buttons, button_data)
+        end
+    end
+    CommonGui.create_sprite_button_table(section, buttons)
 
     -- energy production
     local energy_output = TemplateCompiler.get_energy_production(template_name)

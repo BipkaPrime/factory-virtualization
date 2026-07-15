@@ -129,7 +129,7 @@ function CommonGui.create_info_element_base(parent, label)
         type = "frame",
         style = "bordered_frame"
     }
-    main_frame.style.minimal_width = 424
+    main_frame.style.width = 424
     local main_flow = main_frame.add{
         type = "flow",
         direction = "vertical",
@@ -206,45 +206,67 @@ function CommonGui.configure_selector(selector, options, query, selected_option)
     end
 end
 
--- used for comparison function below
-local type_rank = {item = 1, fluid = 2}
-local quality_rank = {
-    normal = 1,
-    uncommon = 2,
-    rare = 3,
-    epic = 4,
-    legendary = 5,
-}
----Comparison function that is used to sort sprite buttons by count.
----Table that is being sorted must contain following keys:
----count: float, name: prototype name, type: "item"/"fluid", quality (for items): "rare"/"epic"/etc.
-local function sprite_buttons_comparison(a, b)
-    -- priority 1: higher count first
-    if a.count ~= b.count then
-        return a.count > b.count
-    end
+-------------------------------------------------------------------------------
+-- SPRITE BUTTONS
+-------------------------------------------------------------------------------
 
-    -- priority 2: items first
-    if a.type ~= b.type then
-        return type_rank[a.type] < type_rank[b.type]
-    end
+---Table that is used for creation of one sprite button element
+---@class SpriteButtonData
+---@field sprite string|nil
+---@field tooltip string|LocalisedString|nil
+---@field count number|nil
+---@field quality string|nil
 
-    -- priority 3: name (alphabetical)
-    if a.name ~= b.name then
-        return a.name < b.name
+---Assembles a table with sprite button data.
+---@param key string "name//quality" for items, "name" for fluids, "electric_energy" for energy.
+---@param count number|nil number that will be displayed
+function CommonGui.assemble_sprite_button_data(key, count)
+    ---@type SpriteButtonData
+    local data = {}
+    data.count = count
+    if key:find("//", 1, true) then
+        -- handling item key type: "name//quality"
+        local name, quality = key:match("^(.+)//(.+)$")
+        data.sprite = "item/" .. name
+        data.tooltip = {"?", {"item-name." .. name}, {"entity-name." .. name}}
+        data.quality = quality
+    elseif key == "electric_energy" then
+        -- hadling energy key type "electric_energy"
+        data.sprite = "virtual-signal/signal-lightning"
+        data.tooltip = {"description.electricity"}
+    else
+        -- handling fluid key type "name"
+        data.sprite = "fluid/" .. key
+        data.tooltip = {"fluid-name." .. key}
     end
-
-    -- priority 4: higher quality first
-    return (quality_rank[a.quality] or 0) > (quality_rank[b.quality] or 0)
+    return data
 end
 
----Creates a sptire button table. Buttons are sorted by count with the function above.
+---Adds one sprite button to provided element
+---@param parent LuaGuiElement info element will be added here
+---@param button_data SpriteButtonData
+function CommonGui.create_sprite_button(parent, button_data)
+    parent.add{
+        type = "sprite-button",
+        sprite = button_data.sprite,
+        style = "slot_button",
+        quality = button_data.quality,
+        tooltip = button_data.tooltip,
+        number = button_data.count,
+    }
+end
+
+---Comparison function that is used to sort sprite buttons by count.
+---@param a SpriteButtonData
+---@param b SpriteButtonData
+local function sprite_buttons_comparison(a, b)
+    return (a.count or 0) > (b.count or 0)
+end
+
+---Creates a sprite button table. Buttons will be sorted by count.
 ---Number of buttons per row is hardcoded to 10 because it looks nice.
 ---@param parent LuaGuiElement table will be added here
----@param buttons table[] buttons that will be added.
----Each table describing button must contain following keys:
----type "item"/"fluid"; name str: prototype name; count number: displayed number;
----quality (if type == "item") string: "uncommon", "epic", etc.
+---@param buttons SpriteButtonData[] button data
 function CommonGui.create_sprite_button_table(parent, buttons)
     -- deep container element
     local container = parent.add{
@@ -265,14 +287,7 @@ function CommonGui.create_sprite_button_table(parent, buttons)
     table.sort(buttons, sprite_buttons_comparison)
     -- adding the buttons
     for _, button in ipairs(buttons) do
-        local slot_button = button_table.add{
-            type = "sprite-button",
-            sprite = button.type .. "/" .. button.name,
-            number = button.count,
-            style = "slot_button",
-            quality = button.quality,
-        }
-        slot_button.elem_tooltip = {type = button.type, name = button.name}
+        CommonGui.create_sprite_button(button_table, button)
     end
 end
 

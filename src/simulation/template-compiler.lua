@@ -8,24 +8,22 @@ All compiled template are located at storage.templates. For this table key is
 template name (string), value is template data (table). Template names are their
 unique identifiers.
 
--------------------------------------------------------------------------------
-TEMPLATE KEYS
--------------------------------------------------------------------------------
-input table: inputs per second
-output table: outputs per second.
-building_cost table: contains items needed for construction of this template.
-    input, output and building_cost tables share the same structure. Key is 
-    item/fluid/energy identifier: "name//quality" for items, "name" for fluids,
-    "electric_energy" for energy. For input/output value is flow/second. For building_cost
-    value is integer (number of corresponding item to complete this template). 
-energy_drain float: energy drain of this template (due to surface area)
-research_template bool: true if this is a research template
+--TODO ADD:
 science table: {labs = {}, logistics = {}, point_per_item = {}}.
     All inner tables are hashmaps. For all tables, the key is ingredient name.
     For labs and logistics value is research points per second.
     For points_per_item value is number of research points produced per 1 spent item.
     These values are calculated for normal quality ingredients.
 --]]
+
+---Table containing compiled template data
+---@class TemplateData
+---@field input table<BufferKeyString, number> input per second
+---@field output table<BufferKeyString, number> output per second
+---@field building_cost table<BufferKeyString, number> items needed for construction of this template
+---@field energy_drain number energy drain of this template (due to surface area)
+---@field research_template boolean true if this is a research template
+
 
 local VSurfaceManager = require("src.world.vsurface-manager")
 
@@ -54,8 +52,7 @@ end
 
 ---Gets all inputs of a given template
 ---@param template_name string|nil unique template identifier
----@return table<string, number> inputs
----Key is "name//quality" for items, "name" for fluids, "electric_energy" for energy
+---@return table<BufferKeyString, number> inputs
 function TemplateCompiler.get_inputs(template_name)
     if not template_name then return {} end
     local template = storage.templates[template_name]
@@ -65,8 +62,7 @@ end
 
 ---Gets all outputs of a given template
 ---@param template_name string|nil unique template identifier
----@return table<string, number> outputs
----Key is "name//quality" for items, "name" for fluids, "electric_energy" for energy
+---@return table<BufferKeyString, number> outputs
 function TemplateCompiler.get_outputs(template_name)
     if not template_name then return {} end
     local template = storage.templates[template_name]
@@ -76,7 +72,7 @@ end
 
 ---Gets building cost of a given template
 ---@param template_name string|nil unique template identifier
----@return table<string, number> items key is "name//quality"
+---@return table<ItemKeyString, number> items key is "name//quality"
 function TemplateCompiler.get_building_cost(template_name)
     if not template_name then return {} end
     local template = storage.templates[template_name]

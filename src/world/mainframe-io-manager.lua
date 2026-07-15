@@ -69,25 +69,25 @@ function MainframeIO.process_mainframe_item_io(properties)
     if properties.is_output then
         -- getting available products
         local available = ClusterProcessor.get_output_capacity(cluster, buffer_key)
-        if available <= 0 then return end
+        if available <= 1 then return end
 
         -- moving items from cluster to entity inventory
-        local inserted_count = inventory.insert({
+        local inserted_count = inventory.insert{
             name = item.name,
             quality = item.quality,
             count = math.min(flow_limit, available)
-        })
+        }
         ClusterProcessor.remove_from_buffer(cluster, buffer_key, inserted_count)
     else
-        local available = ClusterProcessor.get_input_space(cluster, buffer_key)
-        if available <= 0 then return end
+        local available_space = ClusterProcessor.get_input_space(cluster, buffer_key)
+        if available_space <= 1 then return end
 
         -- moving items from physical inventory to cluster
-        local removed_count = inventory.remove({
+        local removed_count = inventory.remove{
             name = item.name,
             quality = item.quality,
-            count = math.min(flow_limit, available)
-        })
+            count = math.min(flow_limit, available_space)
+        }
         ClusterProcessor.add_to_buffer(cluster, buffer_key, removed_count)
     end
 end

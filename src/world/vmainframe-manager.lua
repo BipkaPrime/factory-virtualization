@@ -4,21 +4,22 @@ Virtualization mainframes serve as crafting power providers for virtualization c
 VM is a fancy requester chest. This manager does following things:
 1. Checks selected_template and connects VM to appropriate cluster when necessery
 2. Requests construction materials for selected template and makes it operational when necessery
-
--------------------------------------------------------------------------------
-VIRTUALIZATION MAINFRAME PROPERTIES
--------------------------------------------------------------------------------
-entity LuaEntity: reference to entity object 
-unit_number number: unique entity identifier
-selected_template string|nil (mainframe-io, mainframe): name of selected template (user input)
-active_template string|nil (mainframe-io, mainframe): name of template in operation (assigned by processor)
-cluster table|nil (mainframe-io, mainframe): reference to virtualization cluster that includes this entity
-operational bool|nil (mainframe): true if mainframe has constructed a template and can operate
-building_requests table|nil: contains buildings that are being requested for template construction
-    2-level hmap: table[name][quality] = value
-contained_buildings table|nil (mainframe): all buildings that are currently "contained" in the mainframe
-    2-level hmap: table[name][quality] = value
 --]]
+
+---@class ItemBuffer
+---@field count number number of items contained
+---@field quality string quality of this item
+---@field name string name of this item
+
+---Table with properties of virtualization mainframe
+---@class MainframeProperties: EntityPropertiesBase
+---@field selected_template string|nil name of selected template (user input)
+---@field active_template string|nil name of template in operation (assigned by processor)
+---@field cluster ClusterData|nil reference to cluster that includes this entity as a member
+---@field operational boolean|nil true if mainframe has constructed a template and can operate
+---@field building_requests table<ItemKeyString, ItemBuffer>|nil items that are being requested for template construction
+---@field contained_buildings table<ItemKeyString, ItemBuffer>|nil items that were used for template construction
+
 
 local ClusterProcessor = require("src.simulation.cluster-processor")
 local TemplateCompiler = require("src.simulation.template-compiler")
@@ -27,25 +28,26 @@ local VMManager = {}
 
 ---Returns all buildings that were used for template construction
 ---to physical inventory of vmainframe
----@param properties table entity properties from entity processor
+---@param properties MainframeProperties
 local function return_buldings_to_inventory(properties)
+    -- return if nothing is contained inside vm
+    local buildings = properties.contained_buildings
+    if not buildings or not next(buildings) then return end
+
     local entity = properties.entity
     local inventory = entity.get_inventory(defines.inventory.chest)
+    ---Assuming mainframe prototype has an inventory
+    ---@cast inventory LuaInventory
 
-    -- iterating over everything contained in VM and inserting these
-    -- items into VM physical inventory
-    local buildings = properties.contained_buildings
-    if not buildings then return end
-    for name, q_counts in pairs(buildings) do
-        for quality, count in pairs(q_counts) do
-            if count > 0 then
-                -- TODO: make sure everything fits
-                inventory.insert({
-                name = name,
-                count = count,
-                quality = quality
-            })
-            end
+    -- returning everything to inventory
+    -- TODO: make sure everything fits
+    for _, buffer in pairs(buildings) do
+        if buffer.count > 0 then
+            inventory.insert{
+                name = buffer.name,
+                count = buffer.count,
+                quality = buffer.quality
+            }
         end
     end
     properties.contained_buildings = {}
@@ -53,93 +55,115 @@ end
 
 ---Prepares for construction of new template: copies template building cost to requesting
 ---table, makes sure contained_buildings table has sections for all requesting items.
----@param properties table entity properties from entity processor
+---@param properties MainframeProperties
 local function prepare_new_template_construction(properties)
     local template_name = properties.selected_template
     local build_cost = TemplateCompiler.get_building_cost(template_name)
 
-    -- processing all items from building cost of new template
+    ---@type table<ItemKeyString, ItemBuffer>
     local requests = {}
+    ---@type table<ItemKeyString, ItemBuffer>
     local contents = {}
+    -- processing all items from building cost of new template
     for key, count in pairs(build_cost) do
         local name, quality = key:match("^(.+)//(.+)$")
-
-        requests[name] = requests[name] or {}
-        requests[name][quality] = count
-
-        contents[name] = contents[name] or {}
-        contents[name][quality] = 0
+        requests[key] = {
+            name = name,
+            count = count,
+            quality = quality,
+        }
+        contents[key] = {
+            name = name,
+            count = 0,
+            quality = quality,
+        }
     end
     properties.building_requests = requests
     properties.contained_buildings = contents
 end
 
----Adds everything from requests table to logistic requests of a given VM
----@param properties table entity properties from entity processor
-local function set_logistic_requests(properties)
+---Clears logistic requests of a given vmainframe
+---@param properties MainframeProperties
+---@return LuaLogisticPoint
+local function clear_logistic_requests(properties)
     local entity = properties.entity
     local log_point = entity.get_requester_point()
+
+    ---assuming mainframe prototype has it
+    ---@cast log_point LuaLogisticPoint
+
     log_point.trash_not_requested = true
     local section_count = log_point.sections_count
-    -- removing all logistic sections
     for i = section_count, 1, -1 do
         log_point.remove_section(i)
     end
+    return log_point
+end
+
+---Adds everything from requests table to logistic requests of a given VM
+---@param properties MainframeProperties
+local function set_logistic_requests(properties)
+    local requests = properties.building_requests
+    if not requests or not next(requests) then return end
+
+    local log_point = clear_logistic_requests(properties)
+
     -- creating one logistic section
     log_point.add_section()
     local log_section = log_point.get_section(1)
+
+    -- requesting all construction materials
     local curr_slot = 1
-    local requests = properties.building_requests
-    if not requests then return end
-    for name, q_counts in pairs(requests) do
-        for quality, count in pairs(q_counts) do
-            local filter = {
-                value = {name = name, quality = quality},
-                min = count,
-                max = count,
-            }
-            log_section.set_slot(curr_slot, filter)
-            curr_slot = curr_slot + 1
-        end
+    for _, buffer in pairs(requests) do
+        local filter = {
+            value = {name = buffer.name, quality = buffer.quality},
+            min = buffer.count,
+            max = buffer.count,
+        }
+        log_section.set_slot(curr_slot, filter)
+        curr_slot = curr_slot + 1
     end
 end
 
 ---Scans mainframe inventory and withdraws anything that is in building requests
----@param properties table entity properties from entity processor
+---@param properties MainframeProperties
 local function withdraw_building_materials(properties)
     local requests = properties.building_requests
-    if not requests then return end
+    if not requests or not next(requests) then return end
+
     local entity = properties.entity
     local inventory = entity.get_inventory(defines.inventory.chest)
-    local inv_contents = inventory.get_contents()
+    ---Assuming mainframe prototype has an inventory
+    ---@cast inventory LuaInventory
 
     -- iterating over inventory contents
+    local inv_contents = inventory.get_contents()
     for _, item in ipairs(inv_contents) do
-        local section = requests[item.name]
-        if section and section[item.quality] then
-            local demand = section[item.quality]
-            local removed_count = inventory.remove({
-                name = item.name,
-                quality = item.quality,
-                count = math.min(demand, item.count),
-            })
+        local name, quality = item.name, item.quality
+        local available_count = item.count
 
-            -- updating requests table
-            section[item.quality] = section[item.quality] - removed_count
-            if section[item.quality] == 0 then section[item.quality] = nil end
-            if not next(section) then requests[item.name] = nil end
+        local key = name .. "//" .. quality
+        local buffer = requests[key]
+        local demand = buffer.count
 
-            -- updating contained_buildings table
-            if removed_count > 0 then
-                local cont_section = properties.contained_buildings[item.name]
-                cont_section[item.quality] = cont_section[item.quality] + removed_count
-            end
-        end
+        local removed_count = inventory.remove{
+            name = name,
+            quality = quality,
+            count = math.min(demand, available_count)
+        }
+
+        -- updating item requests
+        buffer.count = buffer.count - removed_count
+        if buffer.count == 0 then requests[key] = nil end
+
+        -- updating contained buildings
+        local contained_buffer = properties.contained_buildings[key]
+        contained_buffer.count = contained_buffer.count + removed_count
     end
 end
 
----On-tick processor of a virtualization mainframe
----@param properties table entity data from entity processor
+---On-tick processor for virtualization mainframes
+---@param properties MainframeProperties
 function VMManager.process_vm(properties)
     -- handling template being changed
     if properties.selected_template ~= properties.active_template then
@@ -169,9 +193,45 @@ function VMManager.process_vm(properties)
             local cluster = properties.cluster
             local unit_number = properties.unit_number
             ClusterProcessor.set_mainframe_operational(cluster, unit_number)
+            clear_logistic_requests(properties)
             properties.operational = true
         end
     end
+end
+
+-------------------------------------------------------------------------------
+-- INFO REQUESTS (GUI)
+-------------------------------------------------------------------------------
+
+---@param properties MainframeProperties
+---@return LocalisedString
+function VMManager.get_mainframe_status(properties)
+    -- no selected template: mainframe is idle
+    if not properties.active_template then
+        return {"entity-status.template-not-selected"}
+    end
+    -- something is being requested
+    local requests = properties.building_requests
+    if requests and next(requests) then
+        return {"entity-status.requesting-construction-materials"}
+    end
+    -- template constructed: mainframe operational
+    if properties.operational then
+        return {"entity-status.operational"}
+    end
+    return {"entity-status.unknown"}
+end
+
+---@param properties MainframeProperties
+---@return table<ItemKeyString, ItemBuffer>|nil
+function VMManager.get_contained_buildings(properties)
+    return properties.contained_buildings
+end
+
+---@param properties MainframeProperties
+---@return table<ItemKeyString, ItemBuffer>|nil
+function VMManager.get_construction_requests(properties)
+    return properties.building_requests
 end
 
 return VMManager

@@ -51,6 +51,7 @@ end)
 script.on_nth_tick(60, function()
     SurfaceManagerGui.update_opened_windows()
     VEnvProcessor.process_compiling_surfaces()
+    EntityGui.time_based_update()
 end)
 
 -------------------------------------------------------------------------------
