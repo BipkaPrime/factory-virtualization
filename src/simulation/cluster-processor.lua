@@ -26,12 +26,7 @@ It turns out that this sum can be calculated in O(1) time if we have access to t
 center coordinates, total weight, weighted sum of (x^2 + y^2) for all members.
 --]]
 
----@alias ClusterIdString `"${string}//${string}"` template_name//surface_name
----@alias ItemKeyString `"${string}//${string}"` name//quality
----@alias FluidKeyString string fluid_name
----@alias EnergyKeyString "electric_energy"
----Serves as key in tables where items, fluids and energy are stored together
----@alias BufferKeyString ItemKeyString|FluidKeyString|EnergyKeyString
+---@alias ClusterIdString string template_name//surface_name
 
 ---Table describing one stored type in cluster buffer. 
 ---@class ClusterBufferEntry
@@ -39,7 +34,7 @@ center coordinates, total weight, weighted sum of (x^2 + y^2) for all members.
 ---@field per_craft number amount required per 1 craft
 ---@field maximum number largest amount that can be stored
 ---@field type "item"|"fluid"|"energy"
----@field name string|nil only present for items
+---@field name string|nil only present for items and fluids
 ---@field quality string|nil only present for items
 
 ---Table describing one cluster member
@@ -53,6 +48,7 @@ center coordinates, total weight, weighted sum of (x^2 + y^2) for all members.
 ---Table describing one virtualization cluster
 ---@class ClusterData
 ---@field cluster_id string "template_name//surface_name"
+---@field surface_index number unique surface identifier
 ---@field research_producer boolean true if this cluster produces research
 ---@field input table<BufferKeyString, ClusterBufferEntry> cluster input buffer
 ---@field output table<BufferKeyString, ClusterBufferEntry> cluster output buffer
@@ -66,7 +62,8 @@ center coordinates, total weight, weighted sum of (x^2 + y^2) for all members.
 ---@field total_energy_tax number additional energy required per craft of this cluster
 ---@field base_energy_per_craft number base electric energy consumption per craft
 ---@field last_cycle_crafts number crafts performed in the last crafting cycle
-
+---@field item_statistics LuaFlowStatistics|nil for player force and cluster surface (will be cached when crafting)
+---@field fluid_statistics LuaFlowStatistics|nil for player force and cluster surface (will be cached when crafting)
 
 local TemplateCompiler = require("src.simulation.template-compiler")
 
@@ -84,7 +81,7 @@ local entity_weights = {
 }
 
 -- multiplayer of energy tax on distance from cluster center
-local energy_tax_rate = 1
+local energy_tax_rate = 1e-3
 
 -------------------------------------------------------------------------------
 -- VCLUSTER CREATION
@@ -197,6 +194,7 @@ local function get_or_create_cluster(template, template_name, entity)
     ---@type ClusterData
     local new_cluster = {
         cluster_id = cluster_id,
+        surface_index = entity.surface_index,
         research_producer = false,
         input = {},
         output = {},
@@ -421,9 +419,77 @@ local function get_output_crafts(cluster)
     return max_crafts
 end
 
+---Saves item and fluid production statistics to cluster.
+---@param cluster ClusterData
+---@return boolean status true if everything is ok
+local function cache_production_statistics(cluster)
+    local surface_index = cluster.surface_index
+    if not game.surfaces[surface_index] then return false end
+
+    ---@type LuaForce assuming player force exists
+    local player_force = game.forces["player"]
+    cluster.item_statistics = player_force.get_item_production_statistics(surface_index)
+    cluster.fluid_statistics = player_force.get_fluid_production_statistics(surface_index)
+    return true
+end
+
+---Reflects cluster crafing in production statistics
+---@param cluster ClusterData
+---@param entry ClusterBufferEntry
+---@param count number positive to add to "produced", negative to add to "consumed"
+local function add_to_statistics(cluster, entry, count)
+    local entry_type = entry.type
+    if entry_type == "energy" then return end
+    if entry_type == "item" then
+        -- adding to item statistics
+        local item_id = {
+            name = entry.name,
+            quality = entry.quality
+        }
+        ---@type LuaFlowStatistics
+        local statistics = cluster.item_statistics
+        statistics.on_flow(item_id, count)
+    else
+        -- adding to fluid statistics
+        ---@type string
+        local fluid_id = entry.name
+        ---@type LuaFlowStatistics
+        local statistics = cluster.fluid_statistics
+        statistics.on_flow(fluid_id, count)
+    end
+end
+
+---Removes inputs from cluster input buffer
+---@param cluster ClusterData
+---@param craft_count number number of crafts that should be performed
+local function withdraw_inputs(cluster, craft_count)
+    for _, entry in pairs(cluster.input) do
+        local consumed = entry.per_craft * craft_count
+        entry.current = entry.current - consumed
+        add_to_statistics(cluster, entry, -consumed)
+    end
+end
+
+---Adds outputs to cluster output buffer
+---@param cluster ClusterData
+---@param craft_count number number of crafts that should be performed
+local function generate_outputs(cluster, craft_count)
+    for _, entry in pairs(cluster.output) do
+        local produced = entry.per_craft * craft_count
+        entry.current = entry.current + produced
+        add_to_statistics(cluster, entry, produced)
+    end
+end
+
 ---Performs a craft for a vcluster.
 ---@param cluster ClusterData
 local function perform_craft(cluster)
+    local item_stat = cluster.item_statistics
+    if not item_stat or not item_stat.valid then
+        local status = cache_production_statistics(cluster)
+        if not status then return end
+    end
+
     if not cluster.research_producer then
         -- cluster crafting potential
         local max_crafts = cluster.operational_vms
@@ -441,19 +507,9 @@ local function perform_craft(cluster)
             return
         end
 
-        -- removing ingredients from input
-        for _, buffer in pairs(cluster.input) do
-            buffer.current = buffer.current - buffer.per_craft * max_crafts
-            -- TODO: add to statistics
-        end
-
-        -- adding products to output
-        for _, buffer in pairs(cluster.output) do
-            buffer.current = buffer.current + buffer.per_craft * max_crafts
-            -- TODO: add to statistics
-        end
-
         cluster.last_cycle_crafts = max_crafts
+        withdraw_inputs(cluster, max_crafts)
+        generate_outputs(cluster, max_crafts)
     end
 end
 

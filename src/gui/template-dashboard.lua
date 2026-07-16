@@ -11,22 +11,26 @@ that we will be modifying in some way. This is much more convenient than travers
 tree by element names. Template dashboard data for all players is located at
 storage.template_dashboard. For this table key is player index, value is table containing
 dashboard data.
-
---------------------------------------------------------------------------------------------
-DASHBOARD DATA KEYS
---------------------------------------------------------------------------------------------
-opened bool: true if dashboard is currently opened
-template_query string: template search query
-template_name string: name of selected template
-surface_query string: surface search query
-surface_name string: name of selected surface
-elements.main_window LuaGuiElement: reference to dashboard main window
-elements.template_search LuaGuiElement: reference to template searchfield
-elements.template_selector LuaGuiElement: reference to template selector
-elements.surface_search LuaGuiElement: reference to surface searchfield
-elements.surface_selector LuaGuiElement: reference to surface selector
-elements.datafield LuaGuiElement: reference to scroll pane on the right where info is displayed
 --]]
+
+---Table with references to dashboard gui elements
+---@class DashboardElements
+---@field main_window LuaGuiElement
+---@field template_search LuaGuiElement
+---@field template_selector LuaGuiElement
+---@field surface_search LuaGuiElement
+---@field surface_selector LuaGuiElement
+---@field datafield LuaGuiElement
+
+---Table with dashboard gui data
+---@class DashboardData
+---@field opened boolean|nil true if dashboard is currently opened
+---@field template_query string|nil template search query
+---@field template_name string|nil name of selected template
+---@field surface_query string|nil surface search query
+---@field surface_name string|nil name of selected surface
+---@field elements DashboardElements
+
 
 local TemplateCompiler = require("src.simulation.template-compiler")
 local CommonGui = require("src.gui.common")
@@ -39,9 +43,10 @@ local TemplateDashboard = {}
 -------------------------------------------------------------------------------
 
 ---Configures template selector
----@param dashboard_data table template dashboard data from storage
+---@param dashboard_data DashboardData
 local function configure_template_selector(dashboard_data)
     local selector = dashboard_data.elements.template_selector
+    if not selector.valid then return end
     local options = TemplateCompiler.get_all_template_names()
     local query = dashboard_data.template_query
     local selected = dashboard_data.template_name
@@ -49,9 +54,10 @@ local function configure_template_selector(dashboard_data)
 end
 
 ---Configures template selector and searchbox above
----@param dashboard_data table template dashboard data from storage
+---@param dashboard_data DashboardData
 local function configure_template_selection_widget(dashboard_data)
     local search = dashboard_data.elements.template_search
+    if not search.valid then return end
     search.text = dashboard_data.template_query or ""
     configure_template_selector(dashboard_data)
 end
@@ -59,7 +65,7 @@ end
 ---Adds template selection widget to a given element. Widget consists of
 ---"label", "textfield" for searching and "list-box" for selection.
 ---@param parent LuaGuiElement widget will added here
----@param dashboard_data table template dashboard data from storage
+---@param dashboard_data DashboardData
 local function create_template_selection_widget(parent, dashboard_data)
     local search, selector = CommonGui.create_selection_widget(
         parent,
@@ -83,7 +89,7 @@ end
 ---Adds surface selection widget to a given element. Widget consists of
 ---"label", "textfield" for searching and "list-box" for selection.
 ---@param parent LuaGuiElement widget will added here
----@param dashboard_data table template dashboard data from storage
+---@param dashboard_data DashboardData
 local function create_surface_selection_widget(parent, dashboard_data)
     local search, selector = CommonGui.create_selection_widget(
         parent,
@@ -97,47 +103,12 @@ local function create_surface_selection_widget(parent, dashboard_data)
 end
 
 -------------------------------------------------------------------------------
--- INFORMATION TRANSFORMERS
--------------------------------------------------------------------------------
-
----Creates an array of sprite button data tables. Excludes "electric_energy" key.
----@param template_table table<string, number> template io or build cost
----@return table[] buttons used to create sprite button pannel
-local function assemble_sprite_buttons(template_table)
-    local result = {}
-    for key, count in pairs(template_table) do
-        if key == "electric_energy" then goto continue end
-        if key:find("//", 1, true) then
-            -- item key "name//quality"
-            local name, quality = key:match("^(.+)//(.+)$")
-            local button = {
-                type = "item",
-                name = name,
-                quality = quality,
-                count = count
-            }
-            table.insert(result, button)
-        else
-            -- fluid key "name"
-            local button = {
-                type = "fluid",
-                name = key,
-                count = count
-            }
-            table.insert(result, button)
-        end
-        ::continue::
-    end
-    return result
-end
-
--------------------------------------------------------------------------------
 -- INFORMATION ELEMENTS: CREATE FUNCTIONS
 -------------------------------------------------------------------------------
 
 ---Adds section describing template construction cost
 ---@param parent LuaGuiElement widget will added here
----@param dashboard_data table template dashboard data from storage
+---@param dashboard_data DashboardData
 local function create_template_construction_cost(parent, dashboard_data)
     local template_name = dashboard_data.template_name
     local build_cost = TemplateCompiler.get_building_cost(template_name)
@@ -158,7 +129,7 @@ end
 
 ---Adds section describing template inputs
 ---@param parent LuaGuiElement widget will added here
----@param dashboard_data table template dashboard data from storage
+---@param dashboard_data DashboardData
 local function create_template_inputs_section(parent, dashboard_data)
     local template_name = dashboard_data.template_name
     local inputs = TemplateCompiler.get_inputs(template_name)
@@ -189,7 +160,7 @@ end
 
 ---Adds section describing template outputs
 ---@param parent LuaGuiElement widget will added here
----@param dashboard_data table template dashboard data from storage
+---@param dashboard_data DashboardData
 local function create_template_outputs_section(parent, dashboard_data)
     local template_name = dashboard_data.template_name
     local outputs = TemplateCompiler.get_outputs(template_name)
@@ -270,7 +241,7 @@ local function create_template_dashboard_base(player)
 end
 
 ---Updates data displayed on the right side of interface
----@param dashboard_data table template dashboard data from storage
+---@param dashboard_data DashboardData
 local function update_datafield(dashboard_data)
     local datafield = dashboard_data.elements.datafield
     datafield.clear()

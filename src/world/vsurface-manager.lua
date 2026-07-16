@@ -9,23 +9,26 @@ start compilation of that surface. Once compilation is done, template will be cr
 To know which surfaces are "vsurfaces" and which are not, on creation they are stored at
 storage.vsurfaces with all needed data. For that table key is surface_index and value is
 a table with vsurface information.
-storage.vsurface[surface_index] = {
-    surface_index integer, unique surface identifier (same as key)
-    width = integer, surface width in tiles
-    height = integer, surface height in tiles
-    research_surface = boolean, true if this surface can produce research
-}
 
 This vsurface manager handles create/delete/lookup requests. It also handles various
 requests of venv processor and template compiler.
 --]]
+
+---Table describing virtualization surface
+---@class VSurfaceData
+---@field surface_index number unique surface identifier
+---@field width number width of the surface
+---@field height number height if the surface
+
+---@alias ExtendedSurfaceID string|number|LuaSurface
+
 
 local ChunkProcessor = require("src.world.vsurface-chunk-processor")
 
 local VSurfaceManager = {}
 
 
----@param surface_id number|string|LuaSurface|nil surface identification
+---@param surface_id ExtendedSurfaceID|nil
 ---@return LuaSurface|nil
 function VSurfaceManager.get_surface(surface_id)
     if not surface_id then return end
@@ -73,10 +76,9 @@ end
 ---@param name string|nil name of new surface
 ---@param width number|nil width of new surface
 ---@param height number|nil height of new surface
----@param research_surface boolean|nil true if surface can produce research
 ---@return boolean true if surface was created
 ---@return string|nil reason why surface was not created if any
-function VSurfaceManager.create_vsurface(player, name, width, height, research_surface)
+function VSurfaceManager.create_vsurface(player, name, width, height)
     -- checking that surface can be created
     local status, reason = VSurfaceManager.can_create_vsurface(name, width, height)
     if not status then return status, reason end
@@ -111,7 +113,6 @@ function VSurfaceManager.create_vsurface(player, name, width, height, research_s
         surface_index = surface.index,
         width = width,
         height = height,
-        research_surface = not not research_surface
     }
 
     -- adding surface to chunk registry
@@ -130,8 +131,8 @@ function VSurfaceManager.create_vsurface(player, name, width, height, research_s
 end
 
 ---Gets vsurface data from storage
----@param surface_id string|integer|LuaSurface|nil surface identification
----@return table|nil data
+---@param surface_id ExtendedSurfaceID|nil
+---@return VSurfaceData|nil data
 function VSurfaceManager.get_vsurface_data(surface_id)
     if not surface_id then return end
 
@@ -168,7 +169,7 @@ function VSurfaceManager.get_all_vsurface_names()
 end
 
 ---Deletes given vsurface
----@param surface_id string|integer|LuaSurface|nil surface identification
+---@param surface_id ExtendedSurfaceID|nil
 function VSurfaceManager.delete_vsurface(surface_id)
     -- getting LuaSurface object
     local surface = VSurfaceManager.get_surface(surface_id)
@@ -186,7 +187,7 @@ end
 -- VENV-PROCESSOR/TEMPLATE-COMPILER REQUESTS
 -------------------------------------------------------------------------------
 
----@param surface_id string|integer|LuaSurface|nil surface identification
+---@param surface_id ExtendedSurfaceID|nil
 ---@return boolean is_valid true if surface is valid
 function VSurfaceManager.check_surface_validity(surface_id)
     local surface = VSurfaceManager.get_surface(surface_id)
@@ -203,7 +204,7 @@ function VSurfaceManager.calculate_energy_drain(width, height)
 end
 
 ---Calculates passive energy drain of a template for a given surface
----@param surface_index integer unique surface identifier
+---@param surface_index number unique surface identifier
 ---@return number energy_drain passive template energy drain
 function VSurfaceManager.get_vsurface_energy_drain(surface_index)
     local vsurface_data = storage.vsurfaces[surface_index]
@@ -213,18 +214,18 @@ function VSurfaceManager.get_vsurface_energy_drain(surface_index)
 end
 
 ---Helps in calculating surface building cost. Adds item to total cost.
----@param total_cost table<string, integer> building cost
+---@param total_cost table<ItemKeyString, number> building cost
 ---@param name string name of an item
 ---@param quality string quality of an item
----@param count integer count of an item
+---@param count number count of an item
 local function add_to_cost(total_cost, name, quality, count)
     local key = name .. "//" .. quality
     total_cost[key] = (total_cost[key] or 0) + count
 end
 
 ---Collects building cost of a vsurface.
----@param surface_index integer unique surface identifier
----@return table<string, integer> building_cost
+---@param surface_index number unique surface identifier
+---@return table<ItemKeyString, number> building_cost
 function VSurfaceManager.get_vsurface_building_cost(surface_index)
     local surface = game.get_surface(surface_index)
     if not surface or not surface.valid then return {} end
@@ -255,34 +256,6 @@ function VSurfaceManager.get_vsurface_building_cost(surface_index)
         end
     end
     return total_cost
-end
-
----Enables labs on a given vsurface and changes their force to "lab-technical"
----@param surface_id string|integer|LuaSurface|nil surface identification
-function VSurfaceManager.enable_labs(surface_id)
-    local surface = VSurfaceManager.get_surface(surface_id)
-    if not surface or not surface.valid then return end
-    local labs = surface.find_entities_filtered{type = "lab"}
-    for _, lab in ipairs(labs) do
-        if lab and lab.valid then
-            lab.force = "lab-technical"
-            lab.disabled_by_script = false
-        end
-    end
-end
-
----Disables labs on a given surface and changes their force to player
----@param surface_id string|integer|LuaSurface|nil surface identification
-function VSurfaceManager.disable_labs(surface_id)
-    local surface = VSurfaceManager.get_surface(surface_id)
-    if not surface or not surface.valid then return end
-    local labs = surface.find_entities_filtered{type = "lab"}
-    for _, lab in ipairs(labs) do
-        if lab and lab.valid then
-            lab.force = "player"
-            lab.disabled_by_script = true
-        end
-    end
 end
 
 return VSurfaceManager

@@ -9,39 +9,41 @@ Second on is QoL of developer. We want to store references to all created gui el
 that we will be modifying in some way. This is much more convenient than traversing gui
 tree by element names. Vsurface manager data for all players is located at storage.surface_manager.
 For this table key is player index, value is table containing manager data.
-
---------------------------------------------------------------------------------------------
-MANAGER DATA KEYS
---------------------------------------------------------------------------------------------
-opened bool: true if surface manager is currently opened for player
-vsurface_search_query string|nil: last user input into vsurface searchfield
-selected_vsurface string|nil: surface name selected in the selector
-new_surface_pressed boolean|nil: if true that means that "vsurface creation interface" is opened
-new_surface_name string|nil: last user input into new surface name textfield
-new_surface_width number|nil: last user input into new surface width field
-new_surface_height number|nil: last user input into new surface height field
-new_surface_research_producer boolean|nil: true if new surface is a research surface
-template_name string|nil: last user input into template name textfield
-
-elements.main_window LuaGuiElement: reference to main widow (to destroy it when needed)
-elements.right_frame LuaGuiElement: reference to frame on the right side of interface
-elements.vsurface_selector LuaGuiElement: reference to selector element on the left side
-elements.vsurface_search LuaGuiElement: reference to textfield above vsurface selector
-elements.create_surface_btn LuaGuiElement: reference to "create new surface" button
-elements.delete_surface_btn LuaGuiElement: reference to "delete selected surface" button
-elements.new_surface_name_textfield LuaGuiElement: reference to new surface name textfield
-elements.new_surface_confirm LuaGuiElement: reference to confirm create new surface btn
-elements.new_surface_confirm_status LuaGuiElement: reference to status label above confirm create btn
-elements.template_name_textfield LuaGuiElement: reference to template name textfield element
-elements.template_name_label LuaGuiElement: refenrence label above template name textfield
-elements.compile_btn LuaGuiElement: reference to compile button
-elements.compile_btn_status LuaGuiElement: reference to status label above compile button
-elements.compile_progressbar LuaGuiElement: reference to progressbar indicating surface compilation progress
-elements.compile_bar_label LuaGuiElement: reference to label above compilation progressbar
-elements.new_surface_width LuaGuiElement: reference to new surface width textfield
-elements.new_surface_height LuaGuiElement: reference to new surface height textfield
-elements.new_surface_drain LuaGuiElement: reference to new surface energy drain label
 --]]
+
+---Table with references to surface manager gui elements
+---@class SurfaceManagerElements
+---@field main_window LuaGuiElement
+---@field right_frame LuaGuiElement
+---@field vsurface_selector LuaGuiElement reference to selector element on the left side
+---@field vsurface_search LuaGuiElement reference to textfield above vsurface selector
+---@field create_surface_btn LuaGuiElement reference to "create new surface" button
+---@field delete_surface_btn LuaGuiElement reference to "delete selected surface" button
+---@field new_surface_name_textfield LuaGuiElement|nil reference to new surface name textfield
+---@field new_surface_confirm LuaGuiElement|nil reference to confirm create new surface btn
+---@field new_surface_confirm_status LuaGuiElement|nil reference to status label above confirm create btn
+---@field new_surface_width LuaGuiElement|nil reference to new surface width textfield
+---@field new_surface_height LuaGuiElement|nil reference to new surface height textfield
+---@field new_surface_drain LuaGuiElement|nil reference to new surface energy drain label
+---@field template_name_textfield LuaGuiElement|nil reference to template name textfield element
+---@field template_name_label LuaGuiElement|nil refenrence label above template name textfield
+---@field compile_progressbar LuaGuiElement|nil reference to progressbar indicating surface compilation progress
+---@field compile_bar_label LuaGuiElement|nil reference to label above compilation progressbar
+---@field compile_btn LuaGuiElement|nil reference to compile button
+---@field compile_btn_status LuaGuiElement|nil reference to status label above compile button
+
+---Table with vsurface manager gui data
+---@class SurfaceManagerData
+---@field opened boolean|nil true if surface manager is currently opened
+---@field vsurface_search_query string|nil last user input into vsurface searchfield
+---@field selected_vsurface string|nil surface name selected in the selector
+---@field new_surface_pressed boolean|nil true if "vsurface creation interface" is opened
+---@field new_surface_name string|nil last user input into new surface name textfield
+---@field new_surface_width number|nil last user input into new surface width field
+---@field new_surface_height number|nil last user input into new surface height field
+---@field template_name string|nil last user input into template name textfield
+---@field elements SurfaceManagerElements
+
 
 local VSurfaceManager = require("src.world.vsurface-manager")
 local VEnvProcessor = require("src.simulation.venv-processor")
@@ -55,9 +57,10 @@ local SurfaceManagerGui = {}
 -------------------------------------------------------------------------------
 
 ---Updates vsurface selector located on the left side of interface
----@param manager_data table vsurface manager data from storage
+---@param manager_data SurfaceManagerData
 local function configure_vsurface_selector(manager_data)
     local selector = manager_data.elements.vsurface_selector
+    if not selector.valid then return end
     local options = VSurfaceManager.get_all_vsurface_names()
     local query = manager_data.vsurface_search_query
     local selected = manager_data.selected_vsurface
@@ -65,9 +68,10 @@ local function configure_vsurface_selector(manager_data)
 end
 
 ---Configures vsurface selector and searchfield above
----@param manager_data table vsurface manager data from storage
+---@param manager_data SurfaceManagerData
 local function configure_vsurface_selection_widget(manager_data)
     local search = manager_data.elements.vsurface_search
+    if not search.valid then return end
     search.text = manager_data.vsurface_search_query or ""
     configure_vsurface_selector(manager_data)
 end
@@ -75,7 +79,7 @@ end
 ---Adds vsurface selection widget to given element. Widget contains
 ---of "label", "textfield" for searching and "list-box" for selection.
 ---@param parent LuaGuiElement widget will be added here
----@param manager_data table vsurface manager data from storage
+---@param manager_data SurfaceManagerData
 local function create_vsurface_selection_widget(parent, manager_data)
     local search, selector = CommonGui.create_selection_widget(
         parent,
@@ -89,15 +93,16 @@ local function create_vsurface_selection_widget(parent, manager_data)
 end
 
 ---Configures "create new surface" button
----@param manager_data table vsurface manager data from storage
+---@param manager_data SurfaceManagerData
 local function configure_create_new_surface_btn(manager_data)
     local button = manager_data.elements.create_surface_btn
+    if not button.valid then return end
     button.enabled = not manager_data.new_surface_pressed
 end
 
 ---Adds "create new surface" button to given element
 ---@param parent LuaGuiElement button will be added here
----@param manager_data table vsurface manager data from storage
+---@param manager_data SurfaceManagerData
 local function create_create_new_surface_btn(parent, manager_data)
     local create_button = parent.add{
         type = "button",
@@ -111,19 +116,16 @@ local function create_create_new_surface_btn(parent, manager_data)
 end
 
 ---Configures "delete selected surface" button
----@param manager_data table vsurface manager data from storage
+---@param manager_data SurfaceManagerData
 local function configure_delete_surface_btn(manager_data)
     local button = manager_data.elements.delete_surface_btn
-    if manager_data.selected_vsurface then
-        button.enabled = true
-    else
-        button.enabled = false
-    end
+    if not button.valid then return end
+    button.enabled = not not manager_data.selected_vsurface
 end
 
 ---Adds "delete selected surface" button to given element
 ---@param parent LuaGuiElement button will be added here
----@param manager_data table vsurface manager data from storage
+---@param manager_data SurfaceManagerData
 local function create_delete_surface_btn(parent, manager_data)
     local delete_button = parent.add{
         type = "button",
@@ -137,9 +139,11 @@ local function create_delete_surface_btn(parent, manager_data)
 end
 
 ---Configures new surface name textfield
----@param manager_data table vsurface manager data from storage
+---@param manager_data SurfaceManagerData
 local function configure_new_surface_name_field(manager_data)
     local textfield = manager_data.elements.new_surface_name_textfield
+    ---@cast textfield LuaGuiElement
+    if not textfield.valid then return end
     textfield.text = manager_data.new_surface_name or ""
 end
 
@@ -159,9 +163,11 @@ local function create_new_surface_name_field(parent, manager_data)
 end
 
 ---Configured new surface energy drain label
----@param manager_data table vsurface manager data from storage
+---@param manager_data SurfaceManagerData
 local function configure_new_surface_drain(manager_data)
     local drain_label = manager_data.elements.new_surface_drain
+    ---@cast drain_label LuaGuiElement
+    if not drain_label.valid then return end
     local width = tonumber(manager_data.new_surface_width)
     local height = tonumber(manager_data.new_surface_height)
     local drain = VSurfaceManager.calculate_energy_drain(width, height)
@@ -171,11 +177,13 @@ end
 
 ---Configures new surface size widget. Loads last user input and
 ---updates template energy drain label.
----@param manager_data table vsurface manager data from storage
+---@param manager_data SurfaceManagerData
 local function configure_new_surface_size_widget(manager_data)
     local width_field = manager_data.elements.new_surface_width
     local height_field = manager_data.elements.new_surface_height
-
+    ---@cast width_field LuaGuiElement
+    ---@cast height_field LuaGuiElement
+    if not width_field.valid or not height_field.valid then return end
     -- loading last user input into height and width fields
     local saved_width = manager_data.new_surface_width
     local seved_height = manager_data.new_surface_height
@@ -188,7 +196,7 @@ end
 
 ---Adds 2 textfields where height and width of new surface can be specified.
 ---@param parent LuaGuiElement widget will be added here
----@param manager_data table vsurface manager data from storage
+---@param manager_data SurfaceManagerData
 local function create_new_surface_size_widget(parent, manager_data)
     local main_flow = parent.add{type = "flow", direction = "vertical"}
 
@@ -229,10 +237,14 @@ local function create_new_surface_size_widget(parent, manager_data)
 end
 
 ---Configures confirm create new surface button.
----@param manager_data table vsurface manager data from storage
+---@param manager_data SurfaceManagerData
 local function configure_new_surface_confirm_btn(manager_data)
     local button = manager_data.elements.new_surface_confirm
     local label = manager_data.elements.new_surface_confirm_status
+    ---@cast button LuaGuiElement
+    ---@cast label LuaGuiElement
+    if not button.valid or not label.valid then return end
+
     local can_create, response = VSurfaceManager.can_create_vsurface(
         manager_data.new_surface_name,
         manager_data.new_surface_width,
@@ -246,7 +258,7 @@ end
 ---Adds confirm create new surface button with status label above.
 ---Also adds invisible spacers to put button at the bottom right corner.
 ---@param parent LuaGuiElement button will be added here
----@param manager_data table vsurface manager data from storage
+---@param manager_data SurfaceManagerData
 local function create_new_surface_confirm_btn(parent, manager_data)
     -- spacer to put confirmation button at the bottom
     local v_spacer = parent.add{type = "flow"}
@@ -276,10 +288,13 @@ local function create_new_surface_confirm_btn(parent, manager_data)
 end
 
 ---Configures template name textfield and label above
----@param manager_data table vsurface manager data from storage
+---@param manager_data SurfaceManagerData
 local function configure_template_name_textfield(manager_data)
     local textfield = manager_data.elements.template_name_textfield
     local label = manager_data.elements.template_name_label
+    ---@cast textfield LuaGuiElement
+    ---@cast label LuaGuiElement
+    if not textfield.valid or not label.valid then return end
     local surface_name = manager_data.selected_vsurface
     local compilation_progress = VEnvProcessor.get_compilation_progress(surface_name)
     local is_compiling = (compilation_progress ~= nil)
@@ -290,7 +305,7 @@ end
 
 ---Adds textfield where template name can be typed as well as label above.
 ---@param parent LuaGuiElement button will be added here
----@param manager_data table vsurface manager data from storage
+---@param manager_data SurfaceManagerData
 local function create_template_name_textfield(parent, manager_data)
     local label = parent.add{
         type = "label",
@@ -308,10 +323,14 @@ local function create_template_name_textfield(parent, manager_data)
 end
 
 ---Configured start compilation button and status label above
----@param manager_data table vsurface manager data from storage
+---@param manager_data SurfaceManagerData
 local function configure_start_compilation_btn(manager_data)
     local button = manager_data.elements.compile_btn
     local label = manager_data.elements.compile_btn_status
+    ---@cast button LuaGuiElement
+    ---@cast label LuaGuiElement
+    if not button.valid or not label.valid then return end
+
     local surface_name = manager_data.selected_vsurface
     local template_name = manager_data.template_name
 
@@ -330,7 +349,7 @@ end
 ---Adds start compilation button and status label above
 ---Also adds invisible spacers to put button at the bottom right corner.
 ---@param parent LuaGuiElement button will be added here
----@param manager_data table vsurface manager data from storage
+---@param manager_data SurfaceManagerData
 local function create_start_compilation_btn(parent, manager_data)
     -- spacer to put compilation button at the bottom
     local spacer = parent.add{type = "flow"}
@@ -363,10 +382,14 @@ end
 -------------------------------------------------------------------------------
 
 ---Configures compilation progressbar and label above
----@param manager_data table vsurface manager data from storage
+---@param manager_data SurfaceManagerData
 local function configure_compilation_progressbar(manager_data)
     local bar = manager_data.elements.compile_progressbar
     local label = manager_data.elements.compile_bar_label
+    ---@cast bar LuaGuiElement
+    ---@cast label LuaGuiElement
+    if not bar.valid or not label.valid then return end
+
     local surface_name = manager_data.selected_vsurface
     local elapsed, remaining = VEnvProcessor.get_compilation_progress(surface_name)
     local is_compiling = (elapsed ~= nil)
@@ -382,7 +405,7 @@ end
 
 ---Adds compilation progressbar and label above to given element.
 ---@param parent LuaGuiElement button will be added here
----@param manager_data table vsurface manager data from storage
+---@param manager_data SurfaceManagerData
 local function create_compilation_progressbar(parent, manager_data)
     local label = parent.add{type = "label"}
     local bar = parent.add{type = "progressbar"}
@@ -445,7 +468,7 @@ local function create_surface_manager_base(player)
 end
 
 ---Clears all element in the right frame and populates it.
----@param manager_data table vsurface manager data from storage
+---@param manager_data SurfaceManagerData
 local function update_right_frame(manager_data)
     local right_frame = manager_data.elements.right_frame
     right_frame.clear()
@@ -566,15 +589,13 @@ function SurfaceManagerGui.process_new_surface_confirm_btn(event)
         player,
         manager_data.new_surface_name,
         manager_data.new_surface_width,
-        manager_data.new_surface_height,
-        manager_data.new_surface_research_producer
+        manager_data.new_surface_height
     )
 
     -- cleaning up manager data
     manager_data.new_surface_name = nil
     manager_data.new_surface_width = nil
     manager_data.new_surface_height = nil
-    manager_data.new_surface_research_producer = nil
 end
 
 ---Handles template name textfield being changed. Saves user input.

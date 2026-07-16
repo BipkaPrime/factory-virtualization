@@ -13,28 +13,101 @@ Only alive entities (not ghosts) can have properties in entity registry.
 However, entity processor provides functionality to manipulate entity tags 
 for ghosts, where entity properties are stored before entity is built.
 When entity is constructed/revived, ghost tags migrate to entity regstry.
-
--------------------------------------------------------------------------------
-ENTITY PROPERTIES
--------------------------------------------------------------------------------
-selected_template string|nil (mainframe-io, mainframe): name of selected template (user input)
-active_template string|nil (mainframe-io, mainframe): name of template in operation (assigned by processor)
-cluster table|nil (mainframe-io, mainframe): reference to virtualization cluster that includes this entity
-is_output bool|nil (mainframe-io, template-io): true if entity is output
-selected_item table|nil (item-io): {name = string, quality = string} (user input)
-buffer_key string|nil (item-io): "name//quality" (assigned by processor for fast access)
-selected_fluid string|nil (fluid-io): name of selected fluid if any (user input)
-operational bool|nil (mainframe): true if mainframe has constructed a template and can operate
-building_requests table|nil: contains buildings that are being requested for template construction
-    2-level hmap: table[name][quality] = value
-contained_buildings table|nil (mainframe): all buildings that are currently "contained" in the mainframe
-    2-level hmap: table[name][quality] = value
 --]]
+
+
+---@alias ItemKeyString string name//quality
+---@alias FluidKeyString string fluid_name
+---@alias EnergyKeyString "electric_energy"
+---Serves as key in tables where items, fluids and energy are stored together
+---@alias BufferKeyString ItemKeyString|FluidKeyString|EnergyKeyString
+
+--- Table describing one item stack
+---@class ItemBuffer
+---@field count number number of items contained
+---@field quality string quality of this item
+---@field name string name of this item
+
+---Table describing selected item
+---@class ItemSelection
+---@field name string prototype name of selected item
+---@field quality string prototype name of selected quality
+---@field count number|nil technical field (to use table as an arg in inventory.insert)
+
+---Table describing selected fluid
+---@class FluidSelection
+---@field name string name of selected fluid
+---@field amount number|nil technical field (to use table as an arg in entity.insert_fluid)
 
 ---Abstract class for entity data in processor
 ---@class EntityPropertiesBase
 ---@field entity LuaEntity
 ---@field unit_number number unique entity identifier
+
+---Abstract entity that supports item selection
+---@class EntityWithItemSelection: EntityPropertiesBase
+---@field selected_item ItemSelection|nil table describing selected item
+---@field buffer_key ItemKeyString|nil "name//quality"
+
+---Abstract entity that supports fluid selection
+---@class EntityWithFluidSelection: EntityPropertiesBase
+---@field selected_fluid FluidSelection|nil table describing selected fluid
+
+---Abstract entity that can be an input ot an output
+---@class EntityWithIOSelection: EntityPropertiesBase
+---@field is_output boolean|nil true if entity is an output
+
+---Abstract entity that has chest inventory
+---@class EntityWithChestInventory: EntityPropertiesBase
+---@field inventory LuaInventory cached on registration
+
+---Abstract entity that can be a member of cluster
+---@class SimpleClusterMember: EntityPropertiesBase
+---@field selected_template string|nil name of selected template (user input)
+---@field cluster table|nil reference to virtualization cluster that includes this entity
+
+---Mainframe item IO properties
+---@class MItemIOProperties: SimpleClusterMember
+---@class MItemIOProperties: EntityWithItemSelection
+---@class MItemIOProperties: EntityWithIOSelection
+---@class MItemIOProperties: EntityWithChestInventory
+
+---Mainframe fluid IO properties
+---@class MFluidIOProperties: SimpleClusterMember
+---@class MFluidIOProperties: EntityWithFluidSelection
+---@class MFluidIOProperties: EntityWithIOSelection
+
+---Mainframe energy IO properties
+---@class MEnergyIOProperties: SimpleClusterMember
+---@class MEnergyIOProperties: EntityWithIOSelection
+
+---Template item IO properties
+---@class TItemIOProperties: EntityWithItemSelection
+---@class TItemIOProperties: EntityWithIOSelection
+---@class TItemIOProperties: EntityWithChestInventory
+
+---Template fluid IO properties
+---@class TFluidIOProperties: EntityWithFluidSelection
+---@class TFluidIOProperties: EntityWithIOSelection
+
+---Template energy IO properties
+---@class TEnergyIOProperties: EntityWithIOSelection
+
+---Table with properties of virtualization mainframe
+---@class MainframeProperties: SimpleClusterMember
+---@field operational boolean|nil true if mainframe has constructed a template and can operate
+---@field building_requests table<ItemKeyString, ItemBuffer>|nil items that are being requested for template construction
+---@field contained_buildings table<ItemKeyString, ItemBuffer>|nil items that were used for template construction
+
+---Union of all instances of entity properties
+---@alias EntityProperties
+---|MItemIOProperties
+---|MFluidIOProperties
+---|MEnergyIOProperties
+---|TItemIOProperties
+---|TFluidIOProperties
+---|TEnergyIOProperties
+---|MainframeProperties
 
 
 local ClusterProcessor = require("src.simulation.cluster-processor")
@@ -60,30 +133,81 @@ local entity_router = {
 -- DATA MANIPULATION SIDE-EFFECTS (Internal hooks and caches)
 -------------------------------------------------------------------------------
 
----Creates a buffer key for vcluster/venv fast access for item-IOs
----@param properties table entity data from registry
+---Cahes LuaInventory of given entity to properties
+---@param properties EntityWithChestInventory
+local function cache_inventory_object(properties)
+    local entity = properties.entity
+    local inventory = entity.get_inventory(defines.inventory.chest)
+    ---assuming that entity prototype has chest inventory
+    ---@cast inventory LuaInventory
+    properties.inventory = inventory
+end
+
+---Creates a buffer key for item IO.
+---@param properties EntityWithItemSelection
 local function generate_buffer_key(properties)
     local item = properties.selected_item
-    if item then
-        properties.buffer_key = item.name .. "//" .. item.quality
-    else
-        properties.buffer_key = nil
-    end
+    properties.buffer_key = item and (item.name .. "//" .. item.quality) or nil
+end
+
+---Moves entity to new virtualization cluster
+---@param properties SimpleClusterMember
+local function move_to_new_cluster(properties)
+    -- removing entity from old cluster
+    local old_cluster = properties.cluster
+    local unit_number = properties.unit_number
+    ClusterProcessor.remove_from_cluster(old_cluster, unit_number)
+
+    -- adding entity to its new cluster
+    local entity = properties.entity
+    local template_name = properties.selected_template
+    local new_cluster = ClusterProcessor.add_to_cluster(entity, template_name)
+    properties.cluster = new_cluster
 end
 
 -------------------------------------------------------------------------------
 -- GENERAL REGISTRY OPERATIONS: ADD/DELETE/LOOKUP
 -------------------------------------------------------------------------------
 
----List of functions to perform when setting a value in properties
----Also serves as a table with all copyable fields (keys)
-local field_setting_hooks = {
-    selected_template = {},
-    selected_item = {
-        generate_buffer_key
+---List of all copyable fields in entity properties. Used for copy-pase.
+local copyable_fields = {
+    "selected_template",
+    "selected_item",
+    "selected_fluid",
+    "is_output",
+}
+
+---List of functions to perform when registring an entity
+local registration_hooks = {
+    [PREFIX .. "template-item-io"] = {
+        cache_inventory_object,
     },
-    selected_fluid = {},
-    is_output = {},
+    [PREFIX .. "mainframe-item-io"] = {
+        cache_inventory_object,
+    },
+}
+
+---List of functions to perform when setting a value in properties
+local field_setting_hooks = {
+    [PREFIX .. "template-item-io"] = {
+        selected_item = {generate_buffer_key},
+    },
+    [PREFIX .. "mainframe-item-io"] = {
+        selected_template = {move_to_new_cluster},
+        selected_item = {generate_buffer_key},
+    },
+    [PREFIX .. "mainframe-fluid-io"] = {
+        selected_template = {move_to_new_cluster}
+    },
+    [PREFIX .. "mainframe-energy-io"] = {
+        selected_template = {move_to_new_cluster}
+    },
+    [PREFIX .. "virtualization-mainframe"] = {
+        selected_template = {
+            move_to_new_cluster,
+            VMManager.on_template_change
+        }
+    }
 }
 
 ---Adds given entity to registry. Is called when any build event is triggered.
@@ -102,13 +226,24 @@ function EntityProcessor.register_entity(entity, tags)
         unit_number = entity.unit_number,
     }
 
+    -- performing necessery on-registration actions
+    local hooks = registration_hooks[entity.name]
+    if hooks then
+        for _, hook in ipairs(hooks) do
+            hook(properties)
+        end
+    end
+
     -- adding event tags to properties
     if tags and tags[ENTITY_TAG_KEY] then
         local relevant_tags = tags[ENTITY_TAG_KEY]
-        for field, hooks in pairs(field_setting_hooks) do
+        for _, field in ipairs(copyable_fields) do
             properties[field] = relevant_tags[field]
-            for _, hook in pairs(hooks) do
-                hook(properties)
+            local entity_hooks = field_setting_hooks[entity.name]
+            if entity_hooks and entity_hooks[field] then
+                for _, hook in ipairs(entity_hooks[field]) do
+                    hook(properties)
+                end
             end
         end
     end
@@ -119,7 +254,7 @@ function EntityProcessor.register_entity(entity, tags)
 end
 
 ---Removes entity from registry. Used for automatic garbage collection.
----@param unit_number integer entity identifier
+---@param unit_number integer unique entity identifier
 local function unregister_entity(unit_number)
     local reg = storage.entity_registry
     local index = reg.lookup[unit_number]
@@ -139,7 +274,7 @@ local function unregister_entity(unit_number)
 end
 
 ---@param unit_number integer unique entity identifier
----@return table|nil properties entity data from registry
+---@return EntityProperties|nil properties entity data from registry
 local function get_entity_data(unit_number)
     local reg = storage.entity_registry
     local index = reg.lookup[unit_number]
@@ -168,8 +303,12 @@ local function set_entity_property(entity, field, value)
         local properties = get_entity_data(entity.unit_number)
         if not properties then return end
         properties[field] = value
-        local hooks = field_setting_hooks[field]
-        for _, hook in pairs(hooks) do
+        local entity_hooks = field_setting_hooks[entity.name]
+        if not entity_hooks then return end
+        local hooks = entity_hooks[field]
+        if not hooks then return end
+        for _, hook in ipairs(hooks) do
+            ---@diagnostic disable-next-line: param-type-mismatch
             hook(properties)
         end
     end
@@ -184,16 +323,19 @@ end
 
 ---Sets selected item for given entity or entity-ghost
 ---@param entity LuaEntity
----@param item table<string, string>|nil {name, quality}
-function EntityProcessor.set_selected_item(entity, item)
-    set_entity_property(entity, "selected_item", item)
+---@param name string|nil name of selected item
+---@param quality string|nil quality of selected item
+function EntityProcessor.set_selected_item(entity, name, quality)
+    local item_data = (name and quality and {name = name, quality = quality}) or nil
+    set_entity_property(entity, "selected_item", item_data)
 end
 
 ---Sets selected fluid for given entity or entity-ghost
 ---@param entity LuaEntity
 ---@param fluid_name string|nil name of the fluid, or nil to clear
 function EntityProcessor.set_selected_fluid(entity, fluid_name)
-    set_entity_property(entity, "selected_fluid", fluid_name)
+    local fluid_data = fluid_name and {name = fluid_name} or nil
+    set_entity_property(entity, "selected_fluid", fluid_data)
 end
 
 ---Sets output flag for given entity or entity-ghost
@@ -235,7 +377,7 @@ end
 
 ---Gets selected item for given entity or ghost-entity
 ---@param entity LuaEntity entity for which data should be retrieved
----@return table<string, string>|nil selected_item {name, quality}
+---@return ItemSelection|nil selected_item {name, quality}
 function EntityProcessor.get_selected_item(entity)
     return get_entity_property(entity, "selected_item")
 end
@@ -244,7 +386,8 @@ end
 ---@param entity LuaEntity entity for which data should be retrieved
 ---@return string|nil fluid_name
 function EntityProcessor.get_selected_fluid(entity)
-    return get_entity_property(entity, "selected_fluid")
+    local fluid = get_entity_property(entity, "selected_fluid")
+    return fluid and fluid.name
 end
 
 ---Gets output flag for given entity or ghost-entity
@@ -262,6 +405,7 @@ function EntityProcessor.get_construction_requests(entity)
     if not entity.valid then return end
     local properties = get_entity_data(entity.unit_number)
     if not properties then return end
+    ---@cast properties MainframeProperties
     return VMManager.get_construction_requests(properties)
 end
 
@@ -273,6 +417,7 @@ function EntityProcessor.get_contained_buildings(entity)
     if not entity.valid then return end
     local properties = get_entity_data(entity.unit_number)
     if not properties then return end
+    ---@cast properties MainframeProperties
     return VMManager.get_contained_buildings(properties)
 end
 
@@ -293,6 +438,7 @@ function EntityProcessor.get_mainframe_status(entity)
     if not properties then
         return {"entity-status.not-registered"}
     end
+    ---@cast properties MainframeProperties
     return VMManager.get_mainframe_status(properties)
 end
 
@@ -319,7 +465,7 @@ function EntityProcessor.setup_blueprint_tags(event)
 
     for b_entity_index, entity in ipairs(mapping) do
         if not entity or not entity.valid then goto continue end
-        -- skipping entities that do not need tags
+        -- skipping entities that are not recognized by this registry
         if not entity_router[entity.name] then goto continue end
 
         -- if registry does not have entity properties we have to skip it
@@ -328,7 +474,7 @@ function EntityProcessor.setup_blueprint_tags(event)
 
         -- creating a shallow copy with all copyable properties
         local properties_copy = {}
-        for field, _ in pairs(field_setting_hooks) do
+        for _, field in ipairs(copyable_fields) do
             properties_copy[field] = properties[field]
         end
         blueprint.set_blueprint_entity_tag(b_entity_index, ENTITY_TAG_KEY, properties_copy)

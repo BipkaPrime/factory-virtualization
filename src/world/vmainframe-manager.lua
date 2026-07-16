@@ -2,24 +2,8 @@
 Virtualization mainframe manager is used only by entity processor.
 Virtualization mainframes serve as crafting power providers for virtualization clusters.
 VM is a fancy requester chest. This manager does following things:
-1. Checks selected_template and connects VM to appropriate cluster when necessery
-2. Requests construction materials for selected template and makes it operational when necessery
+Requests construction materials for selected template and makes it operational when necessery
 --]]
-
----@class ItemBuffer
----@field count number number of items contained
----@field quality string quality of this item
----@field name string name of this item
-
----Table with properties of virtualization mainframe
----@class MainframeProperties: EntityPropertiesBase
----@field selected_template string|nil name of selected template (user input)
----@field active_template string|nil name of template in operation (assigned by processor)
----@field cluster ClusterData|nil reference to cluster that includes this entity as a member
----@field operational boolean|nil true if mainframe has constructed a template and can operate
----@field building_requests table<ItemKeyString, ItemBuffer>|nil items that are being requested for template construction
----@field contained_buildings table<ItemKeyString, ItemBuffer>|nil items that were used for template construction
-
 
 local ClusterProcessor = require("src.simulation.cluster-processor")
 local TemplateCompiler = require("src.simulation.template-compiler")
@@ -162,34 +146,22 @@ local function withdraw_building_materials(properties)
     end
 end
 
+---Function that is called when template changes
+---@param properties MainframeProperties
+function VMManager.on_template_change(properties)
+    return_buldings_to_inventory(properties)
+    prepare_new_template_construction(properties)
+end
+
 ---On-tick processor for virtualization mainframes
 ---@param properties MainframeProperties
 function VMManager.process_vm(properties)
-    -- handling template being changed
-    if properties.selected_template ~= properties.active_template then
-        -- managing template construction
-        return_buldings_to_inventory(properties)
-        prepare_new_template_construction(properties)
-
-        -- removing VM from old cluster
-        local old_cluster = properties.cluster
-        ClusterProcessor.remove_from_cluster(old_cluster, properties.unit_number)
-
-        -- adding VM to new cluster
-        local template_name = properties.selected_template
-        local entity = properties.entity
-        local new_cluster = ClusterProcessor.add_to_cluster(entity, template_name)
-        properties.cluster = new_cluster
-
-        properties.active_template = properties.selected_template
-        properties.operational = false
-    end
     -- handling building requests (only if mainframe is not operational)
     if not properties.operational then
         withdraw_building_materials(properties)
         set_logistic_requests(properties)
         local requests = properties.building_requests
-        if properties.active_template and (not requests or not next(requests)) then
+        if properties.cluster and (not requests or not next(requests)) then
             local cluster = properties.cluster
             local unit_number = properties.unit_number
             ClusterProcessor.set_mainframe_operational(cluster, unit_number)
@@ -207,7 +179,7 @@ end
 ---@return LocalisedString
 function VMManager.get_mainframe_status(properties)
     -- no selected template: mainframe is idle
-    if not properties.active_template then
+    if not properties.cluster then
         return {"entity-status.template-not-selected"}
     end
     -- something is being requested

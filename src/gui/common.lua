@@ -1,4 +1,12 @@
--- Common gui elements and operations
+---Common gui elements and operations
+
+---Table that is used for creation of one sprite button element
+---@class SpriteButtonData
+---@field sprite string|nil
+---@field tooltip string|LocalisedString|nil
+---@field count number|nil
+---@field quality string|nil
+
 
 local PREFIX = "FV-"
 local CommonGui = {}
@@ -68,8 +76,8 @@ end
 ---Creates base gui window consisting of main frame with a top bar.
 ---@param player LuaPlayer player for which window should be created. Assumed to be valid
 ---@param window_name string internal window name for element
----@param title string|LocalisedString text displayed on the top bar
----@return LuaGuiElement created_window returns nil if nothing was created
+---@param title LocalisedString text displayed on the top bar
+---@return LuaGuiElement created_window
 function CommonGui.create_base_window(player, window_name, title)
     local main_window = player.gui.screen.add{
         type = "frame",
@@ -122,7 +130,7 @@ end
 
 ---Creates a bordered frame with set width and label
 ---@param parent LuaGuiElement element will be added here
----@param label string|LocalisedString text to display at top of element
+---@param label LocalisedString text to display at top of element
 ---@return LuaGuiElement flow
 function CommonGui.create_info_element_base(parent, label)
     local main_frame = parent.add{
@@ -147,7 +155,7 @@ end
 
 ---Creates a bold label in given element
 ---@param parent LuaGuiElement element will be added here
----@param caption string|LocalisedString label caption
+---@param caption LocalisedString label caption
 function CommonGui.create_bold_label(parent, caption)
     parent.add{
         type = "label",
@@ -162,7 +170,7 @@ end
 ---@param parent LuaGuiElement widget will be added here
 ---@param search_name string internal name of searchbox element
 ---@param selector_name string internal name of selector element
----@param caption string|LocalisedString caption above searchfield
+---@param caption LocalisedString caption above searchfield
 ---@return LuaGuiElement searchfield, LuaGuiElement selector, LuaGuiElement label
 function CommonGui.create_selection_widget(parent, search_name, selector_name, caption)
     local flow = parent.add{type = "flow", direction = "vertical"}
@@ -210,15 +218,8 @@ end
 -- SPRITE BUTTONS
 -------------------------------------------------------------------------------
 
----Table that is used for creation of one sprite button element
----@class SpriteButtonData
----@field sprite string|nil
----@field tooltip string|LocalisedString|nil
----@field count number|nil
----@field quality string|nil
-
 ---Assembles a table with sprite button data.
----@param key string "name//quality" for items, "name" for fluids, "electric_energy" for energy.
+---@param key BufferKeyString
 ---@param count number|nil number that will be displayed
 function CommonGui.assemble_sprite_button_data(key, count)
     ---@type SpriteButtonData

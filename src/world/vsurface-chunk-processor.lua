@@ -6,21 +6,20 @@ Vsurfaces are created as a sterile environment generated with lab tiles.
 We want to have several services working on virtualization surfaces.
 For example, auto reviving ghosts, auto deconstructing marked, auto upgrade, charting.
 Also there are 2 states vsurface can be in: "compiling" and "not compiling". And services
-working on a vsurface depend on compilation flag.
-To account for all that we want a flat array with chunk information
-chunk_data = {
-    surface = LuaSurface,
-    surface_index = integer,
-    area = BoundingBox,
-    compiling = bool,
-    force = LuaForce,
-}
-All registered chunks are stored at: storage.vsurface_chunks.
+working on a vsurface depend on compilation flag. All registered chunks are stored at: storage.vsurface_chunks.
 
 Chunk processor has only 3 public operations: on-tick processor, add surface
 and set compilation flag. Delete surface operation is integrated in the on-tick
 processor. Chunks of the surface are deleted from registry when surface becomes invalid.
 --]]
+
+---Table describing one chunk in chunk registry
+---@class ChunkData
+---@field surface LuaSurface reference to surface object that has this chunk
+---@field surface_index number unique surface identifier
+---@field area BoundingBox area of the chunk
+---@field compiling boolean true if chunk is currently compiling
+---@field force LuaForce reference to force that owns the chunk ("player")
 
 local ChunkProcessor = {}
 

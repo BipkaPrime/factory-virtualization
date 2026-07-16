@@ -18,22 +18,26 @@ at storage.entity_gui. For this table key is player index, value is table contai
 We need to keep track of all opened entity gui windows for time-based updades. For that
 player_indexes of all players who have this window opened are saved at storage.entity_gui.currently_opened
 Like this: storage.entity_gui.currently_opened = {1 = true, 7 = true, 123 = true}
-
--------------------------------------------------------------------------------
-GUI DATA KEYS
--------------------------------------------------------------------------------
-entity LuaEntity: entity that was opened to create this gui
-template_search_query string|nil: user input into textfield above template selector
-elements.main_window LuaGuiElement: reference to main entity gui window
-elements.left_frame LuaGuiElement: reference to left frame of interface
-elements.datafield LuaGuiElement: reference to datafield on the right side of interface
-elements.template_selector LuaGuiElement: reference to template selector
-elements.template_search LuaGuiElement: reference to template searchfield
-elements.choose_item_button LuaGuiElement: reference to choose item button
-elements.choose_fluid_button LuaGuiElement: reference to choose fluid button
-elements.input_radiobutton LuaGuiElement: reference to input radiobutton
-elements.output_radiobutton LuaGuiElement: reference to output radiobutton
 --]]
+
+---Table with references to entity gui elements.
+---@class EntityGuiElements
+---@field main_window LuaGuiElement Root frame
+---@field left_frame LuaGuiElement Left column
+---@field datafield LuaGuiElement Right column for information display
+---@field template_selector LuaGuiElement|nil Mainframes, Mainframe IOs
+---@field template_search LuaGuiElement|nil Mainframes, Mainframe IOs
+---@field choose_item_button LuaGuiElement|nil EntityWithItemSelection
+---@field choose_fluid_button LuaGuiElement|nil EntityWithFluidSelection
+---@field input_radiobutton LuaGuiElement|nil EntityWithIOSelection
+---@field output_radiobutton LuaGuiElement|nil EntityWithIOSelection
+
+---Table describing entity GUI state
+---@class EntityGuiData
+---@field entity LuaEntity entity that was opened to create this gui
+---@field template_search_query string|nil user input into template search
+---@field elements EntityGuiElements
+
 
 local EntityProcessor = require("src.world.entity-processor")
 local TemplateCompiler = require("src.simulation.template-compiler")
@@ -70,10 +74,13 @@ local function assert_entity_validity(player_index, gui_data)
 end
 
 ---Configures choose input/output radiobuttons
----@param gui_data table entity gui data from storage
+---@param gui_data EntityGuiData
 local function configure_choose_io_buttons(gui_data)
     local input_button = gui_data.elements.input_radiobutton
     local output_button = gui_data.elements.output_radiobutton
+    ---@cast input_button LuaGuiElement
+    ---@cast output_button LuaGuiElement
+    if not input_button.valid or not output_button.valid then return end
     local is_output = EntityProcessor.get_output_flag(gui_data.entity)
     input_button.state = not is_output
     output_button.state = not not is_output
@@ -81,7 +88,7 @@ end
 
 ---Adds 2 radiobuttons to choose IO mode of operation.
 ---@param parent LuaGuiElement buttons will be added here
----@param gui_data table entity gui data from storage
+---@param gui_data EntityGuiData
 local function create_choose_io_buttons(parent, gui_data)
     local main_flow = parent.add{type = "flow", direction = "vertical"}
     main_flow.add{type = "label", caption = {"gui-label.operation-mode"}}
@@ -133,9 +140,11 @@ function EntityGui.process_output_chosen(event)
 end
 
 ---Configures template selector
----@param gui_data table entity gui data from storage
+---@param gui_data EntityGuiData
 local function configure_template_selector(gui_data)
     local selector = gui_data.elements.template_selector
+    ---@cast selector LuaGuiElement
+    if not selector.valid then return end
     local options = TemplateCompiler.get_all_template_names()
     local query = gui_data.template_search_query
     local selected = EntityProcessor.get_selected_template(gui_data.entity)
@@ -143,9 +152,11 @@ local function configure_template_selector(gui_data)
 end
 
 ---Configures template selector and searchbox above
----@param gui_data table entity gui data from storage
+---@param gui_data EntityGuiData
 local function configure_template_selection_widget(gui_data)
     local search = gui_data.elements.template_search
+    ---@cast search LuaGuiElement
+    if not search.valid then return end
     search.text = gui_data.template_search_query or ""
     configure_template_selector(gui_data)
 end
@@ -153,7 +164,7 @@ end
 ---Adds template selection widget that consists of subtitle,
 ---searchbox and selector element
 ---@param parent LuaGuiElement widget will be added here
----@param gui_data table entity gui data from storage
+---@param gui_data EntityGuiData
 local function create_template_selection_widget(parent, gui_data)
     local search, selector = CommonGui.create_selection_widget(
         parent,
@@ -197,9 +208,11 @@ function EntityGui.process_template_selector(event)
 end
 
 ---Configures choose item button
----@param gui_data table entity gui data from storage
+---@param gui_data EntityGuiData
 local function configure_choose_item_button(gui_data)
     local button = gui_data.elements.choose_item_button
+    ---@cast button LuaGuiElement
+    if not button.valid then return end
     -- setting selected item according to entity processor
     local item = EntityProcessor.get_selected_item(gui_data.entity)
     if item then
@@ -212,7 +225,7 @@ end
 
 ---Adds choose elem button with type "item-with-quality"
 ---@param parent LuaGuiElement widget will be added here
----@param gui_data table entity gui data from storage
+---@param gui_data EntityGuiData
 local function create_choose_item_button(parent, gui_data)
     local row = parent.add{type = "flow", direction = "horizontal"}
     row.style.vertical_align = "center"
@@ -234,14 +247,18 @@ function EntityGui.process_choose_item_button(event)
     if not status then return end
     -- saving selection to entity processor
     local selection = event.element.elem_value
-    local item = selection and {name = selection.name, quality = selection.quality}
-    EntityProcessor.set_selected_item(gui_data.entity, item)
+    local name = selection and selection.name
+    local quality = selection and selection.quality
+    ---@cast quality string|nil
+    EntityProcessor.set_selected_item(gui_data.entity, name, quality)
 end
 
 ---Configures choose fluid button
----@param gui_data table entity gui data from storage
+---@param gui_data EntityGuiData
 local function configure_choose_fluid_button(gui_data)
     local button = gui_data.elements.choose_fluid_button
+    ---@cast button LuaGuiElement
+    if not button.valid then return end
     -- setting selected fluid according to entity processor
     local fluid = EntityProcessor.get_selected_fluid(gui_data.entity)
     if fluid then button.elem_value = fluid end
@@ -280,7 +297,7 @@ end
 
 ---Adds a status display for virtualization mainframe
 ---@param parent LuaGuiElement section will be added here
----@param entity LuaEntity mainframe itself
+---@param entity LuaEntity virtualization mainframe
 local function create_mainframe_status_display(parent, entity)
     local status = EntityProcessor.get_mainframe_status(entity)
     local caption = {"", {"gui-label.entity-status"}, ": " , status}
@@ -313,7 +330,7 @@ end
 
 ---Adds section displaying buildings contained in the mainframe.
 ---@param parent LuaGuiElement section will be added here
----@param entity LuaEntity
+---@param entity LuaEntity virtualization mainframe
 local function create_mainframe_building_contents(parent, entity)
     local contents = EntityProcessor.get_contained_buildings(entity)
     if not contents or not next(contents) then return end
