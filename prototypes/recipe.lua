@@ -96,6 +96,20 @@ local virtualization_mainframe = {
 	results = {{type = "item", name = PREFIX .. "virtualization-mainframe", amount = 1}},
 }
 
+local inter_cluster_bridge = {
+	type = "recipe",
+	name = PREFIX .. "inter-cluster-bridge",
+	enabled = true,
+	ingredients =
+	{
+		{type = "item", name = "steel-plate", amount = 150},
+		{type = "item", name = "stone-brick", amount = 40},
+		{type = "item", name = "iron-chest", amount = 40},
+	},
+	energy_required = 30,
+	results = {{type = "item", name = PREFIX .. "inter-cluster-bridge", amount = 1}},
+}
+
 
 
 data:extend({
@@ -106,4 +120,5 @@ data:extend({
 	mainframe_fluid_io,
 	mainframe_energy_io,
 	virtualization_mainframe,
+	inter_cluster_bridge,
 })

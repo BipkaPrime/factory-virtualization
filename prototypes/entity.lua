@@ -214,6 +214,36 @@ local virtualization_mainframe = {
     },
 }
 
+local inter_cluster_bridge = {
+    type = "electric-energy-interface",
+    gui_mode = "all",
+    energy_source = {
+        type = "electric",
+        buffer_capacity = "10GJ",
+        usage_priority = "primary-input",
+        drain = "100MW",
+    },
+    name = PREFIX .. "inter-cluster-bridge",
+    icon = iconpath .. "inter-cluster-bridge.png",
+    icon_size = 64,
+    flags = {"placeable-neutral", "placeable-player", "player-creation"},
+    minable = {mining_time = 0.1, result = PREFIX .. "inter-cluster-bridge"},
+    collision_box = {{-2.7, -2.7}, {2.7, 2.7}},
+    selection_box = {{-3, -3}, {3, 3}},
+    inventory_size = 1,
+    picture = {
+        layers = {
+            {
+                filename = entitypath .. "inter-cluster-bridge.png",
+                width = 384,
+                height = 384,
+                scale = 0.5,
+            }
+        },
+    }
+}
+
+
 data:extend({
     template_item_io,
     template_fluid_io,
@@ -222,4 +252,5 @@ data:extend({
     mainframe_fluid_io,
     mainframe_energy_io,
     virtualization_mainframe,
+    inter_cluster_bridge,
 })

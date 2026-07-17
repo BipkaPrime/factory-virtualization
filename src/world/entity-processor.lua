@@ -99,6 +99,16 @@ When entity is constructed/revived, ghost tags migrate to entity regstry.
 ---@field building_requests table<ItemKeyString, ItemBuffer>|nil items that are being requested for template construction
 ---@field contained_buildings table<ItemKeyString, ItemBuffer>|nil items that were used for template construction
 
+---Tabl with properties of inter-cluster bridge
+---@class ClusterBridgeProperties: EntityPropertiesBase
+---@class ClusterBridgeProperties: EntityWithItemSelection
+---@class ClusterBridgeProperties: EntityWithFluidSelection
+---@field source_template string|nil
+---@field destination_template string|nil
+---@field source_cluster ClusterData|nil
+---@field destination_cluster ClusterData|nil
+---@field mode "item"|"fluid"|"energy"
+
 ---Union of all instances of entity properties
 ---@alias EntityProperties
 ---|MItemIOProperties
@@ -114,6 +124,7 @@ local ClusterProcessor = require("src.simulation.cluster-processor")
 local VMManager = require("src.world.vmainframe-manager")
 local MainframeIO = require("src.world.mainframe-io-manager")
 local TemplateIO = require("src.world.template-io-manager")
+local ClusterBridge = require("src.world.cluster-bridge-manager")
 
 local PREFIX = "FV-"
 local ENTITY_TAG_KEY = PREFIX
@@ -128,6 +139,7 @@ local entity_router = {
     [PREFIX .. "mainframe-fluid-io"] = MainframeIO.process_mainframe_fluid_io,
     [PREFIX .. "mainframe-energy-io"] = MainframeIO.process_mainframe_energy_io,
     [PREFIX .. "virtualization-mainframe"] = VMManager.process_vm,
+    [PREFIX .. "inter-cluster-bridge"] = ClusterBridge.process_bridge,
 }
 -------------------------------------------------------------------------------
 -- DATA MANIPULATION SIDE-EFFECTS (Internal hooks and caches)
@@ -145,7 +157,7 @@ end
 
 ---Creates a buffer key for item IO.
 ---@param properties EntityWithItemSelection
-local function generate_buffer_key(properties)
+local function generate_item_buffer_key(properties)
     local item = properties.selected_item
     properties.buffer_key = item and (item.name .. "//" .. item.quality) or nil
 end
@@ -175,6 +187,9 @@ local copyable_fields = {
     "selected_item",
     "selected_fluid",
     "is_output",
+    "source_template",
+    "destination_template",
+    "mode",
 }
 
 ---List of functions to perform when registring an entity
@@ -190,11 +205,11 @@ local registration_hooks = {
 ---List of functions to perform when setting a value in properties
 local field_setting_hooks = {
     [PREFIX .. "template-item-io"] = {
-        selected_item = {generate_buffer_key},
+        selected_item = {generate_item_buffer_key},
     },
     [PREFIX .. "mainframe-item-io"] = {
         selected_template = {move_to_new_cluster},
-        selected_item = {generate_buffer_key},
+        selected_item = {generate_item_buffer_key},
     },
     [PREFIX .. "mainframe-fluid-io"] = {
         selected_template = {move_to_new_cluster}
@@ -207,7 +222,15 @@ local field_setting_hooks = {
             move_to_new_cluster,
             VMManager.on_template_change
         }
-    }
+    },
+    [PREFIX .. "inter-cluster-bridge"] = {
+        source_template = {ClusterBridge.change_source_cluster},
+        destination_template = {ClusterBridge.change_destination_cluster},
+        selected_item = {ClusterBridge.generate_universal_buffer_key},
+        selected_fluid = {ClusterBridge.generate_universal_buffer_key},
+        mode = {ClusterBridge.generate_universal_buffer_key},
+    },
+    -- TODO: finish bridge hooks: Clear selected item & fluid when mode changes??
 }
 
 ---Adds given entity to registry. Is called when any build event is triggered.
@@ -345,6 +368,20 @@ function EntityProcessor.set_output_flag(entity, is_output)
     set_entity_property(entity, "is_output", is_output)
 end
 
+---Sets source template name for given entity
+---@param entity LuaEntity
+---@param template_name string|nil value to set or nil to clear 
+function EntityProcessor.set_source_template(entity, template_name)
+    set_entity_property(entity, "source_template", template_name)
+end
+
+---Sets destination template name for given entity
+---@param entity LuaEntity
+---@param template_name string|nil value to set or nil to clear 
+function EntityProcessor.set_destination_template(entity, template_name)
+    set_entity_property(entity, "destination_template", template_name)
+end
+
 -------------------------------------------------------------------------------
 -- ENTITY DATA GETTERS: PUBLIC API (GUI CALLS)
 -------------------------------------------------------------------------------
@@ -395,6 +432,18 @@ end
 ---@return boolean|nil is_output
 function EntityProcessor.get_output_flag(entity)
     return get_entity_property(entity, "is_output")
+end
+
+---Gets source template name for given entity
+---@param entity LuaEntity
+function EntityProcessor.get_source_template(entity)
+    return get_entity_property(entity, "source_template")
+end
+
+---Gets destination template name for given entity
+---@param entity LuaEntity
+function EntityProcessor.get_destination_template(entity)
+    return get_entity_property(entity, "destination_template")
 end
 
 ---Gets building requests of a given entity. Currently only virtualization

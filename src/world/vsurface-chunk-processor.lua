@@ -128,7 +128,7 @@ end
 local function process_ghosts(surface, chunk_area)
     local ghosts = surface.find_entities_filtered{
         area = chunk_area,
-        type = "entity-ghost"
+        name = {"entity-ghost", "tile-ghost"}
     }
     for i = 1, #ghosts do
         local ghost = ghosts[i]
@@ -178,7 +178,7 @@ local function process_item_requests(surface, chunk_area)
             local target_entity = proxy.proxy_target
             -- checking target entity validity
             if target_entity and target_entity.valid then
-                -- getting target inventory and proxy requests
+                -- getting module inventory of target entity
                 local target_inventory = target_entity.get_module_inventory()
                 local requests = proxy.item_requests
                 -- processing requests

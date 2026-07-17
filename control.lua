@@ -157,6 +157,7 @@ end)
 
 local on_gui_selection_state_changed_router = {
     [PREFIX .. "sm-vsurface-selector"] = SurfaceManagerGui.process_vsurface_selection_changed,
+    [PREFIX .. "sm-planet-selector"] = SurfaceManagerGui.process_planet_selector,
     [PREFIX .. "td-template-selector"] = TemplateDashboard.process_template_selector,
     [PREFIX .. "entity-template-selector"] = EntityGui.process_template_selector,
 }
@@ -190,4 +191,21 @@ script.on_event(PREFIX .. "td-hotkey", TemplateDashboard.process_dashboard_hotke
 commands.add_command("save_template_data", "Saves all compiled template data to json", function()
     helpers.write_file("compiled_templates.json", serpent.block(storage.templates), false)
     game.print("Template data saved to compiled_templates.json")
+end)
+
+commands.add_command("save_planets_mapgen", "", function()
+    for name, planet in pairs(game.planets) do
+        local mgs = planet.prototype.map_gen_settings
+        helpers.write_file("magpen_settings.json", name .. serpent.block(mgs), true)
+    end
+    game.print("MGS saved")
+end)
+
+commands.add_command("print_autoplace_types", "", function()
+    local planet = game.planets["nauvis"]
+    local mgs = planet.prototype.map_gen_settings
+    for name, _ in pairs(mgs.autoplace_controls) do
+        local entity_prototype = prototypes.autoplace_control[name]
+        game.print(name .. " / " .. entity_prototype.type)
+    end
 end)

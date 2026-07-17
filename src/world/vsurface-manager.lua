@@ -45,13 +45,24 @@ end
 -- VSURFACE CREATION/DELETION/LOOKUP
 -------------------------------------------------------------------------------
 
+---Gets all vsurface generation options to choose from
+---@return string[]
+function VSurfaceManager.get_generate_as_options()
+    local options = {}
+    for name, _ in pairs(game.planets) do
+        table.insert(options, name)
+    end
+    return options
+end
+
 ---Checks if a vsurface with specified parameters can be created
 ---@param name string|nil name of the surface
 ---@param width integer|nil width of the surface
 ---@param height integer|nil height of the surface
+---@param generate_as string|nil name of planet surface should be generated as
 ---@return boolean status true if surface can be created
 ---@return string|nil reason why surface cannot be created if any
-function VSurfaceManager.can_create_vsurface(name, width, height)
+function VSurfaceManager.can_create_vsurface(name, width, height, generate_as)
     -- checking that name is not empty
     if not name or not name:match("%S") then
         return false, "Surface name is missing"
@@ -61,14 +72,48 @@ function VSurfaceManager.can_create_vsurface(name, width, height)
         return false, "Surface name not available"
     end
     -- validating surface width
-    if not width or type(width) ~= "number" or width < 1 or width > 512 then
+    if not width or type(width) ~= "number" or width < 1 or width > 1024 then
         return false, "Surface width must be an integer in the range [1, 512]"
     end
     -- validating surface height
-    if not height or type(height) ~= "number" or height < 1 or height > 512 then
+    if not height or type(height) ~= "number" or height < 1 or height > 1024 then
         return false, "Surface height must be an integer in the range [1, 512]"
     end
+    -- checking that generation option is provided
+    if not generate_as then
+        return false, "Generation option is not chosen"
+    end
     return true
+end
+
+---Prepares map gen setting for creation of new surface
+---@param planet_name string|nil name of planet
+---@return MapGenSettings
+local function prepare_mapgen_settings(planet_name)
+    if not planet_name then return {} end
+    local planet = game.planets[planet_name]
+    if not planet then return {} end
+    local mgs = planet.prototype.map_gen_settings
+
+    -- adjusting autoplace controls
+    local _prototypes = prototypes.autoplace_control
+    for name, settings in pairs(mgs.autoplace_controls) do
+        local category = _prototypes[name].category
+        if category == "resource" then
+            settings.richness = 500
+            settings.frequency = 6
+            settings.size = 6
+        else
+            mgs.autoplace_controls[name] = nil
+        end
+    end
+    -- removing generation of enemies
+    mgs.no_enemies_mode = true
+
+    -- changing seed: we do not want a copy of existing planet
+    mgs.seed = math.random(1, 4000000000)
+
+    return mgs
 end
 
 ---Creates a new virtualization surface
@@ -76,24 +121,30 @@ end
 ---@param name string|nil name of new surface
 ---@param width number|nil width of new surface
 ---@param height number|nil height of new surface
+---@param generate_as string|nil name of planet which mapgen should be used
 ---@return boolean true if surface was created
 ---@return string|nil reason why surface was not created if any
-function VSurfaceManager.create_vsurface(player, name, width, height)
+function VSurfaceManager.create_vsurface(player, name, width, height, generate_as)
     -- checking that surface can be created
-    local status, reason = VSurfaceManager.can_create_vsurface(name, width, height)
+    local status, reason = VSurfaceManager.can_create_vsurface(
+        name,
+        width,
+        height,
+        generate_as
+    )
     if not status then return status, reason end
 
     ---@cast name string
     ---@cast width number
     ---@cast height number
 
+    -- preparing mapgen settings
+    local mgs = prepare_mapgen_settings(generate_as)
+    mgs.width, mgs.height = width, height
+
     -- creating surface with specified properties
     local trimmed_name = name:match("^%s*(.-)%s*$")
-    local surface = game.create_surface(trimmed_name, {
-        width = width,
-        height = height,
-        starting_area = 0
-    })
+    local surface = game.create_surface(trimmed_name, mgs)
     -- making sure surface was created and it's valid
     if not surface or not surface.valid then
         return false, "Could not create surface"
@@ -103,12 +154,11 @@ function VSurfaceManager.create_vsurface(player, name, width, height)
     surface.request_to_generate_chunks({0, 0}, chunk_radius)
 
     -- modifying surface attributes
-    surface.generate_with_lab_tiles = true
+    -- surface.generate_with_lab_tiles = true
     surface.always_day = true
-    surface.show_clouds = false
     surface.ignore_surface_conditions = true
 
-    -- adding created surface table with vsurfaces
+    -- adding vsurface data to storage
     storage.vsurfaces[surface.index] = {
         surface_index = surface.index,
         width = width,
@@ -200,7 +250,7 @@ end
 ---@return number energy_drain passive template energy drain
 function VSurfaceManager.calculate_energy_drain(width, height)
     local area = (width or 0) * (height or 0)
-    return 500 * math.sqrt(area) * area
+    return 1e8 + 2500*(area)^(1.09)
 end
 
 ---Calculates passive energy drain of a template for a given surface
@@ -233,16 +283,17 @@ function VSurfaceManager.get_vsurface_building_cost(surface_index)
     -- collecting building cost
     local total_cost = {}
     -- getting array[LuaEntity] containing all entities on given surface
-    local entities = surface.find_entities()
+    local entities = surface.find_entities_filtered({force = "player"})
     for _, entity in ipairs(entities) do
         -- counting only valid entities excluding ghosts
-        if entity and entity.valid and entity.type ~= "entity-ghost" then
+        if entity and entity.valid then
             -- getting array[ItemToPlace] or nil if entity can't be built
             local build_cost = entity.prototype.items_to_place_this
             if build_cost then
                 -- getting LuaQualityPrototype of entity
                 local quality = entity.quality
-                add_to_cost(total_cost, build_cost[1].name, quality.name, build_cost[1].count)
+                local item = build_cost[1]
+                add_to_cost(total_cost, item.name, quality.name, item.count)
                 -- getting LuaInventory or nil if it does not exist
                 local module_inv = entity.get_module_inventory()
                 -- checking if entity has a module inventory and it's not empty
@@ -255,6 +306,19 @@ function VSurfaceManager.get_vsurface_building_cost(surface_index)
             end
         end
     end
+    -- adding tiles created by player to cost
+    local tiles = surface.find_tiles_filtered({has_hidden_tile = true})
+    local quality = "normal"
+    for _, tile in ipairs(tiles) do
+        if tile and tile.valid then
+            local build_cost = tile.prototype.items_to_place_this
+            if build_cost then
+                local item = build_cost[1]
+                add_to_cost(total_cost, item.name, quality, item.count)
+            end
+        end
+    end
+
     return total_cost
 end
 

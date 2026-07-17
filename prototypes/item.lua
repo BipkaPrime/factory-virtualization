@@ -85,6 +85,16 @@ local virtualization_mainframe = {
 	stack_size = 10,
 }
 
+local inter_cluster_bridge = {
+	type = "item",
+	name = PREFIX .. "inter-cluster-bridge",
+	subgroup = "vcluster",
+	icon = iconpath .. "inter-cluster-bridge.png",
+	icon_size = 64,
+	place_result = PREFIX .. "inter-cluster-bridge",
+	stack_size = 10,
+}
+
 data.extend({
 	vcluster_subgroup,
 	template_io_subgroup,
@@ -95,4 +105,5 @@ data.extend({
 	mainframe_fluid_io,
 	mainframe_energy_io,
 	virtualization_mainframe,
+	inter_cluster_bridge,
 })

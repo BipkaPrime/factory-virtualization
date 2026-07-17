@@ -25,6 +25,7 @@ For this table key is player index, value is table containing manager data.
 ---@field new_surface_width LuaGuiElement|nil reference to new surface width textfield
 ---@field new_surface_height LuaGuiElement|nil reference to new surface height textfield
 ---@field new_surface_drain LuaGuiElement|nil reference to new surface energy drain label
+---@field planet_selector LuaGuiElement|nil reference to "generate as" planet selector
 ---@field template_name_textfield LuaGuiElement|nil reference to template name textfield element
 ---@field template_name_label LuaGuiElement|nil refenrence label above template name textfield
 ---@field compile_progressbar LuaGuiElement|nil reference to progressbar indicating surface compilation progress
@@ -41,6 +42,7 @@ For this table key is player index, value is table containing manager data.
 ---@field new_surface_name string|nil last user input into new surface name textfield
 ---@field new_surface_width number|nil last user input into new surface width field
 ---@field new_surface_height number|nil last user input into new surface height field
+---@field selected_planet string|nil planet selector chosen option in new surface interface 
 ---@field template_name string|nil last user input into template name textfield
 ---@field elements SurfaceManagerElements
 
@@ -110,7 +112,6 @@ local function create_create_new_surface_btn(parent, manager_data)
         caption = {"gui-label.create-new-vsurface"},
     }
     create_button.style.horizontally_stretchable = true
-    create_button.style.bottom_margin = 12
     manager_data.elements.create_surface_btn = create_button
     configure_create_new_surface_btn(manager_data)
 end
@@ -151,13 +152,13 @@ end
 ---@param parent LuaGuiElement button will be added here
 ---@param manager_data table vsurface manager data from storage
 local function create_new_surface_name_field(parent, manager_data)
-    parent.add{type = "label", caption = {"gui-label.new-surface-name"}}
-    local textfield = parent.add{
+    local flow = parent.add{type = "flow", direction = "vertical"}
+    flow.add{type = "label", caption = {"gui-label.new-surface-name"}}
+    local textfield = flow.add{
         type = "textfield",
         name = PREFIX .. "sm-new-surface-name",
         lose_focus_on_confirm = true,
     }
-    textfield.style.bottom_margin = 12
     manager_data.elements.new_surface_name_textfield = textfield
     configure_new_surface_name_field(manager_data)
 end
@@ -236,6 +237,30 @@ local function create_new_surface_size_widget(parent, manager_data)
     configure_new_surface_size_widget(manager_data)
 end
 
+---Configures "generate as" planet selector
+---@param manager_data SurfaceManagerData
+local function configure_planet_selector(manager_data)
+    local selector = manager_data.elements.planet_selector
+    ---@cast selector LuaGuiElement
+    if not selector.valid then return end
+    local options = VSurfaceManager.get_generate_as_options()
+    local selected = manager_data.selected_planet
+    CommonGui.configure_selector(selector, options, nil, selected)
+end
+
+---Adds "generate as" planet selector to new surface creation interface
+---@param parent LuaGuiElement element will be added here
+---@param manager_data SurfaceManagerData
+local function create_planet_selector(parent, manager_data)
+    local flow = parent.add{type = "flow", direction = "vertical"}
+    flow.add{type = "label", caption = {"gui-label.generate-as"}}
+    local selector = flow.add{type = "list-box", name = PREFIX .. "sm-planet-selector"}
+    selector.style.width = 200
+    selector.style.height = 100
+    manager_data.elements.planet_selector = selector
+    configure_planet_selector(manager_data)
+end
+
 ---Configures confirm create new surface button.
 ---@param manager_data SurfaceManagerData
 local function configure_new_surface_confirm_btn(manager_data)
@@ -248,7 +273,8 @@ local function configure_new_surface_confirm_btn(manager_data)
     local can_create, response = VSurfaceManager.can_create_vsurface(
         manager_data.new_surface_name,
         manager_data.new_surface_width,
-        manager_data.new_surface_height
+        manager_data.new_surface_height,
+        manager_data.selected_planet
     )
 
     button.enabled = can_create
@@ -318,7 +344,6 @@ local function create_template_name_textfield(parent, manager_data)
     }
     manager_data.elements.template_name_textfield = textfield
     manager_data.elements.template_name_label = label
-    textfield.style.bottom_margin = 12
     configure_template_name_textfield(manager_data)
 end
 
@@ -410,7 +435,6 @@ local function create_compilation_progressbar(parent, manager_data)
     local label = parent.add{type = "label"}
     local bar = parent.add{type = "progressbar"}
     bar.style.bar_width = 12
-    bar.style.bottom_margin = 12
     manager_data.elements.compile_bar_label = label
     manager_data.elements.compile_progressbar = bar
     configure_compilation_progressbar(manager_data)
@@ -477,6 +501,7 @@ local function update_right_frame(manager_data)
         -- new vsurface creation gui
         create_new_surface_name_field(right_frame, manager_data)
         create_new_surface_size_widget(right_frame, manager_data)
+        create_planet_selector(right_frame, manager_data)
         create_new_surface_confirm_btn(right_frame, manager_data)
     elseif manager_data.selected_vsurface then
         -- existing vsurface compilation gui
@@ -573,6 +598,26 @@ function SurfaceManagerGui.process_new_surface_height_changed(event)
     configure_new_surface_confirm_btn(manager_data)
 end
 
+---Handles "generate as" planet selection being changed
+---@param event EventData.on_gui_selection_state_changed
+function SurfaceManagerGui.process_planet_selector(event)
+    ---@type SurfaceManagerData
+    local manager_data = storage.surface_manager[event.player_index]
+    local selector = event.element
+    local old_name = manager_data.selected_planet
+    local new_name = selector.items[selector.selected_index]
+    ---@cast new_name string|nil
+
+    -- if selected item is clicked again, we want to unselect it
+    if old_name == new_name then
+        manager_data.selected_planet = nil
+        configure_planet_selector(manager_data)
+    else
+        manager_data.selected_planet = new_name
+    end
+    configure_new_surface_confirm_btn(manager_data)
+end
+
 ---Handles confirm create new surface button being pressed. Requests surface creation.
 ---Closes opened window because creation function moves camera to created surface.
 ---@param event EventData.on_gui_click
@@ -589,13 +634,15 @@ function SurfaceManagerGui.process_new_surface_confirm_btn(event)
         player,
         manager_data.new_surface_name,
         manager_data.new_surface_width,
-        manager_data.new_surface_height
+        manager_data.new_surface_height,
+        manager_data.selected_planet
     )
 
     -- cleaning up manager data
     manager_data.new_surface_name = nil
     manager_data.new_surface_width = nil
     manager_data.new_surface_height = nil
+    manager_data.selected_planet = nil
 end
 
 ---Handles template name textfield being changed. Saves user input.
