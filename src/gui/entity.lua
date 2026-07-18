@@ -31,16 +31,26 @@ Like this: storage.entity_gui.currently_opened = {1 = true, 7 = true, 123 = true
 ---@field choose_fluid_button LuaGuiElement|nil EntityWithFluidSelection
 ---@field input_radiobutton LuaGuiElement|nil EntityWithIOSelection
 ---@field output_radiobutton LuaGuiElement|nil EntityWithIOSelection
+---@field item_mode_radiobutton LuaGuiElement|nil InterClusterBridge
+---@field fluid_mode_radiobutton LuaGuiElement|nil InterClusterBridge
+---@field energy_mode_radiobutton LuaGuiElement|nil InterClusterBridge
+---@field source_cluster_search LuaGuiElement|nil InterClusterBridge
+---@field source_cluster_selector LuaGuiElement|nil InterClusterBridge
+---@field destination_cluster_search LuaGuiElement|nil InterClusterBridge
+---@field destination_cluster_selector LuaGuiElement|nil InterClusterBridge
 
 ---Table describing entity GUI state
 ---@class EntityGuiData
 ---@field entity LuaEntity entity that was opened to create this gui
 ---@field template_search_query string|nil user input into template search
+---@field source_cluster_query string|nil user input into source cluster search
+---@field destination_cluster_query string|nil user input into destination cluster search
 ---@field elements EntityGuiElements
 
 
 local EntityProcessor = require("src.world.entity-processor")
 local TemplateCompiler = require("src.simulation.template-compiler")
+local ClusterProcessor = require("src.simulation.cluster-processor")
 local CommonGui = require("src.gui.common")
 local ClusterInfo = require("src.gui.cluster-info")
 
@@ -215,12 +225,9 @@ local function configure_choose_item_button(gui_data)
     if not button.valid then return end
     -- setting selected item according to entity processor
     local item = EntityProcessor.get_selected_item(gui_data.entity)
-    if item then
-        button.elem_value = {
-            name = item.name,
-            quality = item.quality
-        }
-    end
+    button.elem_value = item and {name = item.name, quality = item.quality} or nil
+    -- checking if button should be enabled
+    button.enabled = EntityProcessor.get_item_selection_enabled(gui_data.entity)
 end
 
 ---Adds choose elem button with type "item-with-quality"
@@ -229,12 +236,12 @@ end
 local function create_choose_item_button(parent, gui_data)
     local row = parent.add{type = "flow", direction = "horizontal"}
     row.style.vertical_align = "center"
-    row.add{type="label", caption={"gui-label.select-item"}}
     local button = row.add{
         type = "choose-elem-button",
         name = PREFIX .. "choose-item-button",
         elem_type = "item-with-quality",
     }
+    row.add{type="label", caption={"gui-label.select-item"}}
     gui_data.elements.choose_item_button = button
     configure_choose_item_button(gui_data)
 end
@@ -261,19 +268,24 @@ local function configure_choose_fluid_button(gui_data)
     if not button.valid then return end
     -- setting selected fluid according to entity processor
     local fluid = EntityProcessor.get_selected_fluid(gui_data.entity)
-    if fluid then button.elem_value = fluid end
+    button.elem_value = fluid
+
+    -- checking if button should be enabled
+    button.enabled = EntityProcessor.get_fluid_selection_enabled(gui_data.entity)
 end
 
--- Adds choose elem button with type "fluid"
+---Adds choose elem button with type "fluid"
+---@param parent LuaGuiElement button will be added here
+---@param gui_data EntityGuiData
 local function create_choose_fluid_button(parent, gui_data)
     local row = parent.add{type = "flow", direction = "horizontal"}
     row.style.vertical_align = "center"
-    row.add{type = "label", caption = {"gui-label.select-fluid"}}
     local button = row.add{
         type = "choose-elem-button",
         name = PREFIX .. "choose-fluid-button",
         elem_type = "fluid",
     }
+    row.add{type = "label", caption = {"gui-label.select-fluid"}}
     gui_data.elements.choose_fluid_button = button
     configure_choose_fluid_button(gui_data)
 end
@@ -289,6 +301,230 @@ function EntityGui.process_choose_fluid_button(event)
     local fluid_name = event.element.elem_value
     ---@diagnostic disable-next-line: param-type-mismatch
     EntityProcessor.set_selected_fluid(gui_data.entity, fluid_name)
+end
+
+---Configures 3 radio buttons used for mode selection of an entity
+---@param gui_data EntityGuiData
+local function configure_mode_selection_widget(gui_data)
+    local item_button = gui_data.elements.item_mode_radiobutton
+    local fluid_button = gui_data.elements.fluid_mode_radiobutton
+    local energy_button = gui_data.elements.energy_mode_radiobutton
+    ---@cast item_button LuaGuiElement
+    ---@cast fluid_button LuaGuiElement
+    ---@cast energy_button LuaGuiElement
+    if not item_button.valid or not fluid_button.valid or not energy_button.valid then return end
+
+    local mode = EntityProcessor.get_mode(gui_data.entity)
+
+    item_button.state = (mode == "item")
+    fluid_button.state = (mode == "fluid")
+    energy_button.state = (mode == "energy")
+end
+
+---Adds 3 radio buttons used for mode selection of an entity
+---@param parent LuaGuiElement widget will be added here
+---@param gui_data EntityGuiData
+local function create_mode_selection_widget(parent, gui_data)
+    local main_flow = parent.add{type = "flow", direction = "vertical"}
+    main_flow.add{type = "label", caption = {"gui-label.operation-mode"}}
+
+    -- item mode radiobutton
+    local row1 = main_flow.add{type = "flow", direction = "horizontal"}
+    row1.style.vertical_align = "center"
+    local button1 = row1.add{
+        type = "radiobutton",
+        name = PREFIX .. "item-mode-radiobutton",
+        state = false
+    }
+    row1.add{type = "label", caption = {"gui-label.item"}}
+    gui_data.elements.item_mode_radiobutton = button1
+
+    -- fluid mode radiobutton
+    local row2 = main_flow.add{type = "flow", direction = "horizontal"}
+    row2.style.vertical_align = "center"
+    local button2 = row2.add{
+        type = "radiobutton",
+        name = PREFIX .. "fluid-mode-radiobutton",
+        state = false
+    }
+    row2.add{type = "label", caption = {"gui-label.fluid"}}
+    gui_data.elements.fluid_mode_radiobutton = button2
+
+    -- energy mode radiobutton
+    local row3 = main_flow.add{type = "flow", direction = "horizontal"}
+    row3.style.vertical_align = "center"
+    local button3 = row3.add{
+        type = "radiobutton",
+        name = PREFIX .. "energy-mode-radiobutton",
+        state = false
+    }
+    row3.add{type = "label", caption = {"gui-label.energy"}}
+    gui_data.elements.energy_mode_radiobutton = button3
+
+    configure_mode_selection_widget(gui_data)
+end
+
+---Handles any of operation mode radiobuttons being pressed
+---@param player_index number unique player identifier
+---@param mode "item"|"fluid"|"energy"
+local function process_operation_mode_radiobutton(player_index, mode)
+    local gui_data = storage.entity_gui[player_index]
+    local status = assert_entity_validity(player_index, gui_data)
+    if not status then return end
+    EntityProcessor.set_mode(gui_data.entity, mode)
+    configure_mode_selection_widget(gui_data)
+    configure_choose_fluid_button(gui_data)
+    configure_choose_item_button(gui_data)
+end
+
+---Handles item mode radiobutton being pressed
+---@param event EventData.on_gui_checked_state_changed
+function EntityGui.process_item_mode_radiobutton(event)
+    process_operation_mode_radiobutton(event.player_index, "item")
+end
+
+---Handles fluid mode radiobutton being pressed
+---@param event EventData.on_gui_checked_state_changed
+function EntityGui.process_fluid_mode_radiobutton(event)
+    process_operation_mode_radiobutton(event.player_index, "fluid")
+end
+
+---Handles energy mode radiobutton being pressed
+---@param event EventData.on_gui_checked_state_changed
+function EntityGui.process_energy_mode_radiobutton(event)
+    process_operation_mode_radiobutton(event.player_index, "energy")
+end
+
+---Configures source cluster selector
+---@param gui_data EntityGuiData
+local function configure_source_selector(gui_data)
+    ---@type LuaGuiElement
+    local selector = gui_data.elements.source_cluster_selector
+    if not selector.valid then return end
+    local surface_index = gui_data.entity.surface_index
+    local options = ClusterProcessor.get_surface_clusters(surface_index)
+    local query = gui_data.source_cluster_query
+    local selected = EntityProcessor.get_source_template(gui_data.entity)
+
+    CommonGui.configure_selector(selector, options, query, selected)
+end
+
+---Configures destination cluster selector
+---@param gui_data EntityGuiData
+local function configure_destination_selector(gui_data)
+    ---@type LuaGuiElement
+    local selector = gui_data.elements.destination_cluster_selector
+    if not selector.valid then return end
+    local surface_index = gui_data.entity.surface_index
+    local options = ClusterProcessor.get_surface_clusters(surface_index)
+    local query = gui_data.destination_cluster_query
+    local selected = EntityProcessor.get_destination_template(gui_data.entity)
+    CommonGui.configure_selector(selector, options, query, selected)
+end
+
+---Configures "source" and "destination" cluster selectors and their searchboxes
+---@param gui_data EntityGuiData
+local function configure_cluster_selection_widget(gui_data)
+    local source_search = gui_data.elements.source_cluster_search
+    local destination_search = gui_data.elements.destination_cluster_search
+    ---@cast source_search LuaGuiElement
+    ---@cast destination_search LuaGuiElement
+    if not source_search.valid or not destination_search.valid then return end
+    -- loading last user input to searchfields
+    source_search.text = gui_data.source_cluster_query or ""
+    destination_search.text = gui_data.destination_cluster_query or ""
+
+    configure_source_selector(gui_data)
+    configure_destination_selector(gui_data)
+end
+
+---Adds "source" and "destination" cluster selector widgets
+---@param parent LuaGuiElement
+---@param gui_data EntityGuiData
+local function create_cluster_selection_widget(parent, gui_data)
+    -- source cluster selection
+    local source_search, source_selector = CommonGui.create_selection_widget(
+        parent,
+        PREFIX .. "source-cluster-search",
+        PREFIX .. "source-cluster-selector",
+        {"gui-label.select-source-cluster"}
+    )
+    gui_data.elements.source_cluster_search = source_search
+    gui_data.elements.source_cluster_selector = source_selector
+
+    -- destination cluster selection
+    local destination_search, destination_selector = CommonGui.create_selection_widget(
+        parent,
+        PREFIX .. "destination-cluster-search",
+        PREFIX .. "destination-cluster-selector",
+        {"gui-label.select-destination-cluster"}
+    )
+    gui_data.elements.destination_cluster_search = destination_search
+    gui_data.elements.destination_cluster_selector = destination_selector
+
+    configure_cluster_selection_widget(gui_data)
+end
+
+---Handles source selection search being changed
+---@param event EventData.on_gui_text_changed
+function EntityGui.process_source_cluster_search(event)
+    ---@type EntityGuiData
+    local gui_data = storage.entity_gui[event.player_index]
+    gui_data.source_cluster_query = event.element.text
+    configure_source_selector(gui_data)
+end
+
+---Handles destination selection search being changed
+---@param event EventData.on_gui_text_changed
+function EntityGui.process_destination_cluster_search(event)
+    ---@type EntityGuiData
+    local gui_data = storage.entity_gui[event.player_index]
+    gui_data.destination_cluster_query = event.element.text
+    configure_destination_selector(gui_data)
+end
+
+---Handles source cluster selection being changed
+---@param event EventData.on_gui_selection_state_changed
+function EntityGui.process_source_cluster_selector(event)
+    local gui_data = storage.entity_gui[event.player_index]
+    local status = assert_entity_validity(event.player_index, gui_data)
+    if not status then return end
+
+    local entity = gui_data.entity
+    local old_selection = EntityProcessor.get_source_template(entity)
+    local element = event.element
+    local new_selection = element.items[element.selected_index]
+    ---@cast new_selection string|nil
+
+    -- if selected item is clicked again, we want to unselect it
+    if old_selection == new_selection then
+        EntityProcessor.set_source_template(entity, nil)
+        configure_source_selector(gui_data)
+    else
+        EntityProcessor.set_source_template(entity, new_selection)
+    end
+end
+
+---Handles destination cluster selection being changed
+---@param event EventData.on_gui_selection_state_changed
+function EntityGui.process_destination_cluster_selector(event)
+    local gui_data = storage.entity_gui[event.player_index]
+    local status = assert_entity_validity(event.player_index, gui_data)
+    if not status then return end
+
+    local entity = gui_data.entity
+    local old_selection = EntityProcessor.get_destination_template(entity)
+    local element = event.element
+    local new_selection = element.items[element.selected_index]
+    ---@cast new_selection string|nil
+
+    -- if selected item is clicked again, we want to unselect it
+    if old_selection == new_selection then
+        EntityProcessor.set_destination_template(entity, nil)
+        configure_destination_selector(gui_data)
+    else
+        EntityProcessor.set_destination_template(entity, new_selection)
+    end
 end
 
 -------------------------------------------------------------------------------
@@ -380,7 +616,7 @@ local function create_entity_gui_base(player, entity)
         title
     )
     gui_data.elements.main_window = main_window
-    main_window.style.height = 500
+    --main_window.style.height = 500
 
     -- "opening" this window for player
     player.opened = main_window
@@ -511,6 +747,18 @@ local function create_virtualization_mainframe_gui(player, entity)
     mainframe_updater(gui_data)
 end
 
+---Creates inter cluster bridge interface
+---@param player LuaPlayer assumed to be valid
+---@param entity LuaEntity assumed to be valid
+local function create_inter_cluster_bridge_gui(player, entity)
+    local gui_data = create_entity_gui_base(player, entity)
+    local left_frame = gui_data.elements.left_frame
+    create_mode_selection_widget(left_frame, gui_data)
+    create_choose_item_button(left_frame, gui_data)
+    create_choose_fluid_button(left_frame, gui_data)
+    create_cluster_selection_widget(left_frame, gui_data)
+end
+
 -------------------------------------------------------------------------------
 -- OPEN/CLOSE ENTITY GUI
 -------------------------------------------------------------------------------
@@ -524,6 +772,7 @@ local entity_gui_router = {
     [PREFIX .. "mainframe-fluid-io"] = create_mainframe_fluid_io_gui,
     [PREFIX .. "mainframe-energy-io"] = create_mainframe_energy_io_gui,
     [PREFIX .. "virtualization-mainframe"] = create_virtualization_mainframe_gui,
+    [PREFIX .. "inter-cluster-bridge"] = create_inter_cluster_bridge_gui,
 }
 ---Handles gui being opened by the player. If entity gui from the table above is
 ---opened, closes it's vanilla gui and opens a custom one.

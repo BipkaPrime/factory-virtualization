@@ -150,6 +150,8 @@ local on_gui_text_changed_router = {
     [PREFIX .. "sm-template-name"] = SurfaceManagerGui.process_template_name_changed,
     [PREFIX .. "td-template-search"] = TemplateDashboard.process_template_search,
     [PREFIX .. "entity-template-search"] = EntityGui.process_template_searchfield,
+    [PREFIX .. "source-cluster-search"] = EntityGui.process_source_cluster_search,
+    [PREFIX .. "destination-cluster-search"] = EntityGui.process_destination_cluster_search,
 }
 script.on_event(defines.events.on_gui_text_changed, function(event)
     element_name_router(event, on_gui_text_changed_router)
@@ -160,6 +162,8 @@ local on_gui_selection_state_changed_router = {
     [PREFIX .. "sm-planet-selector"] = SurfaceManagerGui.process_planet_selector,
     [PREFIX .. "td-template-selector"] = TemplateDashboard.process_template_selector,
     [PREFIX .. "entity-template-selector"] = EntityGui.process_template_selector,
+    [PREFIX .. "source-cluster-selector"] = EntityGui.process_source_cluster_selector,
+    [PREFIX .. "destination-cluster-selector"] = EntityGui.process_destination_cluster_selector,
 }
 script.on_event(defines.events.on_gui_selection_state_changed, function(event)
     element_name_router(event, on_gui_selection_state_changed_router)
@@ -176,6 +180,9 @@ end)
 local on_gui_checked_state_changed_router = {
     [PREFIX .. "input-radiobutton"] = EntityGui.process_input_chosen,
     [PREFIX .. "output-radiobutton"] = EntityGui.process_output_chosen,
+    [PREFIX .. "item-mode-radiobutton"] = EntityGui.process_item_mode_radiobutton,
+    [PREFIX .. "fluid-mode-radiobutton"] = EntityGui.process_fluid_mode_radiobutton,
+    [PREFIX .. "energy-mode-radiobutton"] = EntityGui.process_energy_mode_radiobutton,
 }
 script.on_event(defines.events.on_gui_checked_state_changed, function(event)
     element_name_router(event, on_gui_checked_state_changed_router)

@@ -26,9 +26,9 @@ It turns out that this sum can be calculated in O(1) time if we have access to t
 center coordinates, total weight, weighted sum of (x^2 + y^2) for all members.
 --]]
 
----@alias ClusterIdString string template_name//surface_name
+---@alias ClusterIdString string template_name//surface_index
 
----Table describing one stored type in cluster buffer. 
+---Table describing one stored type in cluster buffer.
 ---@class ClusterBufferEntry
 ---@field current number currently stored amount
 ---@field per_craft number amount required per 1 craft
@@ -47,7 +47,8 @@ center coordinates, total weight, weighted sum of (x^2 + y^2) for all members.
 
 ---Table describing one virtualization cluster
 ---@class ClusterData
----@field cluster_id string "template_name//surface_name"
+---@field cluster_id string "template_name//surface_index"
+---@field template_name string name of template for this cluster
 ---@field surface_index number unique surface identifier
 ---@field research_producer boolean true if this cluster produces research
 ---@field input table<BufferKeyString, ClusterBufferEntry> cluster input buffer
@@ -183,10 +184,8 @@ end
 ---@param entity LuaEntity entity for which cluster is created. Assumed to be valid
 ---@return ClusterData cluster existing or created cluster
 local function get_or_create_cluster(template, template_name, entity)
-    local surface_name = entity.surface.name
-
     -- retrieving vcluster from storage if it exists
-    local cluster_id = template_name .. "//" .. surface_name
+    local cluster_id = template_name .. "//" .. entity.surface_index
     local cluster = get_cluster(cluster_id)
     if cluster then return cluster end
 
@@ -194,6 +193,7 @@ local function get_or_create_cluster(template, template_name, entity)
     ---@type ClusterData
     local new_cluster = {
         cluster_id = cluster_id,
+        template_name = template_name,
         surface_index = entity.surface_index,
         research_producer = false,
         input = {},
@@ -212,6 +212,23 @@ local function get_or_create_cluster(template, template_name, entity)
     add_template_data(new_cluster, template)
     add_cluster(new_cluster, cluster_id)
     return new_cluster
+end
+
+-------------------------------------------------------------------------------
+-- API for GUI
+-------------------------------------------------------------------------------
+
+---Gets all clusters that exist on given surface
+---@param surface_index number unique surface identifier
+function ClusterProcessor.get_surface_clusters(surface_index)
+    local clusters = storage.vclusters.array
+    local result = {}
+    for _, cluster in pairs(clusters) do
+        if cluster.surface_index == surface_index then
+            table.insert(result, cluster.template_name)
+        end
+    end
+    return result
 end
 
 -------------------------------------------------------------------------------
@@ -314,6 +331,9 @@ function ClusterProcessor.add_to_cluster(entity, template_name)
     -- getting appropriate cluster for entity
     local cluster = get_or_create_cluster(template, template_name, entity)
 
+    -- avoiding duplicates: if entity is already in this cluster, return
+    if cluster.members[entity.unit_number] then return end
+
     -- updating member coordinate related data
     local x, y = entity.position.x, entity.position.y
     local name = entity.name
@@ -346,6 +366,8 @@ end
 function ClusterProcessor.remove_from_cluster(cluster, unit_number)
     if not cluster then return end
     local member_data = cluster.members[unit_number]
+    -- if entity is not found in the cluster, return
+    if not member_data then return end
     cluster.members[unit_number] = nil
 
     -- correcting member counts

@@ -107,7 +107,7 @@ When entity is constructed/revived, ghost tags migrate to entity regstry.
 ---@field destination_template string|nil
 ---@field source_cluster ClusterData|nil
 ---@field destination_cluster ClusterData|nil
----@field mode "item"|"fluid"|"energy"
+---@field mode "item"|"fluid"|"energy"|nil
 
 ---Union of all instances of entity properties
 ---@alias EntityProperties
@@ -118,6 +118,7 @@ When entity is constructed/revived, ghost tags migrate to entity regstry.
 ---|TFluidIOProperties
 ---|TEnergyIOProperties
 ---|MainframeProperties
+---|ClusterBridgeProperties
 
 
 local ClusterProcessor = require("src.simulation.cluster-processor")
@@ -177,6 +178,12 @@ local function move_to_new_cluster(properties)
     properties.cluster = new_cluster
 end
 
+---Function that ensures operation mode is not nil
+---@param properties ClusterBridgeProperties
+local function initialize_operation_mode(properties)
+    if not properties.mode then properties.mode = "item" end
+end
+
 -------------------------------------------------------------------------------
 -- GENERAL REGISTRY OPERATIONS: ADD/DELETE/LOOKUP
 -------------------------------------------------------------------------------
@@ -199,6 +206,9 @@ local registration_hooks = {
     },
     [PREFIX .. "mainframe-item-io"] = {
         cache_inventory_object,
+    },
+    [PREFIX .. "inter-cluster-bridge"] = {
+        initialize_operation_mode
     },
 }
 
@@ -230,7 +240,6 @@ local field_setting_hooks = {
         selected_fluid = {ClusterBridge.generate_universal_buffer_key},
         mode = {ClusterBridge.generate_universal_buffer_key},
     },
-    -- TODO: finish bridge hooks: Clear selected item & fluid when mode changes??
 }
 
 ---Adds given entity to registry. Is called when any build event is triggered.
@@ -249,14 +258,6 @@ function EntityProcessor.register_entity(entity, tags)
         unit_number = entity.unit_number,
     }
 
-    -- performing necessery on-registration actions
-    local hooks = registration_hooks[entity.name]
-    if hooks then
-        for _, hook in ipairs(hooks) do
-            hook(properties)
-        end
-    end
-
     -- adding event tags to properties
     if tags and tags[ENTITY_TAG_KEY] then
         local relevant_tags = tags[ENTITY_TAG_KEY]
@@ -271,20 +272,30 @@ function EntityProcessor.register_entity(entity, tags)
         end
     end
 
+    -- performing necessery on-registration actions
+    local hooks = registration_hooks[entity.name]
+    if hooks then
+        for _, hook in ipairs(hooks) do
+            hook(properties)
+        end
+    end
+
     -- adding table to registry
     table.insert(reg.array, properties)
     reg.lookup[entity.unit_number] = #reg.array
 end
 
 ---Removes entity from registry. Used for automatic garbage collection.
----@param unit_number integer unique entity identifier
+---@param unit_number number unique entity identifier
 local function unregister_entity(unit_number)
     local reg = storage.entity_registry
     local index = reg.lookup[unit_number]
 
-    -- removing entity from vcluster
+    -- removing entity from all clusters
     local properties = reg.array[index]
     ClusterProcessor.remove_from_cluster(properties.cluster, properties.unit_number)
+    ClusterProcessor.remove_from_cluster(properties.source_cluster, properties.unit_number)
+    ClusterProcessor.remove_from_cluster(properties.destination_cluster, properties.unit_number)
 
     -- rewriting element we want to delete with the last one
     local last_element = reg.array[#reg.array]
@@ -296,7 +307,7 @@ local function unregister_entity(unit_number)
     reg.lookup[unit_number] = nil
 end
 
----@param unit_number integer unique entity identifier
+---@param unit_number number unique entity identifier
 ---@return EntityProperties|nil properties entity data from registry
 local function get_entity_data(unit_number)
     local reg = storage.entity_registry
@@ -313,7 +324,8 @@ end
 ---@param entity LuaEntity entity for which data should be retrieved
 ---@param field string field in properties that will be set
 ---@param value nil|boolean|table|string value to write in properties[field]
-local function set_entity_property(entity, field, value)
+---@param ignore_hooks boolean|nil true to ignore field setting hooks
+local function set_entity_property(entity, field, value, ignore_hooks)
     if not entity.valid then return end
     if entity.name == "entity-ghost" then
         -- entity is a ghost data stored in tags
@@ -326,6 +338,7 @@ local function set_entity_property(entity, field, value)
         local properties = get_entity_data(entity.unit_number)
         if not properties then return end
         properties[field] = value
+        if ignore_hooks then return end
         local entity_hooks = field_setting_hooks[entity.name]
         if not entity_hooks then return end
         local hooks = entity_hooks[field]
@@ -382,6 +395,21 @@ function EntityProcessor.set_destination_template(entity, template_name)
     set_entity_property(entity, "destination_template", template_name)
 end
 
+---Sets mode of operation for given entity
+---@param entity LuaEntity
+---@param mode "item"|"fluid"|"energy" mode of operation
+function EntityProcessor.set_mode(entity, mode)
+    -- when changing mode we also want to cleanup unused information
+    -- for instance, when item mode is chosen, selected fluid is cleared
+    if mode ~= "item" then
+        set_entity_property(entity, "selected_item", nil, true)
+    end
+    if mode ~= "fluid" then
+        set_entity_property(entity, "selected_fluid", nil, true)
+    end
+    set_entity_property(entity, "mode", mode)
+end
+
 -------------------------------------------------------------------------------
 -- ENTITY DATA GETTERS: PUBLIC API (GUI CALLS)
 -------------------------------------------------------------------------------
@@ -436,14 +464,45 @@ end
 
 ---Gets source template name for given entity
 ---@param entity LuaEntity
+---@return string|nil template_name
 function EntityProcessor.get_source_template(entity)
     return get_entity_property(entity, "source_template")
 end
 
 ---Gets destination template name for given entity
 ---@param entity LuaEntity
+---@return string|nil template_name
 function EntityProcessor.get_destination_template(entity)
     return get_entity_property(entity, "destination_template")
+end
+
+---Gets mode of operation for a given entity
+---If mode is not in properties, returns "item"
+---@param entity LuaEntity
+---@return "item"|"fluid"|"energy" mode
+function EntityProcessor.get_mode(entity)
+    local mode = get_entity_property(entity, "mode")
+    return mode or "item"
+end
+
+---Decides if item selection should be enabled for given entity.
+---Always returns true except for inter cluster bridge with mode ~= "item"
+---@return boolean is_enabled true if item selection should be enabled
+function EntityProcessor.get_item_selection_enabled(entity)
+    local name = (entity.name == "entity-ghost" and entity.ghost_name) or entity.name
+    if name ~= PREFIX .. "inter-cluster-bridge" then return true end
+    if EntityProcessor.get_mode(entity) == "item" then return true end
+    return false
+end
+
+---Decides if fluid selection should be enabled for given entity.
+---Always returns true except for inter cluster bridge with mode ~= "fluid"
+---@return boolean is_enabled true if fluid selection should be enabled
+function EntityProcessor.get_fluid_selection_enabled(entity)
+    local name = (entity.name == "entity-ghost" and entity.ghost_name) or entity.name
+    if name ~= PREFIX .. "inter-cluster-bridge" then return true end
+    if EntityProcessor.get_mode(entity) == "fluid" then return true end
+    return false
 end
 
 ---Gets building requests of a given entity. Currently only virtualization
