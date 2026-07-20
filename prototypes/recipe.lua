@@ -110,7 +110,53 @@ local inter_cluster_bridge = {
 	results = {{type = "item", name = PREFIX .. "inter-cluster-bridge", amount = 1}},
 }
 
+local computation_core_mk1 = {
+	type = "recipe",
+	name = PREFIX .. "computation-core-mk1",
+	enabled = true,
+	ingredients = {
+		{type = "item", name = "processing-unit", amount = 500},
+		{type = "item", name = "advanced-circuit", amount = 500},
+		{type = "item", name = "low-density-structure", amount = 200},
+		{type = "item", name = "speed-module-3", amount = 100},
+		{type = "item", name = "efficiency-module-3", amount = 100},
+	},
+	energy_required = 100,
+	stack_size = 10,
+	results = {{type = "item", name = PREFIX .. "computation-core-mk1", amount = 1}},
+}
 
+local computation_core_mk2 = {
+	type = "recipe",
+	name = PREFIX .. "computation-core-mk2",
+	enabled = true,
+	ingredients = {
+		{type = "item", name = "processing-unit", amount = 500},
+		{type = "item", name = "advanced-circuit", amount = 500},
+		{type = "item", name = "low-density-structure", amount = 200},
+		{type = "item", name = "speed-module-3", amount = 100},
+		{type = "item", name = "efficiency-module-3", amount = 100},
+	},
+	energy_required = 100,
+	stack_size = 10,
+	results = {{type = "item", name = PREFIX .. "computation-core-mk2", amount = 1}},
+}
+
+local computation_core_mk3 = {
+	type = "recipe",
+	name = PREFIX .. "computation-core-mk3",
+	enabled = true,
+	ingredients = {
+		{type = "item", name = "processing-unit", amount = 500},
+		{type = "item", name = "advanced-circuit", amount = 500},
+		{type = "item", name = "low-density-structure", amount = 200},
+		{type = "item", name = "speed-module-3", amount = 100},
+		{type = "item", name = "efficiency-module-3", amount = 100},
+	},
+	energy_required = 100,
+	stack_size = 10,
+	results = {{type = "item", name = PREFIX .. "computation-core-mk3", amount = 1}},
+}
 
 data:extend({
 	template_item_io,
@@ -121,4 +167,7 @@ data:extend({
 	mainframe_energy_io,
 	virtualization_mainframe,
 	inter_cluster_bridge,
+	computation_core_mk1,
+	computation_core_mk2,
+	computation_core_mk3,
 })

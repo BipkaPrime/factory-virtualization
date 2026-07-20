@@ -95,6 +95,34 @@ local inter_cluster_bridge = {
 	stack_size = 10,
 }
 
+local computation_core_mk1 = {
+	type = "item",
+	name = PREFIX .. "computation-core-mk1",
+	subgroup = "vcluster",
+	icon = iconpath .. "computation-core-mk1.png",
+	icon_size = 64,
+	stack_size = 10,
+}
+
+local computation_core_mk2 = {
+	type = "item",
+	name = PREFIX .. "computation-core-mk2",
+	subgroup = "vcluster",
+	icon = iconpath .. "computation-core-mk2.png",
+	icon_size = 64,
+	stack_size = 10,
+}
+
+local computation_core_mk3 = {
+	type = "item",
+	name = PREFIX .. "computation-core-mk3",
+	subgroup = "vcluster",
+	icon = iconpath .. "computation-core-mk3.png",
+	icon_size = 64,
+	stack_size = 10,
+}
+
+
 data.extend({
 	vcluster_subgroup,
 	template_io_subgroup,
@@ -106,4 +134,7 @@ data.extend({
 	mainframe_energy_io,
 	virtualization_mainframe,
 	inter_cluster_bridge,
+	computation_core_mk1,
+	computation_core_mk2,
+	computation_core_mk3,
 })
