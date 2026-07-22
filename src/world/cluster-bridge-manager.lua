@@ -10,30 +10,25 @@ local ClusterBridge = {}
 
 
 local flow_limits = {
-    [PREFIX .. "inter-cluster-bridge"] = {
-        item = 1e5,
+    [PREFIX .. "inter-cluster-bridge-mk1"] = {
+        item = 1e6,
         fluid = 1e6,
         energy = 1e12,
-    }
+    },
+    [PREFIX .. "inter-cluster-bridge-mk2"] = {
+        item = 1e9,
+        fluid = 1e9,
+        energy = 1e15,
+    },
+    [PREFIX .. "inter-cluster-bridge-mk3"] = {
+        item = 1e12,
+        fluid = 1e12,
+        energy = 1e18,
+    },
 }
 
----Generates a buffer key for cluster bridge based on operation mode
----@param properties ClusterBridgeProperties
-function ClusterBridge.generate_universal_buffer_key(properties)
-    local mode = properties.mode
-    if mode == "item" then
-        local item = properties.selected_item
-        properties.buffer_key = item and (item.name .. "//" .. item.quality) or nil
-    elseif mode == "fluid" then
-        local fluid = properties.selected_fluid
-        properties.buffer_key = fluid and fluid.name or nil
-    else
-        properties.buffer_key = "electric_energy"
-    end
-end
-
 ---Function that is called when source cluster is changed
----@param properties ClusterBridgeProperties
+---@param properties InterClusterBridgeProperties
 function ClusterBridge.change_source_cluster(properties)
     ClusterProcessor.remove_from_cluster(
         properties.source_cluster,
@@ -46,7 +41,7 @@ function ClusterBridge.change_source_cluster(properties)
 end
 
 ---Function that is called when destination cluster is changed
----@param properties ClusterBridgeProperties
+---@param properties InterClusterBridgeProperties
 function ClusterBridge.change_destination_cluster(properties)
     ClusterProcessor.remove_from_cluster(
         properties.destination_cluster,
@@ -59,7 +54,7 @@ function ClusterBridge.change_destination_cluster(properties)
 end
 
 ---On-tick updater for inter cluster bridge
----@param properties ClusterBridgeProperties
+---@param properties InterClusterBridgeProperties
 function ClusterBridge.process_bridge(properties)
     local source_cluster = properties.source_cluster
     local destination_cluster = properties.destination_cluster
@@ -73,7 +68,6 @@ function ClusterBridge.process_bridge(properties)
     local input_limit = ClusterProcessor.get_input_space(destination_cluster, buffer_key)
     local transfered = math.min(flow_limit, output_limit, input_limit)
     if transfered <= 0 then return end
-
 
     ClusterProcessor.remove_from_buffer(source_cluster, buffer_key, transfered)
     ClusterProcessor.add_to_buffer(destination_cluster, buffer_key, transfered)

@@ -104,7 +104,7 @@ function ClusterInfo.create_member_counts(parent, cluster)
     end
     CommonGui.create_sprite_button_table(section, buttons)
 
-    local suffix = ": " .. tostring(cluster.operational_vms)
+    local suffix = ": " .. tostring(cluster.crafting_power)
     CommonGui.create_bold_label(
         section,
         {"", {"gui-label.cluster-crafting-power"}, suffix}

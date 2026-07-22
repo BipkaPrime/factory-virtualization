@@ -171,10 +171,13 @@ end
 ---@param search_name string internal name of searchbox element
 ---@param selector_name string internal name of selector element
 ---@param caption LocalisedString caption above searchfield
+---@param height number|nil height of the selector. Defaults to 200
 ---@return LuaGuiElement searchfield, LuaGuiElement selector, LuaGuiElement label
-function CommonGui.create_selection_widget(parent, search_name, selector_name, caption)
-    local flow = parent.add{type = "flow", direction = "vertical"}
-    flow.style.bottom_margin = 12
+function CommonGui.create_selection_widget(parent, search_name, selector_name, caption, height)
+    local flow = parent.add{
+        type = "flow",
+        direction = "vertical",
+    }
     local label = flow.add{type = "label", caption = caption}
     local searchfield = flow.add{
         type = "textfield",
@@ -183,7 +186,7 @@ function CommonGui.create_selection_widget(parent, search_name, selector_name, c
     }
     local selector = flow.add{type = "list-box", name = selector_name}
     selector.style.width = 200
-    selector.style.height = 200
+    selector.style.height = height or 200
     return searchfield, selector, label
 end
 

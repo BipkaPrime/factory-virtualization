@@ -102,7 +102,6 @@ end
 local function create_choose_io_buttons(parent, gui_data)
     local main_flow = parent.add{type = "flow", direction = "vertical"}
     main_flow.add{type = "label", caption = {"gui-label.operation-mode"}}
-    main_flow.style.bottom_margin = 12
 
     -- input radiobutton 
     local row1 = main_flow.add{type = "flow", direction = "horizontal"}
@@ -224,8 +223,8 @@ local function configure_choose_item_button(gui_data)
     ---@cast button LuaGuiElement
     if not button.valid then return end
     -- setting selected item according to entity processor
-    local item = EntityProcessor.get_selected_item(gui_data.entity)
-    button.elem_value = item and {name = item.name, quality = item.quality} or nil
+    local name, quality = EntityProcessor.get_selected_item(gui_data.entity)
+    button.elem_value = name and quality and {name = name, quality = quality} or nil
     -- checking if button should be enabled
     button.enabled = EntityProcessor.get_item_selection_enabled(gui_data.entity)
 end
@@ -447,7 +446,8 @@ local function create_cluster_selection_widget(parent, gui_data)
         parent,
         PREFIX .. "source-cluster-search",
         PREFIX .. "source-cluster-selector",
-        {"gui-label.select-source-cluster"}
+        {"gui-label.select-source-cluster"},
+        100
     )
     gui_data.elements.source_cluster_search = source_search
     gui_data.elements.source_cluster_selector = source_selector
@@ -457,7 +457,8 @@ local function create_cluster_selection_widget(parent, gui_data)
         parent,
         PREFIX .. "destination-cluster-search",
         PREFIX .. "destination-cluster-selector",
-        {"gui-label.select-destination-cluster"}
+        {"gui-label.select-destination-cluster"},
+        100
     )
     gui_data.elements.destination_cluster_search = destination_search
     gui_data.elements.destination_cluster_selector = destination_selector
@@ -616,7 +617,6 @@ local function create_entity_gui_base(player, entity)
         title
     )
     gui_data.elements.main_window = main_window
-    --main_window.style.height = 500
 
     -- "opening" this window for player
     player.opened = main_window
@@ -645,7 +645,7 @@ local function create_entity_gui_base(player, entity)
         style = "inside_shallow_frame",
         direction = "vertical"
     }
-    -- right_frame.style.width = 444
+
     local datafield = right_frame.add{type = "scroll-pane"}
     datafield.style.vertically_stretchable = true
     gui_data.elements.datafield = datafield
@@ -681,8 +681,8 @@ local function create_template_energy_io_gui(player, entity)
     create_choose_io_buttons(left_frame, gui_data)
 end
 
----Used for time-based updates of mainframe IO interface
-function mainframe_io_updater(gui_data)
+---Used for time-based updates of cluster IO guis
+function cluster_io_updater(gui_data)
     local entity = gui_data.entity
     local datafield = gui_data.elements.datafield
     datafield.clear()
@@ -691,10 +691,10 @@ function mainframe_io_updater(gui_data)
     ClusterInfo.create_all_cluster_info(datafield, cluster)
 end
 
----Creates mainframe item IO interface
+---Creates cluster item IO interface
 ---@param player LuaPlayer assumed to be valid
 ---@param entity LuaEntity assumed to be valid
-local function create_mainframe_item_io_gui(player, entity)
+local function create_cluster_item_io_gui(player, entity)
     local gui_data = create_entity_gui_base(player, entity)
     local left_frame = gui_data.elements.left_frame
     create_choose_io_buttons(left_frame, gui_data)
@@ -702,10 +702,10 @@ local function create_mainframe_item_io_gui(player, entity)
     create_choose_item_button(left_frame, gui_data)
 end
 
----Creates mainframe fluid IO interface
+---Creates cluster fluid IO interface
 ---@param player LuaPlayer assumed to be valid
 ---@param entity LuaEntity assumed to be valid
-local function create_mainframe_fluid_io_gui(player, entity)
+local function create_cluster_fluid_io_gui(player, entity)
     local gui_data = create_entity_gui_base(player, entity)
     local left_frame = gui_data.elements.left_frame
     create_choose_io_buttons(left_frame, gui_data)
@@ -713,10 +713,10 @@ local function create_mainframe_fluid_io_gui(player, entity)
     create_choose_fluid_button(left_frame, gui_data)
 end
 
----Creates mainframe energy IO interface
+---Creates cluster energy IO interface
 ---@param player LuaPlayer assumed to be valid
 ---@param entity LuaEntity assumed to be valid
-local function create_mainframe_energy_io_gui(player, entity)
+local function create_cluster_energy_io_gui(player, entity)
     local gui_data = create_entity_gui_base(player, entity)
     local left_frame = gui_data.elements.left_frame
     create_choose_io_buttons(left_frame, gui_data)
@@ -763,17 +763,34 @@ end
 -- OPEN/CLOSE ENTITY GUI
 -------------------------------------------------------------------------------
 
--- key (string): entity name, value (function): handler that creates gui
+---Maps entity names to functions used to construct their gui
 local entity_gui_router = {
-    [PREFIX .. "template-item-io"] = create_template_item_io_gui,
-    [PREFIX .. "template-fluid-io"] = create_template_fluid_io_gui,
-    [PREFIX .. "template-energy-io"] = create_template_energy_io_gui,
-    [PREFIX .. "mainframe-item-io"] = create_mainframe_item_io_gui,
-    [PREFIX .. "mainframe-fluid-io"] = create_mainframe_fluid_io_gui,
-    [PREFIX .. "mainframe-energy-io"] = create_mainframe_energy_io_gui,
-    [PREFIX .. "virtualization-mainframe"] = create_virtualization_mainframe_gui,
-    [PREFIX .. "inter-cluster-bridge"] = create_inter_cluster_bridge_gui,
+    [PREFIX .. "template-item-io-mk1"] = create_template_item_io_gui,
+    [PREFIX .. "template-item-io-mk2"] = create_template_item_io_gui,
+    [PREFIX .. "template-item-io-mk3"] = create_template_item_io_gui,
+    [PREFIX .. "template-fluid-io-mk1"] = create_template_fluid_io_gui,
+    [PREFIX .. "template-fluid-io-mk2"] = create_template_fluid_io_gui,
+    [PREFIX .. "template-fluid-io-mk3"] = create_template_fluid_io_gui,
+    [PREFIX .. "template-energy-io-mk1"] = create_template_energy_io_gui,
+    [PREFIX .. "template-energy-io-mk2"] = create_template_energy_io_gui,
+    [PREFIX .. "template-energy-io-mk3"] = create_template_energy_io_gui,
+    [PREFIX .. "cluster-item-io-mk1"] = create_cluster_item_io_gui,
+    [PREFIX .. "cluster-item-io-mk2"] = create_cluster_item_io_gui,
+    [PREFIX .. "cluster-item-io-mk3"] = create_cluster_item_io_gui,
+    [PREFIX .. "cluster-fluid-io-mk1"] = create_cluster_fluid_io_gui,
+    [PREFIX .. "cluster-fluid-io-mk2"] = create_cluster_fluid_io_gui,
+    [PREFIX .. "cluster-fluid-io-mk3"] = create_cluster_fluid_io_gui,
+    [PREFIX .. "cluster-energy-io-mk1"] = create_cluster_energy_io_gui,
+    [PREFIX .. "cluster-energy-io-mk2"] = create_cluster_energy_io_gui,
+    [PREFIX .. "cluster-energy-io-mk3"] = create_cluster_energy_io_gui,
+    [PREFIX .. "virtualization-mainframe-mk1"] = create_virtualization_mainframe_gui,
+    [PREFIX .. "virtualization-mainframe-mk2"] = create_virtualization_mainframe_gui,
+    [PREFIX .. "virtualization-mainframe-mk3"] = create_virtualization_mainframe_gui,
+    [PREFIX .. "inter-cluster-bridge-mk1"] = create_inter_cluster_bridge_gui,
+    [PREFIX .. "inter-cluster-bridge-mk2"] = create_inter_cluster_bridge_gui,
+    [PREFIX .. "inter-cluster-bridge-mk3"] = create_inter_cluster_bridge_gui,
 }
+
 ---Handles gui being opened by the player. If entity gui from the table above is
 ---opened, closes it's vanilla gui and opens a custom one.
 ---@param event EventData.on_gui_opened
@@ -821,13 +838,22 @@ end
 -- TIME-BESED ENTITY GUI UPDATES
 -------------------------------------------------------------------------------
 
--- key (string): entity name, value (function): handler that updates entity gui
+---Maps entity names to functions used to update their gui
 local gui_update_router = {
-    [PREFIX .. "mainframe-item-io"] = mainframe_io_updater,
-    [PREFIX .. "mainframe-fluid-io"] = mainframe_io_updater,
-    [PREFIX .. "mainframe-energy-io"] = mainframe_io_updater,
-    [PREFIX .. "virtualization-mainframe"] = mainframe_updater,
+    [PREFIX .. "cluster-item-io-mk1"] = cluster_io_updater,
+    [PREFIX .. "cluster-item-io-mk2"] = cluster_io_updater,
+    [PREFIX .. "cluster-item-io-mk3"] = cluster_io_updater,
+    [PREFIX .. "cluster-fluid-io-mk1"] = cluster_io_updater,
+    [PREFIX .. "cluster-fluid-io-mk2"] = cluster_io_updater,
+    [PREFIX .. "cluster-fluid-io-mk3"] = cluster_io_updater,
+    [PREFIX .. "cluster-energy-io-mk1"] = cluster_io_updater,
+    [PREFIX .. "cluster-energy-io-mk2"] = cluster_io_updater,
+    [PREFIX .. "cluster-energy-io-mk3"] = cluster_io_updater,
+    [PREFIX .. "virtualization-mainframe-mk1"] = mainframe_updater,
+    [PREFIX .. "virtualization-mainframe-mk2"] = mainframe_updater,
+    [PREFIX .. "virtualization-mainframe-mk3"] = mainframe_updater,
 }
+
 ---Time-based updater for entity GUIs
 function EntityGui.time_based_update()
     for player_index, _ in pairs(storage.entity_gui.currently_opened) do

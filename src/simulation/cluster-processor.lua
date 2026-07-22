@@ -11,7 +11,7 @@ storage.vclusters = {
 }
 Array is 1-indexed and contain all vclusters (which are tables).
 Lookup maps cluster identifier (string) with index of that cluster in array.
-Cluster is identified by a unique string "template_name//surface_name".
+Cluster is identified by a unique string "template_name//surface_index".
 
 Clusters are created when first member is added to them. Clusters are deleted when last remaining
 member is removed from them. These operations are performed automatically.
@@ -43,19 +43,20 @@ center coordinates, total weight, weighted sum of (x^2 + y^2) for all members.
 ---@field y_pos number y-coordinate of this entity
 ---@field weight number weight of this entity
 ---@field key ItemKeyString "name//quality" of this entity
----@field operational boolean|nil true if this member is an operational mainframe
+---@field crafting_power number|nil amount of crafting potential entity is contributing
+---@field storage_capacity number|nil amount of storage capacity this entity is providing
 
 ---Table describing one virtualization cluster
 ---@class ClusterData
 ---@field cluster_id string "template_name//surface_index"
 ---@field template_name string name of template for this cluster
 ---@field surface_index number unique surface identifier
----@field research_producer boolean true if this cluster produces research
 ---@field input table<BufferKeyString, ClusterBufferEntry> cluster input buffer
 ---@field output table<BufferKeyString, ClusterBufferEntry> cluster output buffer
 ---@field member_counts table<ItemKeyString, number> count of all cluster members
 ---@field members table<number, ClusterMemberData> key is entity.unit_number. contains data of all members
----@field operational_vms number number of operational virtualization mainframes in the cluster
+---@field crafting_power number maximum number of crafts cluster can produce per second
+---@field storage_capacity number used as per_craft multiplier to calculate maximum buffer capacity
 ---@field sum_x number weighted sum of x-coordinates of all members
 ---@field sum_y number weighted sum of y coordinates of all members
 ---@field total_weight number sum of weights of all members
@@ -72,13 +73,38 @@ local ClusterProcessor = {}
 
 local PREFIX = "FV-"
 
--- key: entity.name (string); value: entity weight (float).
--- contains all building names which can be a part of a cluster.
+---Maps entity names to their weights.
+---Contains all buildings which can be a part of a cluster.
 local entity_weights = {
-    [PREFIX .. "mainframe-item-io"] = 1,
-    [PREFIX .. "mainframe-fluid-io"] = 1,
-    [PREFIX .. "mainframe-energy-io"] = 1,
-    [PREFIX .. "virtualization-mainframe"] = 4,
+    [PREFIX .. "cluster-item-io-mk1"] = 1,
+    [PREFIX .. "cluster-item-io-mk2"] = 10,
+    [PREFIX .. "cluster-item-io-mk3"] = 100,
+    [PREFIX .. "cluster-fluid-io-mk1"] = 1,
+    [PREFIX .. "cluster-fluid-io-mk2"] = 10,
+    [PREFIX .. "cluster-fluid-io-mk3"] = 100,
+    [PREFIX .. "cluster-energy-io-mk1"] = 1,
+    [PREFIX .. "cluster-energy-io-mk2"] = 10,
+    [PREFIX .. "cluster-energy-io-mk3"] = 100,
+    [PREFIX .. "virtualization-mainframe-mk1"] = 10,
+    [PREFIX .. "virtualization-mainframe-mk2"] = 100,
+    [PREFIX .. "virtualization-mainframe-mk3"] = 1000,
+    [PREFIX .. "inter-cluster-bridge-mk1"] = 5,
+    [PREFIX .. "inter-cluster-bridge-mk2"] = 50,
+    [PREFIX .. "inter-cluster-bridge-mk3"] = 500,
+}
+
+---Maps entity names to amount of crafting power they provide
+local entity_crafting_power = {
+    [PREFIX .. "virtualization-mainframe-mk1"] = 1,
+    [PREFIX .. "virtualization-mainframe-mk2"] = 10,
+    [PREFIX .. "virtualization-mainframe-mk3"] = 100,
+}
+
+---Maps entity names to amount of storage capacity they provide
+local entity_storage_capacity = {
+    [PREFIX .. "virtualization-mainframe-mk1"] = 1,
+    [PREFIX .. "virtualization-mainframe-mk2"] = 1,
+    [PREFIX .. "virtualization-mainframe-mk3"] = 1,
 }
 
 -- multiplayer of energy tax on distance from cluster center
@@ -156,7 +182,6 @@ end
 ---@param cluster ClusterData new cluster data
 ---@param template TemplateData compiled template
 local function add_template_data(cluster, template)
-    cluster.research_producer = template.research_template
     cluster.input = create_buffer(template.input)
     cluster.output = create_buffer(template.output)
 
@@ -195,12 +220,12 @@ local function get_or_create_cluster(template, template_name, entity)
         cluster_id = cluster_id,
         template_name = template_name,
         surface_index = entity.surface_index,
-        research_producer = false,
         input = {},
         output = {},
         member_counts = {},
         members = {},
-        operational_vms = 0,
+        crafting_power = 0,
+        storage_capacity = 0,
         sum_x = 0,
         sum_y = 0,
         total_weight = 0,
@@ -289,10 +314,9 @@ local function update_buffers_table(buffer, multiplier)
 end
 
 ---Recalculates size of io buffers for a given cluster.
----Buffer sizes depend on number of operational vmainframes.
 ---@param cluster ClusterData
 local function update_buffers(cluster)
-    local multiplier = (cluster.operational_vms or 0) * 2
+    local multiplier = cluster.storage_capacity
     update_buffers_table(cluster.input, multiplier)
     update_buffers_table(cluster.output, multiplier)
 end
@@ -337,23 +361,29 @@ function ClusterProcessor.add_to_cluster(entity, template_name)
     -- updating member coordinate related data
     local x, y = entity.position.x, entity.position.y
     local name = entity.name
-    local weight = (entity_weights[name] or 1)
+    local weight = entity_weights[name]
     cluster.sum_x = cluster.sum_x + x * weight
     cluster.sum_y = cluster.sum_y + y * weight
     cluster.sum_squares = cluster.sum_squares + weight * (x * x + y * y)
     cluster.total_weight = cluster.total_weight + weight
 
-    -- updating member counts and members
+    -- adding entity storage capacity to cluster storage capacity
+    local storage_capacity = entity_storage_capacity[name]
+    cluster.storage_capacity = cluster.storage_capacity + (storage_capacity or 0)
+
+    -- updating member counts
     local key = name .. "//" .. entity.quality.name
     cluster.member_counts[key] = (cluster.member_counts[key] or 0) + 1
+
+    -- adding member data
     ---@type ClusterMemberData
-    local member_data = {
+    cluster.members[entity.unit_number] = {
         x_pos = x,
         y_pos = y,
         weight = weight,
         key = key,
+        storage_capacity = storage_capacity,
     }
-    cluster.members[entity.unit_number] = member_data
     update_total_energy_tax(cluster)
     update_buffers(cluster)
     return cluster
@@ -389,28 +419,38 @@ function ClusterProcessor.remove_from_cluster(cluster, unit_number)
     cluster.sum_squares = cluster.sum_squares - weight * (x * x + y * y)
     cluster.total_weight = cluster.total_weight - weight
 
-    -- correcting operational VMs count
-    local operational = member_data.operational
-    if operational then cluster.operational_vms = cluster.operational_vms - 1 end
+    -- correcting cluster storage capacity
+    local storage_capacity = (member_data.storage_capacity or 0)
+    cluster.storage_capacity = cluster.storage_capacity - storage_capacity
+
+    -- correcting cluster crafting power
+    local crafting_power = (member_data.crafting_power or 0)
+    cluster.crafting_power = cluster.crafting_power - crafting_power
 
     -- correcting buffers and total energy tax
     update_total_energy_tax(cluster)
     update_buffers(cluster)
 end
 
----Marks given entity as an operational VM inside a cluster.
----Also adjusts crafting potential and buffer sizes.
----@param cluster ClusterData|nil cluster data
----@param unit_number integer unique entity identifier
-function ClusterProcessor.set_mainframe_operational(cluster, unit_number)
-    if not cluster then return end
-    local member_data = cluster.members[unit_number]
-    if member_data.operational then return end
-    member_data.operational = true
+---Enabled crafting power of a given entity in the cluster.
+---In order for this function to work, entity should already be in provided cluster.
+---@param entity LuaEntity
+---@param cluster ClusterData|nil
+function ClusterProcessor.enable_crafting_power(entity, cluster)
+    if not cluster or not entity.valid then return end
 
-    -- updating crafting potential and buffer sizes
-    cluster.operational_vms = cluster.operational_vms + 1
-    update_buffers(cluster)
+    -- checking that entity has crafting power and is a member of this cluster
+    ---@type ClusterMemberData
+    local member_data = cluster.members[entity.unit_number]
+    local crafting_power = entity_crafting_power[entity.name]
+    if not member_data or not crafting_power then return end
+
+    -- member is already providing crafting power
+    if member_data.crafting_power then return end
+
+    -- adding crafting power to member data and cluster data
+    member_data.crafting_power = crafting_power
+    cluster.crafting_power = cluster.crafting_power + crafting_power
 end
 
 -------------------------------------------------------------------------------
@@ -512,27 +552,25 @@ local function perform_craft(cluster)
         if not status then return end
     end
 
-    if not cluster.research_producer then
-        -- cluster crafting potential
-        local max_crafts = cluster.operational_vms
-        if max_crafts == 0 then
-           cluster.last_cycle_crafts = 0
-           return
-        end
-
-        -- calculating buffers limitations
-        local input_crafts = get_input_crafts(cluster)
-        local output_crafts = get_output_crafts(cluster)
-        max_crafts = math.min(max_crafts, input_crafts, output_crafts)
-        if max_crafts <= 0 then
-            cluster.last_cycle_crafts = 0
-            return
-        end
-
-        cluster.last_cycle_crafts = max_crafts
-        withdraw_inputs(cluster, max_crafts)
-        generate_outputs(cluster, max_crafts)
+    -- cluster crafting potential
+    local max_crafts = cluster.crafting_power
+    if max_crafts == 0 then
+        cluster.last_cycle_crafts = 0
+        return
     end
+
+    -- calculating buffers limitations
+    local input_crafts = get_input_crafts(cluster)
+    local output_crafts = get_output_crafts(cluster)
+    max_crafts = math.min(max_crafts, input_crafts, output_crafts)
+    if max_crafts <= 0 then
+        cluster.last_cycle_crafts = 0
+        return
+    end
+
+    cluster.last_cycle_crafts = max_crafts
+    withdraw_inputs(cluster, max_crafts)
+    generate_outputs(cluster, max_crafts)
 end
 
 ---On-tick cluster processor

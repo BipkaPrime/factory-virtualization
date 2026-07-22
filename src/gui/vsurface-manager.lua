@@ -333,11 +333,12 @@ end
 ---@param parent LuaGuiElement button will be added here
 ---@param manager_data SurfaceManagerData
 local function create_template_name_textfield(parent, manager_data)
-    local label = parent.add{
+    local flow = parent.add{type = "flow", direction = "vertical"}
+    local label = flow.add{
         type = "label",
         caption = {"gui-label.enter-template-name"},
     }
-    local textfield = parent.add{
+    local textfield = flow.add{
         type = "textfield",
         name = PREFIX .. "sm-template-name",
         lose_focus_on_confirm = true,
@@ -432,8 +433,9 @@ end
 ---@param parent LuaGuiElement button will be added here
 ---@param manager_data SurfaceManagerData
 local function create_compilation_progressbar(parent, manager_data)
-    local label = parent.add{type = "label"}
-    local bar = parent.add{type = "progressbar"}
+    local flow = parent.add{type = "flow", direction = "vertical"}
+    local label = flow.add{type = "label"}
+    local bar = flow.add{type = "progressbar"}
     bar.style.bar_width = 12
     manager_data.elements.compile_bar_label = label
     manager_data.elements.compile_progressbar = bar
@@ -472,13 +474,19 @@ local function create_surface_manager_base(player)
     -- left frame of interface
     local left_frame = main_content_frame.add{
         type="frame",
-        direction="vertical",
         style="inside_shallow_frame_with_padding",
     }
     left_frame.style.right_margin = 12
-    create_vsurface_selection_widget(left_frame, manager_data)
-    create_create_new_surface_btn(left_frame, manager_data)
-    create_delete_surface_btn(left_frame, manager_data)
+    left_frame.style.vertically_stretchable = true
+    -- required to set vertical spacing
+    local left_flow = left_frame.add{
+        type = "flow",
+        direction = "vertical",
+    }
+    left_flow.style.vertical_spacing = 12
+    create_vsurface_selection_widget(left_flow, manager_data)
+    create_create_new_surface_btn(left_flow, manager_data)
+    create_delete_surface_btn(left_flow, manager_data)
 
     -- right half of interface
     local right_frame = main_content_frame.add{
@@ -488,7 +496,13 @@ local function create_surface_manager_base(player)
     }
     right_frame.style.minimal_width = 350
     right_frame.style.vertically_stretchable = true
-    manager_data.elements.right_frame = right_frame
+    -- required to set vertical spacing
+    local right_flow = right_frame.add{
+        type = "flow",
+        direction = "vertical",
+    }
+    right_flow.style.vertical_spacing = 12
+    manager_data.elements.right_frame = right_flow
 end
 
 ---Clears all element in the right frame and populates it.
@@ -643,6 +657,7 @@ function SurfaceManagerGui.process_new_surface_confirm_btn(event)
     manager_data.new_surface_width = nil
     manager_data.new_surface_height = nil
     manager_data.selected_planet = nil
+    manager_data.new_surface_pressed = nil
 end
 
 ---Handles template name textfield being changed. Saves user input.

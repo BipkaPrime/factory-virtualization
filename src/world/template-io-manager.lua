@@ -10,13 +10,19 @@ local TemplateIO = {}
 local PREFIX = "FV-"
 
 local flow_limits = {
-    [PREFIX .. "template-item-io"] = 1000,
-    [PREFIX .. "template-fluid-io"] = 10000,
-    [PREFIX .. "template-energy-io"] = 1e9,
+    [PREFIX .. "template-item-io-mk1"] = 100,
+    [PREFIX .. "template-item-io-mk2"] = 1000,
+    [PREFIX .. "template-item-io-mk3"] = 10000,
+    [PREFIX .. "template-fluid-io-mk1"] = 1000,
+    [PREFIX .. "template-fluid-io-mk2"] = 10000,
+    [PREFIX .. "template-fluid-io-mk3"] = 100000,
+    [PREFIX .. "template-energy-io-mk1"] = 1e9,
+    [PREFIX .. "template-energy-io-mk2"] = 1e10,
+    [PREFIX .. "template-energy-io-mk3"] = 1e11,
 }
 
 ---Updates given template item io
----@param properties TItemIOProperties
+---@param properties TemplateItemIOProperties
 function TemplateIO.process_template_item_io(properties)
     -- does not operate without selected item
     local item = properties.selected_item
@@ -45,7 +51,7 @@ function TemplateIO.process_template_item_io(properties)
 end
 
 ---Updates given template fluid io
----@param properties TFluidIOProperties
+---@param properties TemplateFluidIOProperties
 function TemplateIO.process_template_fluid_io(properties)
     -- does not operate without selected fluid
     local fluid = properties.selected_fluid
@@ -71,7 +77,7 @@ function TemplateIO.process_template_fluid_io(properties)
 end
 
 ---Updates given template energy io
----@param properties TEnergyIOProperties
+---@param properties TemplateEnergyIOProperties
 function TemplateIO.process_template_energy_io(properties)
     -- does not operate on any surfaces except vsufaces
     local entity = properties.entity
