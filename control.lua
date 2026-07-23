@@ -46,12 +46,12 @@ script.on_event(defines.events.on_tick, function(event)
     ClusterProcessor.process_clusters(event)
     EntityProcessor.process_entities(event)
     ChunkProcessor.process_chunks(event)
+    EntityGui.time_based_update()
 end)
 
 script.on_nth_tick(60, function()
     SurfaceManagerGui.update_opened_windows()
     VEnvProcessor.process_compiling_surfaces()
-    EntityGui.time_based_update()
 end)
 
 -------------------------------------------------------------------------------
@@ -149,6 +149,7 @@ local on_gui_text_changed_router = {
     [PREFIX .. "sm-new-surface-height"] = SurfaceManagerGui.process_new_surface_height_changed,
     [PREFIX .. "sm-template-name"] = SurfaceManagerGui.process_template_name_changed,
     [PREFIX .. "td-template-search"] = TemplateDashboard.process_template_search,
+    [PREFIX .. "td-surface-search"] = TemplateDashboard.process_surface_search,
     [PREFIX .. "entity-template-search"] = EntityGui.process_template_searchfield,
     [PREFIX .. "source-cluster-search"] = EntityGui.process_source_cluster_search,
     [PREFIX .. "destination-cluster-search"] = EntityGui.process_destination_cluster_search,
@@ -161,6 +162,7 @@ local on_gui_selection_state_changed_router = {
     [PREFIX .. "sm-vsurface-selector"] = SurfaceManagerGui.process_vsurface_selection_changed,
     [PREFIX .. "sm-planet-selector"] = SurfaceManagerGui.process_planet_selector,
     [PREFIX .. "td-template-selector"] = TemplateDashboard.process_template_selector,
+    [PREFIX .. "td-surface-selector"] = TemplateDashboard.process_surface_selector,
     [PREFIX .. "entity-template-selector"] = EntityGui.process_template_selector,
     [PREFIX .. "source-cluster-selector"] = EntityGui.process_source_cluster_selector,
     [PREFIX .. "destination-cluster-selector"] = EntityGui.process_destination_cluster_selector,

@@ -33,6 +33,10 @@ center coordinates, total weight, weighted sum of (x^2 + y^2) for all members.
 ---@field current number currently stored amount
 ---@field per_craft number amount required per 1 craft
 ---@field maximum number largest amount that can be stored
+---@field ls_possible_crafts number number of crafts this buffer could allow at the time of last craft
+---@field ls_input_flow number amount that entered the buffer in the last second
+---@field ls_output_flow number amount that left the buffer in the last second
+---@field cs_flow number amount that entered (input buffer)/exited (output buffer) from the time of last craft
 ---@field type "item"|"fluid"|"energy"
 ---@field name string|nil only present for items and fluids
 ---@field quality string|nil only present for items
@@ -157,10 +161,15 @@ end
 local function create_buffer(io_flow)
     local buffer = {}
     for key, flow in pairs(io_flow) do
-        local entry = {}
-        entry.current = 0
-        entry.per_craft = flow
-        entry.maximum = 0
+        local entry = {
+            current = 0,
+            per_craft = flow,
+            maximum = 0,
+            ls_input_flow = 0,
+            ls_output_flow = 0,
+            cs_flow = 0,
+            ls_possible_crafts = 0,
+        }
         if key:find("//", 1, true) then
             -- item key "name//quality"
             entry.name, entry.quality = key:match("^(.+)//(.+)$")
@@ -191,7 +200,11 @@ local function add_template_data(cluster, template)
             current = 0,
             per_craft = 0,
             maximum = 0,
-            type = "energy"
+            ls_input_flow = 0,
+            ls_output_flow = 0,
+            cs_flow = 0,
+            ls_possible_crafts = 0,
+            type = "energy",
         }
     end
 
@@ -243,8 +256,9 @@ end
 -- API for GUI
 -------------------------------------------------------------------------------
 
----Gets all clusters that exist on given surface
+---Gets all clusters that exist on a given surface
 ---@param surface_index number unique surface identifier
+---@return string[] template_names
 function ClusterProcessor.get_surface_clusters(surface_index)
     local clusters = storage.vclusters.array
     local result = {}
@@ -254,6 +268,58 @@ function ClusterProcessor.get_surface_clusters(surface_index)
         end
     end
     return result
+end
+
+---Gets all clusters that exist on a given surface
+---@param surface_name string
+---@return string[] template_names
+function ClusterProcessor.get_surface_clusters_by_name(surface_name)
+    local surface = game.get_surface(surface_name)
+    if not surface then return {} end
+    return ClusterProcessor.get_surface_clusters(surface.index)
+end
+
+---Gets all clusters that were created using given template
+---@param template_name string unique cluster identifier
+---@return string[] surface_names 
+function ClusterProcessor.get_template_clusters(template_name)
+    local clusters = storage.vclusters.array
+    local surfaces = game.surfaces
+    local result = {}
+    for _, cluster in pairs(clusters) do
+        if cluster.template_name == template_name then
+            local surface = surfaces[cluster.surface_index]
+            if surface then
+                table.insert(result, surface.name)
+            end
+        end
+    end
+    return result
+end
+
+---Gets names of all surfaces that have at least one cluster
+---@return string[] surface_names
+function ClusterProcessor.get_all_surfaces()
+    local clusters = storage.vclusters.array
+    local surfaces = game.surfaces
+    local result = {}
+    for _, cluster in pairs(clusters) do
+        local surface = surfaces[cluster.surface_index]
+        if surface then
+            table.insert(result, surface.name)
+        end
+    end
+    return result
+end
+
+---@param template_name string unique template identifier
+---@param surface_name string name of cluster surface
+---@return ClusterData|nil
+function ClusterProcessor.get_cluster_by_names(template_name, surface_name)
+    local surface = game.get_surface(surface_name)
+    if not surface then return end
+    local cluster_id = template_name .. "//" .. tostring(surface.index)
+    return get_cluster(cluster_id)
 end
 
 -------------------------------------------------------------------------------
@@ -289,6 +355,7 @@ end
 function ClusterProcessor.add_to_buffer(cluster, key, amount)
     local buffer = cluster.input[key]
     buffer.current = buffer.current + amount
+    buffer.cs_flow = buffer.cs_flow + amount
 end
 
 ---Removes provided amount from output buffer. Key must exist in the buffer
@@ -298,6 +365,7 @@ end
 function ClusterProcessor.remove_from_buffer(cluster, key, amount)
     local buffer = cluster.output[key]
     buffer.current = buffer.current - amount
+    buffer.cs_flow = buffer.cs_flow + amount
 end
 
 -------------------------------------------------------------------------------
@@ -462,8 +530,9 @@ end
 ---@param cluster ClusterData
 local function get_input_crafts(cluster)
     local max_crafts = 1e9
-    for _, buffer in pairs(cluster.input) do
-        local curr_crafts = math.floor(buffer.current / buffer.per_craft)
+    for _, entry in pairs(cluster.input) do
+        local curr_crafts = math.floor(entry.current / entry.per_craft)
+        entry.ls_possible_crafts = curr_crafts
         max_crafts = math.min(max_crafts, curr_crafts)
     end
     return max_crafts
@@ -474,8 +543,9 @@ end
 ---@param cluster ClusterData
 local function get_output_crafts(cluster)
     local max_crafts = 1e9
-    for _, buffer in pairs(cluster.output) do
-        local curr_crafts = math.floor((buffer.maximum - buffer.current) / buffer.per_craft)
+    for _, entry in pairs(cluster.output) do
+        local curr_crafts = math.floor((entry.maximum - entry.current) / entry.per_craft)
+        entry.ls_possible_crafts = curr_crafts
         max_crafts = math.min(max_crafts, curr_crafts)
     end
     return max_crafts
@@ -529,6 +599,10 @@ local function withdraw_inputs(cluster, craft_count)
         local consumed = entry.per_craft * craft_count
         entry.current = entry.current - consumed
         add_to_statistics(cluster, entry, -consumed)
+        -- keeping track of io flow
+        entry.ls_input_flow = entry.cs_flow
+        entry.cs_flow = 0
+        entry.ls_output_flow = consumed
     end
 end
 
@@ -540,6 +614,10 @@ local function generate_outputs(cluster, craft_count)
         local produced = entry.per_craft * craft_count
         entry.current = entry.current + produced
         add_to_statistics(cluster, entry, produced)
+        -- keeping track of io flow
+        entry.ls_output_flow = entry.cs_flow
+        entry.cs_flow = 0
+        entry.ls_input_flow = produced
     end
 end
 
@@ -552,25 +630,19 @@ local function perform_craft(cluster)
         if not status then return end
     end
 
-    -- cluster crafting potential
-    local max_crafts = cluster.crafting_power
-    if max_crafts == 0 then
-        cluster.last_cycle_crafts = 0
-        return
-    end
+    -- calculating how many crafts can be performed
+    local crafts = math.max(
+        0,
+        math.min(
+            cluster.crafting_power,
+            get_input_crafts(cluster),
+            get_output_crafts(cluster)
+        )
+    )
 
-    -- calculating buffers limitations
-    local input_crafts = get_input_crafts(cluster)
-    local output_crafts = get_output_crafts(cluster)
-    max_crafts = math.min(max_crafts, input_crafts, output_crafts)
-    if max_crafts <= 0 then
-        cluster.last_cycle_crafts = 0
-        return
-    end
-
-    cluster.last_cycle_crafts = max_crafts
-    withdraw_inputs(cluster, max_crafts)
-    generate_outputs(cluster, max_crafts)
+    cluster.last_cycle_crafts = crafts
+    withdraw_inputs(cluster, crafts)
+    generate_outputs(cluster, crafts)
 end
 
 ---On-tick cluster processor

@@ -1,6 +1,6 @@
 --[[
 Template dashboard allows players to look inside template storage as well 
-as vcluster storage. Displays template information if template is selected.
+as cluster storage. Displays template information if template is selected.
 Displays vcluster information if template and surface are selected.
 
 We want to store a bunch of data regarding this window in storage for 2 reasons.
@@ -33,6 +33,8 @@ dashboard data.
 
 
 local TemplateCompiler = require("src.simulation.template-compiler")
+local ClusterProcessor = require("src.simulation.cluster-processor")
+local ClusterInfo = require("src.gui.cluster-info")
 local CommonGui = require("src.gui.common")
 
 local PREFIX = "FV-"
@@ -47,7 +49,16 @@ local TemplateDashboard = {}
 local function configure_template_selector(dashboard_data)
     local selector = dashboard_data.elements.template_selector
     if not selector.valid then return end
-    local options = TemplateCompiler.get_all_template_names()
+
+    local options
+    local surface_name = dashboard_data.surface_name
+    if not surface_name then
+        -- surface is not selected, showing all templates
+        options = TemplateCompiler.get_all_template_names()
+    else
+        -- surface is selected, showing clusters on that surface
+        options = ClusterProcessor.get_surface_clusters_by_name(surface_name)
+    end
     local query = dashboard_data.template_query
     local selected = dashboard_data.template_name
     CommonGui.configure_selector(selector, options, query, selected)
@@ -78,12 +89,34 @@ local function create_template_selection_widget(parent, dashboard_data)
     configure_template_selection_widget(dashboard_data)
 end
 
+---Configures surface selector
+---@param dashboard_data DashboardData
 local function configure_surface_selector(dashboard_data)
-    -- TODO
+    local selector = dashboard_data.elements.surface_selector
+    if not selector.valid then return end
+
+    local options
+    local template_name = dashboard_data.template_name
+    if not template_name then
+        -- template is not selected, showing all surfaces with clusters
+        options = ClusterProcessor.get_all_surfaces()
+    else
+        -- template is selected, showing surfaces with this template name
+        options = ClusterProcessor.get_template_clusters(template_name)
+    end
+
+    local query = dashboard_data.surface_query
+    local selected = dashboard_data.surface_name
+    CommonGui.configure_selector(selector, options, query, selected)
 end
 
+---Configures surface selector and searchbox above
+---@param dashboard_data DashboardData
 local function configure_surface_selection_widget(dashboard_data)
-    -- TODO
+    local search = dashboard_data.elements.surface_search
+    if not search.valid then return end
+    search.text = dashboard_data.surface_query or ""
+    configure_surface_selector(dashboard_data)
 end
 
 ---Adds surface selection widget to a given element. Widget consists of
@@ -159,7 +192,7 @@ local function create_template_inputs_section(parent, dashboard_data)
 end
 
 ---Adds section describing template outputs
----@param parent LuaGuiElement widget will added here
+---@param parent LuaGuiElement widget will be added here
 ---@param dashboard_data DashboardData
 local function create_template_outputs_section(parent, dashboard_data)
     local template_name = dashboard_data.template_name
@@ -223,8 +256,10 @@ local function create_template_dashboard_base(player)
         style="inside_shallow_frame_with_padding",
     }
     left_frame.style.right_margin = 12
-    create_template_selection_widget(left_frame, dashboard_data)
-    create_surface_selection_widget(left_frame, dashboard_data)
+    local left_flow = left_frame.add{type = "flow", direction = "vertical"}
+    left_flow.style.vertical_spacing = 12
+    create_template_selection_widget(left_flow, dashboard_data)
+    create_surface_selection_widget(left_flow, dashboard_data)
 
     -- right half of interface
     local right_frame = main_flow.add{
@@ -253,6 +288,12 @@ local function update_datafield(dashboard_data)
         create_template_construction_cost(datafield, dashboard_data)
         create_template_inputs_section(datafield, dashboard_data)
         create_template_outputs_section(datafield, dashboard_data)
+    elseif template_name and surface_name then
+        local cluster = ClusterProcessor.get_cluster_by_names(
+            template_name,
+            surface_name
+        )
+        ClusterInfo.create_all_cluster_info(datafield, cluster)
     end
 end
 
@@ -283,6 +324,34 @@ function TemplateDashboard.process_template_selector(event)
     else
         dashboard_data.template_name = new_name
     end
+    configure_surface_selector(dashboard_data)
+    update_datafield(dashboard_data)
+end
+
+---Handles surface searchfield being changed
+---@param event EventData.on_gui_text_changed
+function TemplateDashboard.process_surface_search(event)
+    local dashboard_data = storage.template_dashboard[event.player_index]
+    dashboard_data.surface_query = event.element.text
+    configure_surface_selector(dashboard_data)
+end
+
+---Handles surface being changed in the selector
+---@param event EventData.on_gui_selection_state_changed
+function TemplateDashboard.process_surface_selector(event)
+    local dashboard_data = storage.template_dashboard[event.player_index]
+    local selector = event.element
+    local old_name = dashboard_data.surface_name
+    local new_name = selector.items[selector.selected_index]
+
+    -- if selected item is clicked again, we want to unselect it
+    if old_name == new_name then
+        dashboard_data.surface_name = nil
+        configure_surface_selector(dashboard_data)
+    else
+        dashboard_data.surface_name = new_name
+    end
+    configure_template_selector(dashboard_data)
     update_datafield(dashboard_data)
 end
 

@@ -3,13 +3,19 @@
 ---Table that is used for creation of one sprite button element
 ---@class SpriteButtonData
 ---@field sprite string|nil
----@field tooltip string|LocalisedString|nil
+---@field tooltip LocalisedString|nil
 ---@field count number|nil
 ---@field quality string|nil
 
 
 local PREFIX = "FV-"
 local CommonGui = {}
+
+CommonGui.ivory = {r = 1.0, g = 0.9, b = 0.78}
+CommonGui.red = {r = 0.8, g = 0.2, b = 0.2}
+CommonGui.yellow = {r = 0.85, g = 0.85, b = 0.4}
+CommonGui.green = {r = 0.2, g = 0.8, b = 0.2}
+CommonGui.grey = {r = 0.5, g = 0.5, b = 0.5}
 
 -- used to convert large numbers to human-readable format
 local number_prefixes = {
@@ -148,7 +154,7 @@ function CommonGui.create_info_element_base(parent, label)
         caption = label,
         style = "bold_label",
     }
-    subtitle.style.font_color = {255, 230, 199}
+    subtitle.style.font_color = CommonGui.ivory
 
     return main_flow
 end

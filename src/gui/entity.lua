@@ -637,7 +637,10 @@ local function create_entity_gui_base(player, entity)
         style = "inside_shallow_frame_with_padding",
     }
     left_frame.style.right_margin = 12
-    gui_data.elements.left_frame = left_frame
+    -- flow for vertical spacing
+    local left_flow = left_frame.add{type = "flow", direction = "vertical"}
+    left_flow.style.vertical_spacing = 8
+    gui_data.elements.left_frame = left_flow
 
     -- right side of interface is for info display
     local right_frame = main_flow.add{

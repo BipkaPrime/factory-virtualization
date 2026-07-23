@@ -300,7 +300,7 @@ local function create_new_surface_confirm_btn(parent, manager_data)
 
     -- button and status label
     local label = flow.add{type = "label"}
-    label.style.font_color = {r = 0.8, g = 0.2, b = 0.2}
+    label.style.font_color = CommonGui.red
     local button = flow.add{
         type = "button",
         name = PREFIX .. "sm-new-surface-confirm",
@@ -390,7 +390,7 @@ local function create_start_compilation_btn(parent, manager_data)
     flow.style.horizontal_align = "right"
 
     local label = flow.add{type = "label"}
-    label.style.font_color = {r = 0.8, g = 0.2, b = 0.2}
+    label.style.font_color = CommonGui.red
     local button = flow.add{
         type = "button",
         name = PREFIX .. "sm-start-compilation-btn",
