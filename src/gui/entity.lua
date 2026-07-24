@@ -14,15 +14,10 @@ Backend is handled by entity processor.
 On gui creation, references to all elements that we want to have quick access to are saved in storage.
 As well as several important values like reference to entity, entity name, etc. All data is located
 at storage.entity_gui. For this table key is player index, value is table containing gui data.
-
-We need to keep track of all opened entity gui windows for time-based updades. For that
-player_indexes of all players who have this window opened are saved at storage.entity_gui.currently_opened
-Like this: storage.entity_gui.currently_opened = {1 = true, 7 = true, 123 = true}
 --]]
 
 ---Table with references to entity gui elements.
----@class EntityGuiElements
----@field main_window LuaGuiElement Root frame
+---@class EntityGuiElements: GuiElementsBase
 ---@field left_frame LuaGuiElement Left column
 ---@field datafield LuaGuiElement Right column for information display
 ---@field template_selector LuaGuiElement|nil Mainframes, Mainframe IOs
@@ -40,12 +35,13 @@ Like this: storage.entity_gui.currently_opened = {1 = true, 7 = true, 123 = true
 ---@field destination_cluster_selector LuaGuiElement|nil InterClusterBridge
 
 ---Table describing entity GUI state
----@class EntityGuiData
+---@class EntityGuiData: GuiDataBase
 ---@field entity LuaEntity entity that was opened to create this gui
+---@field player_index number unique player identifier
 ---@field template_search_query string|nil user input into template search
 ---@field source_cluster_query string|nil user input into source cluster search
 ---@field destination_cluster_query string|nil user input into destination cluster search
----@field elements EntityGuiElements
+---@field elements EntityGuiElements|nil
 
 
 local EntityProcessor = require("src.world.entity-processor")
@@ -53,6 +49,7 @@ local TemplateCompiler = require("src.simulation.template-compiler")
 local ClusterProcessor = require("src.simulation.cluster-processor")
 local CommonGui = require("src.gui.common")
 local ClusterInfo = require("src.gui.cluster-info")
+local GuiUpdater = require("src.gui.updater")
 
 local PREFIX = "FV-"
 local EntityGui = {}
@@ -600,10 +597,13 @@ end
 ---entity gui window is not opened when this is called.
 ---@param player LuaPlayer assumed to be valid
 ---@param entity LuaEntity assumed to be valid
+---@return EntityGuiData
 local function create_entity_gui_base(player, entity)
     -- initializing entity_gui storage for given player
     storage.entity_gui[player.index] = storage.entity_gui[player.index] or {}
     local gui_data = storage.entity_gui[player.index]
+    gui_data.opened = true
+    gui_data.player_index = player.index
     gui_data.elements = {}
     gui_data.entity = entity
 
@@ -617,12 +617,7 @@ local function create_entity_gui_base(player, entity)
         title
     )
     gui_data.elements.main_window = main_window
-
-    -- "opening" this window for player
     player.opened = main_window
-    storage.entity_gui.currently_opened = storage.entity_gui.currently_opened or {}
-    local curr_opened = storage.entity_gui.currently_opened
-    curr_opened[player.index] = true
 
     -- invisible container for other frames
     local main_flow = main_window.add{
@@ -652,6 +647,7 @@ local function create_entity_gui_base(player, entity)
     local datafield = right_frame.add{type = "scroll-pane"}
     datafield.style.vertically_stretchable = true
     gui_data.elements.datafield = datafield
+    GuiUpdater.register_gui("entity", gui_data, player.index)
     return gui_data
 end
 
@@ -747,7 +743,6 @@ local function create_virtualization_mainframe_gui(player, entity)
     local gui_data = create_entity_gui_base(player, entity)
     local left_frame = gui_data.elements.left_frame
     create_template_selection_widget(left_frame, gui_data)
-    mainframe_updater(gui_data)
 end
 
 ---Creates inter cluster bridge interface
@@ -818,23 +813,10 @@ end
 function EntityGui.process_entity_gui_closed(event)
     local player_idx = event.player_index
     local gui_data = storage.entity_gui[player_idx]
-    storage.entity_gui.currently_opened[player_idx] = nil
+    gui_data.opened = nil
+    gui_data.entity = nil
     gui_data.elements.main_window.destroy()
     gui_data.elements = nil
-    gui_data.entity = nil
-end
-
----After player changes surface with this window opened
----player.opened can be assigned nil with window still opened
----So if window should be opened, we set player.opened to it.
----@param event EventData.on_player_changed_surface
-function EntityGui.process_player_changed_surface(event)
-    local player_idx = event.player_index
-    if not storage.entity_gui.currently_opened[player_idx] then return end
-    local player = game.get_player(player_idx)
-    if not player or not player.valid then return end
-    local gui_data = storage.entity_gui[player_idx]
-    player.opened = gui_data.elements.main_window
 end
 
 -------------------------------------------------------------------------------
@@ -857,23 +839,21 @@ local gui_update_router = {
     [PREFIX .. "virtualization-mainframe-mk3"] = mainframe_updater,
 }
 
----Time-based updater for entity GUIs
-function EntityGui.time_based_update()
-    for player_index, _ in pairs(storage.entity_gui.currently_opened) do
-        local gui_data = storage.entity_gui[player_index]
-        local entity = gui_data.entity
-
-        if not entity or not entity.valid then
-            close_opened_window(player_index)
-            goto continue
-        end
-
-        local handler = gui_update_router[entity.name]
-        if not handler then goto continue end
-        handler(gui_data)
-
-        ::continue::
+---Time-based updater for entity GUI window
+---@param gui_data EntityGuiData
+local function time_based_updater(gui_data)
+    local entity = gui_data.entity
+    -- closing window if entity became invalid
+    if not entity or not entity.valid then
+        close_opened_window(gui_data.player_index)
+        return
     end
+
+    local handler = gui_update_router[entity.name]
+    if not handler then return end
+    handler(gui_data)
 end
+
+GuiUpdater.add_schema("entity", time_based_updater)
 
 return EntityGui

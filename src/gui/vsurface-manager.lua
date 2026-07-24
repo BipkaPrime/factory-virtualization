@@ -12,8 +12,7 @@ For this table key is player index, value is table containing manager data.
 --]]
 
 ---Table with references to surface manager gui elements
----@class SurfaceManagerElements
----@field main_window LuaGuiElement
+---@class SurfaceManagerElements: GuiElementsBase
 ---@field right_frame LuaGuiElement
 ---@field vsurface_selector LuaGuiElement reference to selector element on the left side
 ---@field vsurface_search LuaGuiElement reference to textfield above vsurface selector
@@ -34,8 +33,7 @@ For this table key is player index, value is table containing manager data.
 ---@field compile_btn_status LuaGuiElement|nil reference to status label above compile button
 
 ---Table with vsurface manager gui data
----@class SurfaceManagerData
----@field opened boolean|nil true if surface manager is currently opened
+---@class SurfaceManagerData: GuiDataBase
 ---@field vsurface_search_query string|nil last user input into vsurface searchfield
 ---@field selected_vsurface string|nil surface name selected in the selector
 ---@field new_surface_pressed boolean|nil true if "vsurface creation interface" is opened
@@ -44,12 +42,13 @@ For this table key is player index, value is table containing manager data.
 ---@field new_surface_height number|nil last user input into new surface height field
 ---@field selected_planet string|nil planet selector chosen option in new surface interface 
 ---@field template_name string|nil last user input into template name textfield
----@field elements SurfaceManagerElements
+---@field elements SurfaceManagerElements|nil
 
 
 local VSurfaceManager = require("src.world.vsurface-manager")
 local VEnvProcessor = require("src.simulation.venv-processor")
 local CommonGui = require("src.gui.common")
+local GuiUpdater = require("src.gui.updater")
 
 local PREFIX = "FV-"
 local SurfaceManagerGui = {}
@@ -449,6 +448,7 @@ end
 ---Creates vsurface manager base. Surface manager must be closed when calling this.
 ---Base consists of elements that are always present in the window.
 ---@param player LuaPlayer player for which window is created. Assumed to be valid.
+---@return SurfaceManagerData
 local function create_surface_manager_base(player)
     -- creating base window and "opening" it
     local main_frame = CommonGui.create_base_window(
@@ -503,6 +503,7 @@ local function create_surface_manager_base(player)
     }
     right_flow.style.vertical_spacing = 12
     manager_data.elements.right_frame = right_flow
+    return manager_data
 end
 
 ---Clears all element in the right frame and populates it.
@@ -524,6 +525,17 @@ local function update_right_frame(manager_data)
         create_start_compilation_btn(right_frame, manager_data)
     end
 end
+
+---Time-based updater for vsurface manager window
+local function time_based_updater(manager_data)
+    if manager_data.selected_vsurface then
+        configure_template_name_textfield(manager_data)
+        configure_compilation_progressbar(manager_data)
+        configure_start_compilation_btn(manager_data)
+    end
+end
+
+GuiUpdater.add_schema("surface_manager", time_based_updater)
 
 -------------------------------------------------------------------------------
 -- CONTROL ELEMENTS: HANDLER FUNCTIONS
@@ -684,7 +696,7 @@ end
 -------------------------------------------------------------------------------
 
 ---Opens surface manager for a given player or closes if already opened
----@param player LuaPlayer player for which 
+---@param player LuaPlayer
 local function toggle_surface_manager(player)
     local manager_data = storage.surface_manager[player.index]
 
@@ -694,9 +706,9 @@ local function toggle_surface_manager(player)
         return
     end
 
-    create_surface_manager_base(player)
-    manager_data = storage.surface_manager[player.index]
+    manager_data = create_surface_manager_base(player)
     update_right_frame(manager_data)
+    GuiUpdater.register_gui("surface_manager", manager_data, player.index)
 end
 
 ---Closes the surface manager when player.opened changes from
@@ -723,30 +735,6 @@ function SurfaceManagerGui.process_surface_manager_hotkey(event)
     local player = game.get_player(event.player_index)
     if not player or not player.valid then return end
     toggle_surface_manager(player)
-end
-
----After player changes surface with this custom window opened
----player.opened can be assigned nil with window still opened
----So if window should be opened, we set player.opened to it.
----@param event EventData.on_player_changed_surface
-function SurfaceManagerGui.process_player_changed_surface(event)
-    local manager_data = storage.surface_manager[event.player_index]
-    if not manager_data or not manager_data.opened then return end
-    local player = game.get_player(event.player_index)
-    if not player or not player.valid then return end
-    player.opened = manager_data.elements.main_window
-end
-
----Time-based vsurface manager updater
-function SurfaceManagerGui.update_opened_windows()
-    for _, manager_data in pairs(storage.surface_manager) do
-        -- updating info panel if surface is selected
-        if manager_data.opened and manager_data.selected_vsurface then
-            configure_template_name_textfield(manager_data)
-            configure_compilation_progressbar(manager_data)
-            configure_start_compilation_btn(manager_data)
-        end
-    end
 end
 
 return SurfaceManagerGui

@@ -6,6 +6,7 @@ local CommonGui = require("src.gui.common")
 local EntityGui = require("src.gui.entity")
 local SurfaceManagerGui = require("src.gui.vsurface-manager")
 local TemplateDashboard = require("src.gui.template-dashboard")
+local GuiUpdater = require("src.gui.updater")
 
 local PREFIX = "FV-"
 
@@ -31,7 +32,9 @@ script.on_init(function()
     -- gui/vsurface-manager
     storage.surface_manager = {}
     -- gui/entity-gui
-    storage.entity_gui = {currently_opened = {}}
+    storage.entity_gui = {}
+    -- gui/updater
+    storage.opened_guis = {array = {}, next_index = 1}
 end)
 
 script.on_configuration_changed(function()
@@ -46,11 +49,10 @@ script.on_event(defines.events.on_tick, function(event)
     ClusterProcessor.process_clusters(event)
     EntityProcessor.process_entities(event)
     ChunkProcessor.process_chunks(event)
-    EntityGui.time_based_update()
+    GuiUpdater.update()
 end)
 
 script.on_nth_tick(60, function()
-    SurfaceManagerGui.update_opened_windows()
     VEnvProcessor.process_compiling_surfaces()
 end)
 
@@ -86,15 +88,6 @@ end)
 -- GUI HANDLERS
 -------------------------------------------------------------------------------
 
----After player changes surface with custom gui window opened
----player.opened can be assigned nil with window still opened
----So if window should be opened, we set player.opened to it.
-script.on_event(defines.events.on_player_changed_surface, function(event)
-    SurfaceManagerGui.process_player_changed_surface(event)
-    TemplateDashboard.process_player_changed_surface(event)
-    EntityGui.process_player_changed_surface(event)
-end)
-
 script.on_event(defines.events.on_gui_opened, function(event)
     EntityGui.process_gui_opened(event)
 end)
@@ -111,7 +104,7 @@ end)
 
 ---Picks a handler for event.element from router table.
 ---Only useful when routing is done by element.name
----@param event EventData 
+---@param event EventData
 ---@param router table<string, function>
 local function element_name_router(event, router)
     ---@diagnostic disable-next-line: undefined-field

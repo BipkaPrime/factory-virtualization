@@ -14,8 +14,7 @@ dashboard data.
 --]]
 
 ---Table with references to dashboard gui elements
----@class DashboardElements
----@field main_window LuaGuiElement
+---@class DashboardElements: GuiElementsBase
 ---@field template_search LuaGuiElement
 ---@field template_selector LuaGuiElement
 ---@field surface_search LuaGuiElement
@@ -23,19 +22,19 @@ dashboard data.
 ---@field datafield LuaGuiElement
 
 ---Table with dashboard gui data
----@class DashboardData
----@field opened boolean|nil true if dashboard is currently opened
+---@class DashboardData: GuiDataBase
 ---@field template_query string|nil template search query
 ---@field template_name string|nil name of selected template
 ---@field surface_query string|nil surface search query
 ---@field surface_name string|nil name of selected surface
----@field elements DashboardElements
+---@field elements DashboardElements|nil
 
 
 local TemplateCompiler = require("src.simulation.template-compiler")
 local ClusterProcessor = require("src.simulation.cluster-processor")
 local ClusterInfo = require("src.gui.cluster-info")
 local CommonGui = require("src.gui.common")
+local GuiUpdater = require("src.gui.updater")
 
 local PREFIX = "FV-"
 local TemplateDashboard = {}
@@ -136,7 +135,7 @@ local function create_surface_selection_widget(parent, dashboard_data)
 end
 
 -------------------------------------------------------------------------------
--- INFORMATION ELEMENTS: CREATE FUNCTIONS
+-- TEMPLATE INFO ELEMENTS
 -------------------------------------------------------------------------------
 
 ---Adds section describing template construction cost
@@ -226,6 +225,7 @@ end
 ---Creates template dashboard base. Dashboard must be closed when calling this.
 ---Base consists of elements that are always present in the window.
 ---@param player LuaPlayer player for which window is created. Assumed to be valid.
+---@return DashboardData
 local function create_template_dashboard_base(player)
     -- creating base window and "opening" it
     local main_window = CommonGui.create_base_window(
@@ -273,6 +273,7 @@ local function create_template_dashboard_base(player)
     local datafield = right_frame.add{type = "scroll-pane"}
     datafield.style.vertically_stretchable = true
     dashboard_data.elements.datafield = datafield
+    return dashboard_data
 end
 
 ---Updates data displayed on the right side of interface
@@ -296,6 +297,25 @@ local function update_datafield(dashboard_data)
         ClusterInfo.create_all_cluster_info(datafield, cluster)
     end
 end
+
+---Time-based updater for template dashboard window
+---@param dashboard_data DashboardData
+local function time_based_updater(dashboard_data)
+    local template_name = dashboard_data.template_name
+    local surface_name = dashboard_data.surface_name
+    if template_name and surface_name then
+        local datafield = dashboard_data.elements.datafield
+        datafield.clear()
+
+        local cluster = ClusterProcessor.get_cluster_by_names(
+            template_name,
+            surface_name
+        )
+        ClusterInfo.create_all_cluster_info(datafield, cluster)
+    end
+end
+
+GuiUpdater.add_schema("template_dashboard", time_based_updater)
 
 -------------------------------------------------------------------------------
 -- CONTROL ELEMENTS: HANDLER FUNCTIONS
@@ -356,7 +376,7 @@ function TemplateDashboard.process_surface_selector(event)
 end
 
 -------------------------------------------------------------------------------
--- MAIN LOGIC: OPEN/CLOSE/UPDATE FUNCTIONS
+-- MAIN LOGIC: OPEN/CLOSE
 -------------------------------------------------------------------------------
 
 ---Opens template dashboard for a given player or closes if already opened.
@@ -370,9 +390,10 @@ local function toggle_template_dashboard(player)
         return
     end
 
-    create_template_dashboard_base(player)
-    dashboard_data = storage.template_dashboard[player.index]
+    dashboard_data = create_template_dashboard_base(player)
     update_datafield(dashboard_data)
+    ---registering opened window for on-tick updates
+    GuiUpdater.register_gui("template_dashboard", dashboard_data, player.index)
 end
 
 ---Closes template dashboard when player.opened changes from
@@ -399,18 +420,6 @@ function TemplateDashboard.process_dashboard_hotkey(event)
     local player = game.get_player(event.player_index)
     if not player or not player.valid then return end
     toggle_template_dashboard(player)
-end
-
----After player changes surface with this custom window opened
----player.opened can be assigned nil with window still opened
----So if window should be opened, we set player.opened to it.
----@param event EventData.on_player_changed_surface
-function TemplateDashboard.process_player_changed_surface(event)
-    local dashboard_data = storage.template_dashboard[event.player_index]
-    if not dashboard_data or not dashboard_data.opened then return end
-    local player = game.get_player(event.player_index)
-    if not player or not player.valid then return end
-    player.opened = dashboard_data.elements.main_window
 end
 
 return TemplateDashboard
