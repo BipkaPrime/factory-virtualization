@@ -377,7 +377,7 @@ end
 ---@param multiplier number buffer size multiplier
 local function update_buffers_table(buffer, multiplier)
     for _, entry in pairs(buffer) do
-        entry.maximum = entry.per_craft * multiplier
+        entry.maximum = math.ceil(entry.per_craft * multiplier) + 1
     end
 end
 
@@ -423,8 +423,8 @@ function ClusterProcessor.add_to_cluster(entity, template_name)
     -- getting appropriate cluster for entity
     local cluster = get_or_create_cluster(template, template_name, entity)
 
-    -- avoiding duplicates: if entity is already in this cluster, return
-    if cluster.members[entity.unit_number] then return end
+    -- avoiding duplicates: if entity is already in this cluster, return it
+    if cluster.members[entity.unit_number] then return cluster end
 
     -- updating member coordinate related data
     local x, y = entity.position.x, entity.position.y

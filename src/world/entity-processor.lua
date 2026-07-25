@@ -44,6 +44,7 @@ When entity is constructed/revived, ghost tags migrate to entity regstry.
 ---@field entity LuaEntity
 ---@field unit_number number unique entity identifier
 ---@field name string name of entity
+---@field on_vsurface boolean true if entity is located on a vsurface
 
 ---Abstract entity that supports item selection
 ---@class EntityWithItemSelection: EntityPropertiesBase
@@ -54,7 +55,7 @@ When entity is constructed/revived, ghost tags migrate to entity regstry.
 ---@class EntityWithFluidSelection: EntityPropertiesBase
 ---@field selected_fluid FluidSelection|nil table describing selected fluid
 
----Abstract entity that can be an input ot an output
+---Abstract entity that can be an input or an output
 ---@class EntityWithIOSelection: EntityPropertiesBase
 ---@field is_output boolean|nil true if entity is an output
 
@@ -84,27 +85,33 @@ When entity is constructed/revived, ghost tags migrate to entity regstry.
 ---@class ClusterItemIOProperties: EntityWithItemSelection
 ---@class ClusterItemIOProperties: EntityWithIOSelection
 ---@class ClusterItemIOProperties: EntityWithChestInventory
+---@field ls_flow number|nil amount transfered in the last second
 
 ---Cluster fluid IO properties
 ---@class ClusterFluidIOProperties: SimpleClusterMember
 ---@class ClusterFluidIOProperties: EntityWithFluidSelection
 ---@class ClusterFluidIOProperties: EntityWithIOSelection
+---@field ls_flow number|nil amount transfered in the last second
 
 ---Cluster energy IO properties
 ---@class ClusterEnergyIOProperties: SimpleClusterMember
 ---@class ClusterEnergyIOProperties: EntityWithIOSelection
+---@field ls_flow number|nil amount transfered in the last second
 
 ---Template item IO properties
 ---@class TemplateItemIOProperties: EntityWithItemSelection
 ---@class TemplateItemIOProperties: EntityWithIOSelection
 ---@class TemplateItemIOProperties: EntityWithChestInventory
+---@field ls_flow number|nil amount transfered in the last second
 
 ---Template fluid IO properties
 ---@class TemplateFluidIOProperties: EntityWithFluidSelection
 ---@class TemplateFluidIOProperties: EntityWithIOSelection
+---@field ls_flow number|nil amount transfered in the last second
 
 ---Template energy IO properties
 ---@class TemplateEnergyIOProperties: EntityWithIOSelection
+---@field ls_flow number|nil amount transfered in the last second
 
 ---Table with properties of virtualization mainframe
 ---@class MainframeProperties: SimpleClusterMember
@@ -115,6 +122,7 @@ When entity is constructed/revived, ghost tags migrate to entity regstry.
 ---Table with properties of inter-cluster bridge
 ---@class InterClusterBridgeProperties: EntityWithModeSelection
 ---@class InterClusterBridgeProperties: InterClusterEntity
+---@field ls_flow number|nil amount transfered in the last second
 
 ---Union of all instances of entity properties
 ---@alias EntityProperties
@@ -127,7 +135,7 @@ When entity is constructed/revived, ghost tags migrate to entity regstry.
 ---|MainframeProperties
 ---|InterClusterBridgeProperties
 
-
+local VSurfaceManager = require("src.world.vsurface-manager")
 local ClusterProcessor = require("src.simulation.cluster-processor")
 local MainframeManager = require("src.world.mainframe-manager")
 local ClusterIO = require("src.world.cluster-io-manager")
@@ -478,10 +486,12 @@ function EntityProcessor.register_entity(entity, tags)
 
     -- mandatory entity properties
     local name = entity.name
+    local on_vsurface = not not VSurfaceManager.get_vsurface_data(entity.surface_index)
     local properties = {
         entity = entity,
         unit_number = entity.unit_number,
         name = name,
+        on_vsurface = on_vsurface,
     }
 
     -- adding event tags to properties
@@ -542,7 +552,7 @@ end
 
 ---@param unit_number number unique entity identifier
 ---@return EntityProperties|nil properties entity data from registry
-local function get_entity_data(unit_number)
+function EntityProcessor.get_entity_properties(unit_number)
     local reg = storage.entity_registry
     local index = reg.lookup[unit_number]
     if not index then return end
@@ -568,7 +578,7 @@ local function set_entity_property(entity, field, value, ignore_hooks)
         entity.tags = tags
     else
         -- entity is not a ghost, information in registry
-        local properties = get_entity_data(entity.unit_number)
+        local properties = EntityProcessor.get_entity_properties(entity.unit_number)
         if not properties then return end
         properties[field] = value
         if ignore_hooks then return end
@@ -660,7 +670,7 @@ local function get_entity_property(entity, field)
         return tags[ENTITY_TAG_KEY][field]
     else
         -- entity is not a ghost, information in registry
-        local properties = get_entity_data(entity.unit_number)
+        local properties = EntityProcessor.get_entity_properties(entity.unit_number)
         if not properties then return end
         return properties[field]
     end
@@ -762,58 +772,6 @@ function EntityProcessor.get_fluid_selection_enabled(entity)
     return true
 end
 
----Gets building requests of a given entity. Currently only virtualization
----mainframes can have this field.
----@param entity LuaEntity
----@return table<ItemKeyString, ItemBuffer>|nil
-function EntityProcessor.get_construction_requests(entity)
-    if not entity.valid then return end
-    local properties = get_entity_data(entity.unit_number)
-    if not properties then return end
-    ---@cast properties MainframeProperties
-    return MainframeManager.get_construction_requests(properties)
-end
-
----Gets contained buildings of a given entity. Currently only virtualization
----mainframes can have this field.
----@param entity LuaEntity
----@return table<ItemKeyString, ItemBuffer>|nil
-function EntityProcessor.get_contained_buildings(entity)
-    if not entity.valid then return end
-    local properties = get_entity_data(entity.unit_number)
-    if not properties then return end
-    ---@cast properties MainframeProperties
-    return MainframeManager.get_contained_buildings(properties)
-end
-
----Gets status of a given virtualization mainframe.
----@param entity LuaEntity
----@return LocalisedString status
-function EntityProcessor.get_mainframe_status(entity)
-    -- mainframe is invalid
-    if not entity.valid then
-        return {"entity-status.invalid"}
-    end
-    -- mainframe is a ghost
-    if entity.name == "entity-ghost" then
-        return {"entity-status.ghost"}
-    end
-    local properties = get_entity_data(entity.unit_number)
-    -- mainframe is not registered: critical error
-    if not properties then
-        return {"entity-status.not-registered"}
-    end
-    ---@cast properties MainframeProperties
-    return MainframeManager.get_mainframe_status(properties)
-end
-
----Gets virtualization cluster entity is a part of
----@param entity LuaEntity
----@return ClusterData|nil
-function EntityProcessor.get_cluster(entity)
-    return get_entity_property(entity, "cluster")
-end
-
 -------------------------------------------------------------------------------
 -- COPY PASTE
 -------------------------------------------------------------------------------
@@ -834,7 +792,7 @@ function EntityProcessor.setup_blueprint_tags(event)
         if not entity_router[entity.name] then goto continue end
 
         -- if registry does not have entity properties we have to skip it
-        local properties = get_entity_data(entity.unit_number)
+        local properties = EntityProcessor.get_entity_properties(entity.unit_number)
         if not properties then goto continue end
 
         -- creating a shallow copy with all copyable properties

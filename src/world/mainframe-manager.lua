@@ -166,6 +166,9 @@ end
 ---On-tick processor for virtualization mainframes
 ---@param properties MainframeProperties
 function MainframeManager.process_vm(properties)
+    -- does not work on vsurface
+    if properties.on_vsurface then return end
+
     -- handling building requests (only if mainframe is not operational)
     if not properties.operational then
         withdraw_building_materials(properties)
@@ -178,41 +181,6 @@ function MainframeManager.process_vm(properties)
             properties.operational = true
         end
     end
-end
-
--------------------------------------------------------------------------------
--- INFO REQUESTS (GUI)
--------------------------------------------------------------------------------
-
----@param properties MainframeProperties
----@return LocalisedString
-function MainframeManager.get_mainframe_status(properties)
-    -- no selected template: mainframe is idle
-    if not properties.cluster then
-        return {"entity-status.template-not-selected"}
-    end
-    -- something is being requested
-    local requests = properties.building_requests
-    if requests and next(requests) then
-        return {"entity-status.requesting-construction-materials"}
-    end
-    -- template constructed: mainframe operational
-    if properties.operational then
-        return {"entity-status.operational"}
-    end
-    return {"entity-status.unknown"}
-end
-
----@param properties MainframeProperties
----@return table<ItemKeyString, ItemBuffer>|nil
-function MainframeManager.get_contained_buildings(properties)
-    return properties.contained_buildings
-end
-
----@param properties MainframeProperties
----@return table<ItemKeyString, ItemBuffer>|nil
-function MainframeManager.get_construction_requests(properties)
-    return properties.building_requests
 end
 
 return MainframeManager

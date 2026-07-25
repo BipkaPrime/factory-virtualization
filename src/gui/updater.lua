@@ -82,7 +82,7 @@ end
 ---@param index number 
 local function unregister_gui(index)
     local arr = storage.opened_guis.array
-    arr[index] = arr[#arr + 1]
+    arr[index] = arr[#arr]
     table.remove(arr)
 end
 

@@ -50,6 +50,7 @@ local ClusterProcessor = require("src.simulation.cluster-processor")
 local CommonGui = require("src.gui.common")
 local ClusterInfo = require("src.gui.cluster-info")
 local GuiUpdater = require("src.gui.updater")
+local EntityInfo = require("src.gui.entity-info")
 
 local PREFIX = "FV-"
 local EntityGui = {}
@@ -526,69 +527,6 @@ function EntityGui.process_destination_cluster_selector(event)
 end
 
 -------------------------------------------------------------------------------
--- INFORMATION ELEMENTS
--------------------------------------------------------------------------------
-
----Adds a status display for virtualization mainframe
----@param parent LuaGuiElement section will be added here
----@param entity LuaEntity virtualization mainframe
-local function create_mainframe_status_display(parent, entity)
-    local status = EntityProcessor.get_mainframe_status(entity)
-    local caption = {"", {"gui-label.entity-status"}, ": " , status}
-    CommonGui.create_info_element_base(parent, caption)
-end
-
----Adds section displaying current mainframe requests if there are any.
----@param parent LuaGuiElement section will be added here
----@param entity LuaEntity virtualization mainframe
-local function create_mainframe_requests(parent, entity)
-    local requests = EntityProcessor.get_construction_requests(entity)
-    if not requests or not next(requests) then return end
-
-    -- Collecting sprite button data 
-    ---@type SpriteButtonData[]
-    local buttons = {}
-    for key, buffer in pairs(requests) do
-        table.insert(
-            buttons,
-            CommonGui.assemble_sprite_button_data(key, buffer.count)
-        )
-    end
-
-    local section = CommonGui.create_info_element_base(
-        parent,
-        {"gui-label.missing-construction-materials"}
-    )
-    CommonGui.create_sprite_button_table(section, buttons)
-end
-
----Adds section displaying buildings contained in the mainframe.
----@param parent LuaGuiElement section will be added here
----@param entity LuaEntity virtualization mainframe
-local function create_mainframe_building_contents(parent, entity)
-    local contents = EntityProcessor.get_contained_buildings(entity)
-    if not contents or not next(contents) then return end
-
-    -- Collecting sprite button data 
-    ---@type SpriteButtonData[]
-    local buttons = {}
-    for key, buffer in pairs(contents) do
-        if buffer.count > 0 then
-            table.insert(
-                buttons,
-                CommonGui.assemble_sprite_button_data(key, buffer.count)
-            )
-        end
-    end
-
-    local section = CommonGui.create_info_element_base(
-        parent,
-        {"gui-label.collected-construction-materials"}
-    )
-    CommonGui.create_sprite_button_table(section, buttons)
-end
-
--------------------------------------------------------------------------------
 -- GUI CONSTRUCTORS
 -------------------------------------------------------------------------------
 
@@ -645,6 +583,7 @@ local function create_entity_gui_base(player, entity)
     }
 
     local datafield = right_frame.add{type = "scroll-pane"}
+    -- datafield.style.minimal_width = 
     datafield.style.vertically_stretchable = true
     gui_data.elements.datafield = datafield
     GuiUpdater.register_gui("entity", gui_data, player.index)
@@ -680,16 +619,6 @@ local function create_template_energy_io_gui(player, entity)
     create_choose_io_buttons(left_frame, gui_data)
 end
 
----Used for time-based updates of cluster IO guis
-function cluster_io_updater(gui_data)
-    local entity = gui_data.entity
-    local datafield = gui_data.elements.datafield
-    datafield.clear()
-
-    local cluster = EntityProcessor.get_cluster(entity)
-    ClusterInfo.create_all_cluster_info(datafield, cluster)
-end
-
 ---Creates cluster item IO interface
 ---@param player LuaPlayer assumed to be valid
 ---@param entity LuaEntity assumed to be valid
@@ -720,20 +649,6 @@ local function create_cluster_energy_io_gui(player, entity)
     local left_frame = gui_data.elements.left_frame
     create_choose_io_buttons(left_frame, gui_data)
     create_template_selection_widget(left_frame, gui_data)
-end
-
----Used for time-based updates of mainframe interface
-function mainframe_updater(gui_data)
-    local entity = gui_data.entity
-    local datafield = gui_data.elements.datafield
-    datafield.clear()
-
-    create_mainframe_status_display(datafield, entity)
-    create_mainframe_requests(datafield, entity)
-    create_mainframe_building_contents(datafield, entity)
-
-    local cluster = EntityProcessor.get_cluster(entity)
-    ClusterInfo.create_all_cluster_info(datafield, cluster)
 end
 
 ---Creates virtualization mainframe interface
@@ -823,20 +738,80 @@ end
 -- TIME-BESED ENTITY GUI UPDATES
 -------------------------------------------------------------------------------
 
----Maps entity names to functions used to update their gui
+---Used for time-based updates of template IO GUIs
+---@param gui_data EntityGuiData
+local function update_template_io_datafield(gui_data)
+    local entity = gui_data.entity
+    local datafield = gui_data.elements.datafield
+    datafield.clear()
+
+    EntityInfo.create_entity_status_display(datafield, entity)
+    EntityInfo.create_last_second_flow_display(datafield, entity)
+end
+
+---Used for time-based updates of cluster IO GUIs
+---@param gui_data EntityGuiData
+local function update_cluster_io_datafield(gui_data)
+    local entity = gui_data.entity
+    local datafield = gui_data.elements.datafield
+    datafield.clear()
+
+    EntityInfo.create_entity_status_display(datafield, entity)
+    EntityInfo.create_last_second_flow_display(datafield, entity)
+    EntityInfo.create_cluster_information_display(datafield, entity)
+end
+
+---Used for time-based updates of mainframe GUIs
+---@param gui_data EntityGuiData
+local function update_virtualization_mainframe_datafield(gui_data)
+    local entity = gui_data.entity
+    local datafield = gui_data.elements.datafield
+    datafield.clear()
+
+    EntityInfo.create_entity_status_display(datafield, entity)
+    EntityInfo.create_mainframe_construction_requests(datafield, entity)
+    EntityInfo.create_mainframe_contained_buildings(datafield, entity)
+    EntityInfo.create_cluster_information_display(datafield, entity)
+end
+
+---Used for time-based updates of inter-cluster bridge GUIs
+---@param gui_data EntityGuiData
+local function update_inter_cluster_bridge_datafield(gui_data)
+    local entity = gui_data.entity
+    local datafield = gui_data.elements.datafield
+    datafield.clear()
+
+    EntityInfo.create_entity_status_display(datafield, entity)
+    EntityInfo.create_last_second_flow_display(datafield, entity)
+    EntityInfo.create_inter_cluster_bridge_display(datafield, entity)
+end
+
+---Maps entity names to functions used to update their GUIs
 local gui_update_router = {
-    [PREFIX .. "cluster-item-io-mk1"] = cluster_io_updater,
-    [PREFIX .. "cluster-item-io-mk2"] = cluster_io_updater,
-    [PREFIX .. "cluster-item-io-mk3"] = cluster_io_updater,
-    [PREFIX .. "cluster-fluid-io-mk1"] = cluster_io_updater,
-    [PREFIX .. "cluster-fluid-io-mk2"] = cluster_io_updater,
-    [PREFIX .. "cluster-fluid-io-mk3"] = cluster_io_updater,
-    [PREFIX .. "cluster-energy-io-mk1"] = cluster_io_updater,
-    [PREFIX .. "cluster-energy-io-mk2"] = cluster_io_updater,
-    [PREFIX .. "cluster-energy-io-mk3"] = cluster_io_updater,
-    [PREFIX .. "virtualization-mainframe-mk1"] = mainframe_updater,
-    [PREFIX .. "virtualization-mainframe-mk2"] = mainframe_updater,
-    [PREFIX .. "virtualization-mainframe-mk3"] = mainframe_updater,
+    [PREFIX .. "template-item-io-mk1"] = update_template_io_datafield,
+    [PREFIX .. "template-item-io-mk2"] = update_template_io_datafield,
+    [PREFIX .. "template-item-io-mk3"] = update_template_io_datafield,
+    [PREFIX .. "template-fluid-io-mk1"] = update_template_io_datafield,
+    [PREFIX .. "template-fluid-io-mk2"] = update_template_io_datafield,
+    [PREFIX .. "template-fluid-io-mk3"] = update_template_io_datafield,
+    [PREFIX .. "template-energy-io-mk1"] = update_template_io_datafield,
+    [PREFIX .. "template-energy-io-mk2"] = update_template_io_datafield,
+    [PREFIX .. "template-energy-io-mk3"] = update_template_io_datafield,
+    [PREFIX .. "cluster-item-io-mk1"] = update_cluster_io_datafield,
+    [PREFIX .. "cluster-item-io-mk2"] = update_cluster_io_datafield,
+    [PREFIX .. "cluster-item-io-mk3"] = update_cluster_io_datafield,
+    [PREFIX .. "cluster-fluid-io-mk1"] = update_cluster_io_datafield,
+    [PREFIX .. "cluster-fluid-io-mk2"] = update_cluster_io_datafield,
+    [PREFIX .. "cluster-fluid-io-mk3"] = update_cluster_io_datafield,
+    [PREFIX .. "cluster-energy-io-mk1"] = update_cluster_io_datafield,
+    [PREFIX .. "cluster-energy-io-mk2"] = update_cluster_io_datafield,
+    [PREFIX .. "cluster-energy-io-mk3"] = update_cluster_io_datafield,
+    [PREFIX .. "virtualization-mainframe-mk1"] = update_virtualization_mainframe_datafield,
+    [PREFIX .. "virtualization-mainframe-mk2"] = update_virtualization_mainframe_datafield,
+    [PREFIX .. "virtualization-mainframe-mk3"] = update_virtualization_mainframe_datafield,
+    [PREFIX .. "inter-cluster-bridge-mk1"] = update_inter_cluster_bridge_datafield,
+    [PREFIX .. "inter-cluster-bridge-mk2"] = update_inter_cluster_bridge_datafield,
+    [PREFIX .. "inter-cluster-bridge-mk3"] = update_inter_cluster_bridge_datafield,
 }
 
 ---Time-based updater for entity GUI window

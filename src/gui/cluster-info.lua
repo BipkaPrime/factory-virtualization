@@ -115,10 +115,10 @@ end
 
 ---Adds a container for displaying cluster buffer contents
 ---@param parent LuaGuiElement info element will be added here
----@param title LocalisedString title displayed on the top of info element
+---@param subtitle LocalisedString subtitle displayed on the top of info element
 ---@return LuaGuiElement flow buffer entries can be displayed here
-local function vcluster_buffer_base(parent, title)
-    local section = CommonGui.create_info_element_base(parent, title)
+local function vcluster_buffer_base(parent, subtitle)
+    local section = CommonGui.create_info_element_base(parent, subtitle)
     -- scroll pane so that built-in style can be used
     local main_container = section.add{
         type = "scroll-pane",
@@ -142,10 +142,10 @@ end
 ---Adds an element displaying info about cluster input buffer.
 ---@param parent LuaGuiElement element will be added here
 ---@param cluster ClusterData|nil table with cluster information
-function ClusterInfo.create_input_buffer(parent, cluster)
+---@param subtitle LocalisedString subtitle to display
+function ClusterInfo.create_input_buffer(parent, cluster, subtitle)
     if not cluster then return end
-    local input = cluster.input
-    local container = vcluster_buffer_base(parent, {"gui-label.cluster-input"})
+    local container = vcluster_buffer_base(parent, subtitle)
     for _, entry in pairs(cluster.input) do
         create_cluster_buffer_entry(container, cluster, entry)
     end
@@ -154,11 +154,12 @@ end
 ---Adds an element displaying info about cluster output buffer.
 ---@param parent LuaGuiElement element will be added here
 ---@param cluster ClusterData|nil table with cluster information
-function ClusterInfo.create_output_buffer(parent, cluster)
+---@param subtitle LocalisedString subtitle to display
+function ClusterInfo.create_output_buffer(parent, cluster, subtitle)
     if not cluster then return end
     local output = cluster.output
     if not next(output) then return end
-    local container = vcluster_buffer_base(parent, {"gui-label.cluster-output"})
+    local container = vcluster_buffer_base(parent, subtitle)
     for _, entry in pairs(cluster.output) do
         create_cluster_buffer_entry(container, cluster, entry)
     end
@@ -227,8 +228,8 @@ end
 ---@param cluster ClusterData|nil table with cluster information
 function ClusterInfo.create_all_cluster_info(parent, cluster)
     if not cluster then return end
-    ClusterInfo.create_input_buffer(parent, cluster)
-    ClusterInfo.create_output_buffer(parent, cluster)
+    ClusterInfo.create_input_buffer(parent, cluster, {"gui-label.cluster-input"})
+    ClusterInfo.create_output_buffer(parent, cluster, {"gui-label.cluster-output"})
     ClusterInfo.create_member_counts(parent, cluster)
 end
 

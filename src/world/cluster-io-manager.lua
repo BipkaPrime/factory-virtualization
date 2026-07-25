@@ -20,6 +20,9 @@ local flow_limits = {
 ---Updates given cluster item io
 ---@param properties ClusterItemIOProperties
 function MainframeIO.process_cluster_item_io(properties)
+    -- does not operate on vsurfaces
+    if properties.on_vsurface then return end
+
     -- does not operate without selected item
     local item = properties.selected_item
     if not item then return end
@@ -44,6 +47,7 @@ function MainframeIO.process_cluster_item_io(properties)
         item.count = math.min(flow_limit, available)
         ---@diagnostic disable-next-line: param-type-mismatch
         local inserted_count = inventory.insert(item)
+        properties.ls_flow = inserted_count
         ClusterProcessor.remove_from_buffer(cluster, buffer_key, inserted_count)
     else
         local available_space = ClusterProcessor.get_input_space(cluster, buffer_key)
@@ -53,6 +57,7 @@ function MainframeIO.process_cluster_item_io(properties)
         item.count = math.min(flow_limit, available_space)
         ---@diagnostic disable-next-line: param-type-mismatch
         local removed_count = inventory.remove(item)
+        properties.ls_flow = removed_count
         ClusterProcessor.add_to_buffer(cluster, buffer_key, removed_count)
     end
 end
@@ -60,6 +65,9 @@ end
 ---Updates given cluster fluid io
 ---@param properties ClusterFluidIOProperties
 function MainframeIO.process_cluster_fluid_io(properties)
+    -- does not operate on vsurfaces
+    if properties.on_vsurface then return end
+
     -- does not operate without selected fluid
     local fluid = properties.selected_fluid
     if not fluid then return end
@@ -79,6 +87,7 @@ function MainframeIO.process_cluster_fluid_io(properties)
         fluid.amount = math.min(flow_limit, available)
         ---@diagnostic disable-next-line: param-type-mismatch
         local inserted_amount = entity.insert_fluid(fluid)
+        properties.ls_flow = inserted_amount
         ClusterProcessor.remove_from_buffer(cluster, fluid.name, inserted_amount)
     else
         -- getting available space
@@ -89,6 +98,7 @@ function MainframeIO.process_cluster_fluid_io(properties)
         fluid.amount = math.min(flow_limit, available)
         ---@diagnostic disable-next-line: param-type-mismatch
         local removed_amount = entity.extract_fluid(fluid)
+        properties.ls_flow = removed_amount
         ClusterProcessor.add_to_buffer(cluster, fluid.name, removed_amount)
     end
 end
@@ -96,7 +106,10 @@ end
 ---Updates given cluster energy io
 ---@param properties ClusterEnergyIOProperties
 function MainframeIO.process_cluster_energy_io(properties)
-    -- making sure entity is connected to a cluster
+    -- does not operate on vsurfaces
+    if properties.on_vsurface then return end
+
+    -- does not operate without connecting to a cluster
     local cluster = properties.cluster
     if not cluster then return end
 
@@ -112,6 +125,7 @@ function MainframeIO.process_cluster_energy_io(properties)
         local available_space = entity.electric_buffer_size - entity.energy
         local transfered = math.min(flow_limit, available_amount, available_space)
         entity.energy = entity.energy + transfered
+        properties.ls_flow = transfered
         ClusterProcessor.remove_from_buffer(cluster, buffer_key, transfered)
     else
         -- getting available space in cluster input
@@ -121,6 +135,7 @@ function MainframeIO.process_cluster_energy_io(properties)
         -- moving energy from entity to vcluster
         local transfered = math.min(available_space, flow_limit, entity.energy)
         entity.energy = entity.energy - transfered
+        properties.ls_flow = transfered
         ClusterProcessor.add_to_buffer(cluster, buffer_key, transfered)
     end
 end

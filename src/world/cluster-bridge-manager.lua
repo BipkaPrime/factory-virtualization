@@ -56,6 +56,9 @@ end
 ---On-tick updater for inter cluster bridge
 ---@param properties InterClusterBridgeProperties
 function ClusterBridge.process_bridge(properties)
+    -- does not operate on a vsurface
+    if properties.on_vsurface then return end
+
     local source_cluster = properties.source_cluster
     local destination_cluster = properties.destination_cluster
     local buffer_key = properties.buffer_key
@@ -67,6 +70,7 @@ function ClusterBridge.process_bridge(properties)
     local output_limit = ClusterProcessor.get_output_capacity(source_cluster, buffer_key)
     local input_limit = ClusterProcessor.get_input_space(destination_cluster, buffer_key)
     local transfered = math.min(flow_limit, output_limit, input_limit)
+    properties.ls_flow = transfered
     if transfered <= 0 then return end
 
     ClusterProcessor.remove_from_buffer(source_cluster, buffer_key, transfered)

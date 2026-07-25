@@ -24,17 +24,16 @@ local flow_limits = {
 ---Updates given template item io
 ---@param properties TemplateItemIOProperties
 function TemplateIO.process_template_item_io(properties)
+    -- does not operate on any surfaces except vsufaces
+    if not properties.on_vsurface then return end
+
     -- does not operate without selected item
     local item = properties.selected_item
     if not item then return end
 
-    -- does not operate on any surfaces except vsufaces
-    local entity = properties.entity
-    local surface_index = entity.surface_index
-    if not VSurfaceManager.get_vsurface_data(surface_index) then return end
-
     -- removing or adding selected item to physical inventory
     -- and storing delta in venv if surface is compiling
+    local entity = properties.entity
     local inventory = properties.inventory
     item.count = flow_limits[entity.name]
     local delta = 0
@@ -45,25 +44,26 @@ function TemplateIO.process_template_item_io(properties)
         ---@diagnostic disable-next-line: param-type-mismatch
         delta = inventory.insert(item)
     end
+    properties.ls_flow = delta
     ---@type string assuming buffer key was created at the moment of item selection
     local buffer_key = properties.buffer_key
+    local surface_index = entity.surface_index
     VEnvProcessor.add_io_count(surface_index, buffer_key, delta, properties.is_output)
 end
 
 ---Updates given template fluid io
 ---@param properties TemplateFluidIOProperties
 function TemplateIO.process_template_fluid_io(properties)
+    -- does not operate on any surfaces except vsufaces
+    if not properties.on_vsurface then return end
+
     -- does not operate without selected fluid
     local fluid = properties.selected_fluid
     if not fluid then return end
 
-    -- does not operate on any surfaces except vsufaces
-    local entity = properties.entity
-    local surface_index = entity.surface_index
-    if not VSurfaceManager.get_vsurface_data(surface_index) then return end
-
     -- removing or adding selected fluid to physical inventory
     -- and storing delta in venv if surface is compiling
+    local entity = properties.entity
     fluid.amount = flow_limits[entity.name]
     local delta = 0
     if properties.is_output then
@@ -73,6 +73,8 @@ function TemplateIO.process_template_fluid_io(properties)
         ---@diagnostic disable-next-line: param-type-mismatch
         delta = entity.insert_fluid(fluid)
     end
+    properties.ls_flow = delta
+    local surface_index = entity.surface_index
     VEnvProcessor.add_io_count(surface_index, fluid.name, delta, properties.is_output)
 end
 
@@ -80,12 +82,11 @@ end
 ---@param properties TemplateEnergyIOProperties
 function TemplateIO.process_template_energy_io(properties)
     -- does not operate on any surfaces except vsufaces
-    local entity = properties.entity
-    local surface_index = entity.surface_index
-    if not VSurfaceManager.get_vsurface_data(surface_index) then return end
+    if not properties.on_vsurface then return end
 
     -- removing or adding energy to this IO
     -- and storing delta in venv if surface is compiling
+    local entity = properties.entity
     local buffer_key = "electric_energy"
     local flow_limit = flow_limits[entity.name]
     local delta = 0
@@ -96,6 +97,8 @@ function TemplateIO.process_template_energy_io(properties)
         delta = math.min(entity.electric_buffer_size - entity.energy, flow_limit)
         entity.energy = entity.energy + delta
     end
+    properties.ls_flow = delta
+    local surface_index = entity.surface_index
     VEnvProcessor.add_io_count(surface_index, buffer_key, delta, properties.is_output)
 end
 
