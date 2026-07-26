@@ -3,10 +3,34 @@ This file helps in creation of entity GUIs. It creates information elements for
 given entity. It works directly (read only) with entity properties from registry.
 --]]
 
-
 local EntityProcessor = require("src.world.entity-processor")
 local CommonGui = require("src.gui.common")
 local ClusterInfo = require("src.gui.cluster-info")
+
+---Mandatory: all entities have these in properties
+local INDEX_BUCKET_ID               = 1
+local INDEX_PROPERTIES_INDEX        = 2
+local INDEX_ENTITY                  = 3
+local INDEX_UNIT_NUMBER             = 4
+local INDEX_ENTITY_NAME             = 5
+local INDEX_VSURFACE_FLAG           = 6
+---User-controlled: these have set and get functions
+local INDEX_OUTPUT_FLAG             = 7
+local INDEX_SELECTED_ITEM           = 8
+local INDEX_SELECTED_FLUID          = 9
+local INDEX_FIRST_TEMPLATE          = 10
+local INDEX_SECOND_TEMPLATE         = 11
+local INDEX_MODE                    = 12
+---Internal: these can only be assigned by processor
+local INDEX_BUFFER_KEY              = 13
+local INDEX_FIRST_CLUSTER           = 14
+local INDEX_SECOND_CLUSTER          = 15
+local INDEX_INVENTORY               = 16
+local INDEX_FLOW_LIMIT              = 17
+local INDEX_LS_FLOW                 = 18
+local INDEX_OPERATIONAL             = 19
+local INDEX_BUILDING_REQUESTS       = 20
+local INDEX_BUILDING_CONTENTS       = 21
 
 
 local EntityInfo = {}
@@ -17,35 +41,35 @@ local PREFIX = "FV-"
 -------------------------------------------------------------------------------
 
 ---Decides template item IO status based on its properties
----@param properties TemplateItemIOProperties table from entity registry
+---@param properties EntityProperties table from entity registry
 local function get_template_item_io_status(properties)
     -- entity is not on a vsurface
-    if not properties.on_vsurface then
+    if not properties[INDEX_VSURFACE_FLAG] then
         return {"entity-status.works-only-on-vsurface"}
     end
     -- item is not selected
-    if not properties.selected_item then
+    if not properties[INDEX_SELECTED_ITEM] then
         return {"entity-status.item-not-selected"}
     end
     return {"entity-status.operational"}
 end
 
 ---Decides template fluid IO status based on its properties
----@param properties TemplateFluidIOProperties table from entity registry
+---@param properties EntityProperties table from entity registry
 local function get_template_fluid_io_status(properties)
     -- entity is not on a vsurface
-    if not properties.on_vsurface then
+    if not properties[INDEX_VSURFACE_FLAG] then
         return {"entity-status.works-only-on-vsurface"}
     end
     -- fluid is not selected
-    if not properties.selected_fluid then
+    if not properties[INDEX_SELECTED_FLUID] then
         return {"entity-status.fluid-not-selected"}
     end
     return {"entity-status.operational"}
 end
 
 ---Decides template energy IO status based on its properties
----@param properties TemplateEnergyIOProperties table from entity registry
+---@param properties EntityProperties table from entity registry
 local function get_template_energy_io_status(properties)
     -- entity is not on a vsurface
     if not properties.on_vsurface then
