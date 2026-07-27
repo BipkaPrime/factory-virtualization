@@ -72,105 +72,109 @@ end
 ---@param properties EntityProperties table from entity registry
 local function get_template_energy_io_status(properties)
     -- entity is not on a vsurface
-    if not properties.on_vsurface then
+    if not properties[INDEX_VSURFACE_FLAG] then
         return {"entity-status.works-only-on-vsurface"}
     end
     return {"entity-status.operational"}
 end
 
 ---Decides cluster item IO status based on its properties
----@param properties ClusterItemIOProperties table from entity registry
+---@param properties EntityProperties table from entity registry
 local function get_cluster_item_io_status(properties)
     -- entity is on a vsurface
-    if properties.on_vsurface then
+    if properties[INDEX_VSURFACE_FLAG] then
         return {"entity-status.does-not-work-on-vsurface"}
     end
     -- item is not selected
-    if not properties.selected_item then
+    if not properties[INDEX_SELECTED_ITEM] then
         return {"entity-status.item-not-selected"}
     end
     -- entity is not connected to cluster
-    if not properties.cluster then
+    if not properties[INDEX_FIRST_CLUSTER] then
         return {"entity-status.not-connected-to-cluster"}
     end
     return {"entity-status.operational"}
 end
 
 ---Decides cluster fluid IO status based on its properties
----@param properties ClusterFluidIOProperties table from entity registry
+---@param properties EntityProperties table from entity registry
 local function get_cluster_fluid_io_status(properties)
     -- entity is on a vsurface
-    if properties.on_vsurface then
+    if properties[INDEX_VSURFACE_FLAG] then
         return {"entity-status.does-not-work-on-vsurface"}
     end
-    -- item is not selected
-    if not properties.selected_fluid then
+    -- fluid is not selected
+    if not properties[INDEX_SELECTED_FLUID] then
         return {"entity-status.fluid-not-selected"}
     end
     -- entity is not connected to cluster
-    if not properties.cluster then
+    if not properties[INDEX_FIRST_CLUSTER] then
         return {"entity-status.not-connected-to-cluster"}
     end
     return {"entity-status.operational"}
 end
 
 ---Decides cluster energy IO status based on its properties
----@param properties ClusterEnergyIOProperties table from entity registry
+---@param properties EntityProperties table from entity registry
 local function get_cluster_energy_io_status(properties)
     -- entity is on a vsurface
-    if properties.on_vsurface then
+    if properties[INDEX_VSURFACE_FLAG] then
         return {"entity-status.does-not-work-on-vsurface"}
     end
     -- entity is not connected to cluster
-    if not properties.cluster then
+    if not properties[INDEX_FIRST_CLUSTER] then
         return {"entity-status.not-connected-to-cluster"}
     end
     return {"entity-status.operational"}
 end
 
 ---Decides mainframe status based on its properties
----@param properties MainframeProperties table from entity registry
+---@param properties EntityProperties table from entity registry
 local function get_mainframe_status(properties)
     -- entity is on a vsurface
-    if properties.on_vsurface then
+    if properties[INDEX_VSURFACE_FLAG] then
         return {"entity-status.does-not-work-on-vsurface"}
     end
-    -- no selected template: mainframe is idle
-    if not properties.cluster then
-        return {"entity-status.template-not-selected"}
+    -- entity is not connected to cluster
+    if not properties[INDEX_FIRST_CLUSTER] then
+        return {"entity-status.not-connected-to-cluster"}
     end
     -- something is being requested
-    local requests = properties.building_requests
+    local requests = properties[INDEX_BUILDING_REQUESTS]
     if requests and next(requests) then
         return {"entity-status.requesting-construction-materials"}
     end
     -- template constructed: mainframe operational
-    if properties.operational then
+    if properties[INDEX_OPERATIONAL] then
         return {"entity-status.operational"}
     end
 end
 
 ---Decides inter-cluster bridge statusbased on its properties
----@param properties InterClusterBridgeProperties table from entity registry
+---@param properties EntityProperties table from entity registry
 local function get_inter_cluster_bridge_status(properties)
     -- entity is on a vsurface
-    if properties.on_vsurface then
+    if properties[INDEX_VSURFACE_FLAG] then
         return {"entity-status.does-not-work-on-vsurface"}
     end
     -- source cluster is not selected
-    if not properties.source_cluster then
+    if not properties[INDEX_FIRST_CLUSTER] then
         return {"entity-status.source-cluster-not-selected"}
     end
     -- destination cluster is not selected
-    if not properties.destination_cluster then
+    if not properties[INDEX_SECOND_CLUSTER] then
         return {"entity-status.destination-cluster-not-selected"}
     end
+    local mode = properties[INDEX_MODE]
+    if not mode then
+        return {"entity-status.mode-not-selected"}
+    end
     -- item is not selected in item mode
-    if properties.mode == "item" and not properties.selected_item then
+    if mode == "item" and not properties[INDEX_SELECTED_ITEM] then
         return {"entity-status.item-not-selected"}
     end
     -- fluid is not selected in fluid mode
-    if properties.mode == "fluid" and not properties.selected_fluid then
+    if mode == "fluid" and not properties[INDEX_SELECTED_FLUID] then
         return {"entity-status.fluid-not-selected"}
     end
     return {"entity-status.operational"}
@@ -246,8 +250,9 @@ function EntityInfo.create_mainframe_construction_requests(parent, entity)
     if not entity.valid then return end
     local properties = EntityProcessor.get_entity_properties(entity.unit_number)
     if not properties then return end
-    local requests = properties.building_requests
+    local requests = properties[INDEX_BUILDING_REQUESTS]
     if not requests or not next(requests) then return end
+    ---@cast requests table<BufferKeyString, ItemBuffer>
 
     -- Collecting sprite button data 
     ---@type SpriteButtonData[]
@@ -255,7 +260,7 @@ function EntityInfo.create_mainframe_construction_requests(parent, entity)
     for key, buffer in pairs(requests) do
         table.insert(
             buttons,
-            CommonGui.assemble_sprite_button_data(key, buffer.count)
+            CommonGui.assemble_sprite_button_data(key, buffer[3])
         )
     end
 
@@ -273,17 +278,18 @@ function EntityInfo.create_mainframe_contained_buildings(parent, entity)
     if not entity.valid then return end
     local properties = EntityProcessor.get_entity_properties(entity.unit_number)
     if not properties then return end
-    local contents = properties.contained_buildings
+    local contents = properties[INDEX_BUILDING_CONTENTS]
     if not contents or not next(contents) then return end
+    ---@cast contents table<BufferKeyString, ItemBuffer>
 
     -- Collecting sprite button data 
     ---@type SpriteButtonData[]
     local buttons = {}
     for key, buffer in pairs(contents) do
-        if buffer.count > 0 then
+        if buffer[3] > 0 then
             table.insert(
                 buttons,
-                CommonGui.assemble_sprite_button_data(key, buffer.count)
+                CommonGui.assemble_sprite_button_data(key, buffer[3])
             )
         end
     end
@@ -306,7 +312,7 @@ function EntityInfo.create_cluster_information_display(parent, entity)
     if not entity.valid then return end
     local properties = EntityProcessor.get_entity_properties(entity.unit_number)
     if not properties then return end
-    local cluster = properties.cluster
+    local cluster = properties[INDEX_FIRST_CLUSTER]
     ClusterInfo.create_all_cluster_info(parent, cluster)
 end
 
@@ -315,7 +321,7 @@ function EntityInfo.create_inter_cluster_bridge_display(parent, entity)
     if not entity.valid then return end
     local properties = EntityProcessor.get_entity_properties(entity.unit_number)
     if not properties then return end
-    local source_cluster = properties.source_cluster
+    local source_cluster = properties[INDEX_FIRST_CLUSTER]
     if source_cluster then
         ClusterInfo.create_output_buffer(
             parent,
@@ -323,7 +329,7 @@ function EntityInfo.create_inter_cluster_bridge_display(parent, entity)
             {"gui-label.source-cluster-output-buffer"}
         )
     end
-    local destination_cluster = properties.destination_cluster
+    local destination_cluster = properties[INDEX_SECOND_CLUSTER]
     if destination_cluster then
         ClusterInfo.create_input_buffer(
             parent,
@@ -342,7 +348,7 @@ function EntityInfo.create_last_second_flow_display(parent, entity)
     local properties = EntityProcessor.get_entity_properties(entity.unit_number)
     if not properties then return end
 
-    local ls_flow = properties.ls_flow
+    local ls_flow = properties[INDEX_LS_FLOW]
     local caption = CommonGui.format_number(ls_flow or 0)
 
     CommonGui.create_info_element_base(

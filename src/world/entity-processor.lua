@@ -901,12 +901,18 @@ local registration_hooks = {
     [PREFIX .. "template-item-io-mk1"] = template_item_io_registration,
     [PREFIX .. "template-item-io-mk2"] = template_item_io_registration,
     [PREFIX .. "template-item-io-mk3"] = template_item_io_registration,
+    [PREFIX .. "template-fluid-io-mk1"] = template_fluid_io_registration,
+    [PREFIX .. "template-fluid-io-mk2"] = template_fluid_io_registration,
+    [PREFIX .. "template-fluid-io-mk3"] = template_fluid_io_registration,
     [PREFIX .. "template-energy-io-mk1"] = template_energy_io_registration,
     [PREFIX .. "template-energy-io-mk2"] = template_energy_io_registration,
     [PREFIX .. "template-energy-io-mk3"] = template_energy_io_registration,
     [PREFIX .. "cluster-item-io-mk1"] = cluster_item_io_registration,
     [PREFIX .. "cluster-item-io-mk2"] = cluster_item_io_registration,
     [PREFIX .. "cluster-item-io-mk3"] = cluster_item_io_registration,
+    [PREFIX .. "cluster-fluid-io-mk1"] = cluster_fluid_io_registration,
+    [PREFIX .. "cluster-fluid-io-mk2"] = cluster_fluid_io_registration,
+    [PREFIX .. "cluster-fluid-io-mk3"] = cluster_fluid_io_registration,
     [PREFIX .. "cluster-energy-io-mk1"] = cluster_energy_io_registration,
     [PREFIX .. "cluster-energy-io-mk2"] = cluster_energy_io_registration,
     [PREFIX .. "cluster-energy-io-mk3"] = cluster_energy_io_registration,
@@ -1042,7 +1048,10 @@ function EntityProcessor.register_entity(entity, tags)
         if relevant_tags then
             local copyable = entity_copyable_fields[entity_name]
             for _, field in ipairs(copyable) do
-                properties[field] = relevant_tags[field]
+                -- for some reason entity tags are strings
+                local key = tostring(field)
+                -- if field is not present in tags we want to write false there
+                properties[field] = relevant_tags[key] or false
                 -- field setting hooks for given entity
                 local hooks = field_setting_hooks[entity_name]
                 if hooks then
@@ -1082,12 +1091,11 @@ local function unregister_entity(properties)
         end
     end
 
-    -- finding the last element added to the registry and removing it
-    local last_bucket_id = (registry.next_bucket_id - 2) % 60 + 1
+    -- finding the last element added to the registry
+    local last_bucket_id = (registry.next_bucket_id + 58) % 60 + 1
+    registry.next_bucket_id = last_bucket_id
     local last_bucket = buckets[last_bucket_id]
     local last_element = last_bucket[#last_bucket]
-    last_bucket[#last_bucket] = nil
-    registry.next_bucket_id = last_bucket_id
 
     -- rewriting the element we want to delete with last element
     local bucket_id = properties[INDEX_BUCKET_ID]
@@ -1096,7 +1104,8 @@ local function unregister_entity(properties)
     last_element[INDEX_BUCKET_ID] = bucket_id
     last_element[INDEX_PROPERTIES_INDEX] = index
 
-    -- removing element we are deleting from lookup table
+    -- removing last element from the registry
+    last_bucket[#last_bucket] = nil
     local unit_number = properties[INDEX_UNIT_NUMBER]
     registry.lookup[unit_number] = nil
 end
@@ -1105,6 +1114,13 @@ end
 ---@param unit_number number unique entity identifier
 ---@return EntityProperties|nil properties entity data from registry
 local function get_entity_properties(unit_number)
+    return storage.entity_registry.lookup[unit_number]
+end
+
+---Gets a reference to entity properties from registry
+---@param unit_number number unique entity identifier
+---@return EntityProperties|nil properties entity data from registry
+function EntityProcessor.get_entity_properties(unit_number)
     return storage.entity_registry.lookup[unit_number]
 end
 
@@ -1291,6 +1307,7 @@ function EntityProcessor.setup_blueprint_tags(event)
         for _, field in ipairs(copyable_fields) do
             properties_copy[field] = properties[field]
         end
+
         blueprint.set_blueprint_entity_tag(b_entity_index, PREFIX, properties_copy)
 
         ::continue::
@@ -1309,9 +1326,89 @@ end
 -- MAIN PROCESSOR
 -------------------------------------------------------------------------------
 
+local IS_DEBUG = false
+
+---Debug function used for validation of entity registry data structure
+local function validate_data_structure()
+    local registry = storage.entity_registry
+    local buckets = registry.tick_buckets
+    local next_bucket = registry.next_bucket_id
+    local lookup = registry.lookup
+
+    -- bucket size distribution validation
+    local first_bucket = buckets[1]
+    local first_bucket_size = #first_bucket
+    local total_size = first_bucket_size
+    local smaller_bucket_found = false
+    for i = 2, 60 do
+        local bucket = buckets[i]
+        local curr_size = #bucket
+        total_size = total_size + curr_size
+        -- validating current bucket not larger then the first one
+        assert(
+            curr_size <= first_bucket_size,
+            "Bucket " .. tostring(i) .. " contains " .. tostring(curr_size) ..
+            "elements, which is more than contained in the first bucket: " .. tostring(first_bucket_size)
+        )
+        -- validating next bucket pointer
+        if curr_size < first_bucket_size and not smaller_bucket_found then
+            smaller_bucket_found = true
+            assert(
+                next_bucket == i,
+                "Next bucket pointer is " .. tostring(next_bucket) .. ", but should be " .. tostring(i)
+            )
+        end
+        -- validating bucket sizes
+        if smaller_bucket_found then
+            assert(
+                curr_size == first_bucket_size - 1,
+                "Bucket " .. tostring(i) .. "contains " .. tostring(curr_size) ..
+                " elements, while it should contain " .. tostring(first_bucket_size - 1)
+            )
+        else
+            assert(
+                curr_size == first_bucket_size,
+                "Bucket " .. tostring(i) .. "contains " .. tostring(curr_size) ..
+                " elements, while it should contain " .. tostring(first_bucket_size)
+            )
+        end
+    end
+    if not smaller_bucket_found then
+        assert(next_bucket == 1, "Next bucket pointer incorrect. Distribution is equal, pointer must be 1")
+    end
+
+    -- validating bucket elements
+    for i, bucket in ipairs(buckets) do
+        for j, properties in ipairs(bucket) do
+            assert(#properties == 21, "Properties are missing elements")
+            local bucket_id = properties[INDEX_BUCKET_ID]
+            local index = properties[INDEX_PROPERTIES_INDEX]
+            assert(bucket_id == i, "Incorrect bucket id in properties")
+            assert(index == j, "Incorrect index in properties")
+        end
+    end
+
+    -- validating lookup map
+    local lookup_size = 0
+    for lookup_unit_number, properties in pairs(lookup) do
+        local actual_unit_number = properties[INDEX_UNIT_NUMBER]
+        assert(
+            lookup_unit_number == actual_unit_number,
+            "Incorrect lookup pointer detected"
+        )
+        lookup_size = lookup_size + 1
+    end
+    assert(
+        lookup_size == total_size,
+        "Lookup size does not match with buckets size"
+    )
+end
+
 ---On-tick entity processor. Updates one bucket per tick
 ---@param event EventData.on_tick
 function EntityProcessor.process_entities(event)
+    if IS_DEBUG then validate_data_structure() end
+
     local bucket_id = (event.tick % 60) + 1
     local bucket = storage.entity_registry.tick_buckets[bucket_id]
 
