@@ -7,22 +7,30 @@ storage.entity_registry = {
     lookup = {},
 }
 Array is 1-indexed and contains data of all entities in the registry.
-Lookup maps unit_number of an entity to index in the array containing corresponding
-entity data. Entity data from this registry is also called entity properties.
+It is required for efficient on-tick processing.
+Lookup maps unit number of an entity to its properties. It is required to
+find properties in O(1).
+
+Entities are added to the registry when build event are fired. Entities are
+deleted from then registry automatically when they become invalid. To delete item in
+O(1), properties must contain it's key in lookup. In our case entity unit number.
+
 Only alive entities (not ghosts) can have properties in entity registry.
 However, entity processor provides functionality to manipulate entity tags 
 for ghosts, where entity properties are stored before entity is built.
-When entity is constructed/revived, ghost tags migrate to entity regstry.
+When entity is constructed/revived, ghost tags migrate to entity registry.
+
+Entity properties can be divided into 3 groups.
+First group is mandatory: every entity must have these.
+Second group is user-inputs: they have setter and getter functions and
+can be directly influenced by the player.
+Third group is internal: these can only be assigned by entity processor.
 --]]
 
-
----@alias ItemKeyString string name//quality
----@alias FluidKeyString string fluid_name
----@alias EnergyKeyString "electric_energy"
 ---Serves as key in tables where items, fluids and energy are stored together
----@alias BufferKeyString ItemKeyString|FluidKeyString|EnergyKeyString
+---@alias BufferKeyString string "name//quality" for items, "name" for fluids, "electric_energy" for energy
 
---- Table describing one item stack
+---Table describing one item stack
 ---@class ItemBuffer
 ---@field count number number of items contained
 ---@field quality string quality of this item
@@ -39,101 +47,27 @@ When entity is constructed/revived, ghost tags migrate to entity regstry.
 ---@field name string name of selected fluid
 ---@field amount number|nil technical field (to use table as an arg in entity.insert_fluid)
 
----Abstract class for entity data in processor
----@class EntityPropertiesBase
----@field entity LuaEntity
----@field unit_number number unique entity identifier
----@field name string name of entity
----@field on_vsurface boolean true if entity is located on a vsurface
-
----Abstract entity that supports item selection
----@class EntityWithItemSelection: EntityPropertiesBase
----@field selected_item ItemSelection|nil table describing selected item
----@field buffer_key ItemKeyString|nil "name//quality"
-
----Abstract entity that supports fluid selection
----@class EntityWithFluidSelection: EntityPropertiesBase
----@field selected_fluid FluidSelection|nil table describing selected fluid
-
----Abstract entity that can be an input or an output
----@class EntityWithIOSelection: EntityPropertiesBase
----@field is_output boolean|nil true if entity is an output
-
----Abstract entity that has chest inventory
----@class EntityWithChestInventory: EntityPropertiesBase
----@field inventory LuaInventory cached on registration
-
----Abstract entity that can be a member of cluster
----@class SimpleClusterMember: EntityPropertiesBase
----@field selected_template string|nil name of selected template (user input)
----@field cluster table|nil reference to virtualization cluster that includes this entity
-
----Abstract entity that has item/fluid/energy mode selection
----@class EntityWithModeSelection: EntityWithFluidSelection
----@class EntityWithModeSelection: EntityWithItemSelection
----@field mode "item"|"fluid"|"energy"|nil
-
----Abstract entity that can connect to 2 clusters
----@class InterClusterEntity: EntityPropertiesBase
----@field source_template string|nil 
----@field destination_template string|nil
----@field source_cluster ClusterData|nil
----@field destination_cluster ClusterData|nil
-
----Cluster item IO properties
----@class ClusterItemIOProperties: SimpleClusterMember
----@class ClusterItemIOProperties: EntityWithItemSelection
----@class ClusterItemIOProperties: EntityWithIOSelection
----@class ClusterItemIOProperties: EntityWithChestInventory
----@field ls_flow number|nil amount transfered in the last second
-
----Cluster fluid IO properties
----@class ClusterFluidIOProperties: SimpleClusterMember
----@class ClusterFluidIOProperties: EntityWithFluidSelection
----@class ClusterFluidIOProperties: EntityWithIOSelection
----@field ls_flow number|nil amount transfered in the last second
-
----Cluster energy IO properties
----@class ClusterEnergyIOProperties: SimpleClusterMember
----@class ClusterEnergyIOProperties: EntityWithIOSelection
----@field ls_flow number|nil amount transfered in the last second
-
----Template item IO properties
----@class TemplateItemIOProperties: EntityWithItemSelection
----@class TemplateItemIOProperties: EntityWithIOSelection
----@class TemplateItemIOProperties: EntityWithChestInventory
----@field ls_flow number|nil amount transfered in the last second
-
----Template fluid IO properties
----@class TemplateFluidIOProperties: EntityWithFluidSelection
----@class TemplateFluidIOProperties: EntityWithIOSelection
----@field ls_flow number|nil amount transfered in the last second
-
----Template energy IO properties
----@class TemplateEnergyIOProperties: EntityWithIOSelection
----@field ls_flow number|nil amount transfered in the last second
-
----Table with properties of virtualization mainframe
----@class MainframeProperties: SimpleClusterMember
----@field operational boolean|nil true if mainframe has constructed a template and can operate
----@field building_requests table<ItemKeyString, ItemBuffer>|nil items that are being requested for template construction
----@field contained_buildings table<ItemKeyString, ItemBuffer>|nil items that were used for template construction
-
----Table with properties of inter-cluster bridge
----@class InterClusterBridgeProperties: EntityWithModeSelection
----@class InterClusterBridgeProperties: InterClusterEntity
----@field ls_flow number|nil amount transfered in the last second
-
----Union of all instances of entity properties
----@alias EntityProperties
----|ClusterItemIOProperties
----|ClusterFluidIOProperties
----|ClusterEnergyIOProperties
----|TemplateItemIOProperties
----|TemplateFluidIOProperties
----|TemplateEnergyIOProperties
----|MainframeProperties
----|InterClusterBridgeProperties
+---Table describing entity properties in registry
+---@class EntityProperties
+---@field unit_number number mandatory. Unique entity identifier: used as lookup key
+---@field entity LuaEntity mandatory. Entity that owns these properties
+---@field entity_name string mandatory. Name of entity that owns these properties
+---@field is_output boolean|nil user-input. True if this entity is an output
+---@field selected_item ItemSelection|nil user-input. Table describing selected item
+---@field selected_fluid FluidSelection|nil user-input. Table describing selected fluid
+---@field first_template string|nil user-input. Name of first selected template
+---@field second_template string|nil user-input. Name of second selected template
+---@field mode "item"|"fluid"|"energy"|nil user-input. Selected mode of operation
+---@field on_vsurface boolean|nil internal. True is entity is located on a vsurface
+---@field buffer_key BufferKeyString|nil internal. String used for access to cluster/venv tables
+---@field first_cluster ClusterData|nil internal. Reference to cluster associated with first selected template
+---@field second_cluster ClusterData|nil internal. Reference to cluster associated with second selected template
+---@field inventory LuaInventory|nil internal. Inventory object of this entity
+---@field flow_limit number|nil internal. Maximum flow limit of this entity
+---@field ls_flow number|nil internal. Last second flow of this entity
+---@field operational boolean|nil internal. True if this entity is an operational mainframe
+---@field building_requests table<BufferKeyString, ItemBuffer>|nil internal. requests of this mainframe
+---@field building_contents table<BufferKeyString, ItemBuffer>|nil internal. contents of this mainframe
 
 local VSurfaceManager = require("src.world.vsurface-manager")
 local ClusterProcessor = require("src.simulation.cluster-processor")
@@ -143,7 +77,6 @@ local TemplateIO = require("src.world.template-io-manager")
 local ClusterBridge = require("src.world.cluster-bridge-manager")
 
 local PREFIX = "FV-"
-local ENTITY_TAG_KEY = PREFIX
 local EntityProcessor = {}
 
 ---Mapping of entity names recognized by this registry to their on-tick handlers
@@ -199,36 +132,36 @@ local template_energy_io_copyable = {
 
 ---Copyable fields of cluster item io
 local cluster_item_io_copyable = {
-    "selected_template",
+    "first_template",
     "selected_item",
     "is_output",
 }
 
 ---Copyable fields of cluster fluid io
 local cluster_fluid_io_copyable = {
-    "selected_template",
+    "first_template",
     "selected_fluid",
     "is_output",
 }
 
 ---Copyable fields of cluster energy io
 local cluster_energy_io_copyable = {
-    "selected_template",
+    "first_template",
     "is_output",
 }
 
 ---Copyable fields of virtualization mainframe
 local virtualization_mainframe_copyable = {
-    "selected_template",
+    "first_template",
 }
 
 ---Copyable fields of inter-cluster bridge
 local inter_cluster_bridge_copyable = {
+    "mode",
     "selected_item",
     "selected_fluid",
-    "source_template",
-    "destination_template",
-    "mode",
+    "first_template",
+    "second_template",
 }
 
 ---Maps entity names to their copyable properties
@@ -260,11 +193,11 @@ local entity_copyable_fields = {
 }
 
 -------------------------------------------------------------------------------
--- DATA MANIPULATION SIDE-EFFECTS (Internal hooks and caches)
+-- REGISTRATION HOOKS
 -------------------------------------------------------------------------------
 
 ---Cahes LuaInventory of given entity to properties
----@param properties EntityWithChestInventory
+---@param properties EntityProperties
 local function cache_inventory_object(properties)
     local entity = properties.entity
     local inventory = entity.get_inventory(defines.inventory.chest)
@@ -273,88 +206,73 @@ local function cache_inventory_object(properties)
     properties.inventory = inventory
 end
 
----Generates a buffer key for entity with mode selection based on operation mode
----@param properties EntityWithModeSelection
-local function generate_universal_buffer_key(properties)
-    local mode = properties.mode
-    if mode == "item" then
-        local item = properties.selected_item
-        properties.buffer_key = item and (item.name .. "//" .. item.quality) or nil
-    elseif mode == "fluid" then
-        local fluid = properties.selected_fluid
-        properties.buffer_key = fluid and fluid.name or nil
-    else
-        properties.buffer_key = "electric_energy"
-    end
+---Caches buffer key of energy IO to properties
+---@param properties EntityProperties
+local function cache_energy_buffer_key(properties)
+    properties.buffer_key = "electric_energy"
 end
 
----Creates a buffer key for item IO.
----@param properties EntityWithItemSelection
-local function generate_item_buffer_key(properties)
-    local item = properties.selected_item
-    properties.buffer_key = item and (item.name .. "//" .. item.quality) or nil
+---Maps entity names to their flow limits
+local single_mode_flow_limits = {
+    [PREFIX .. "template-item-io-mk1"] = 100,
+    [PREFIX .. "template-item-io-mk2"] = 1000,
+    [PREFIX .. "template-item-io-mk3"] = 10000,
+    [PREFIX .. "template-fluid-io-mk1"] = 500,
+    [PREFIX .. "template-fluid-io-mk2"] = 5000,
+    [PREFIX .. "template-fluid-io-mk3"] = 50000,
+    [PREFIX .. "template-energy-io-mk1"] = 1e8,
+    [PREFIX .. "template-energy-io-mk2"] = 1e9,
+    [PREFIX .. "template-energy-io-mk3"] = 1e10,
+    [PREFIX .. "cluster-item-io-mk1"] = 100,
+    [PREFIX .. "cluster-item-io-mk2"] = 1000,
+    [PREFIX .. "cluster-item-io-mk3"] = 10000,
+    [PREFIX .. "cluster-fluid-io-mk1"] = 500,
+    [PREFIX .. "cluster-fluid-io-mk2"] = 5000,
+    [PREFIX .. "cluster-fluid-io-mk3"] = 50000,
+    [PREFIX .. "cluster-energy-io-mk1"] = 1e8,
+    [PREFIX .. "cluster-energy-io-mk2"] = 1e9,
+    [PREFIX .. "cluster-energy-io-mk3"] = 1e10,
+}
+
+---Caches flow limit of an entity to properties
+---@param properties EntityProperties
+local function cache_flow_limit_single_mode(properties)
+    local entity_name = properties.entity_name
+    properties.flow_limit = single_mode_flow_limits[entity_name]
 end
-
----Moves entity to new virtualization cluster
----@param properties SimpleClusterMember
-local function move_to_new_cluster(properties)
-    -- removing entity from old cluster
-    local old_cluster = properties.cluster
-    local unit_number = properties.unit_number
-    ClusterProcessor.remove_from_cluster(old_cluster, unit_number)
-
-    -- adding entity to its new cluster
-    local entity = properties.entity
-    local template_name = properties.selected_template
-    local new_cluster = ClusterProcessor.add_to_cluster(entity, template_name)
-    properties.cluster = new_cluster
-end
-
----Function that ensures operation mode is not nil
----@param properties InterClusterBridgeProperties
-local function initialize_operation_mode(properties)
-    if not properties.mode then properties.mode = "item" end
-end
-
----Removes entity from own cluster
----@param properties SimpleClusterMember
-local function remove_from_own_cluster(properties)
-    ClusterProcessor.remove_from_cluster(
-        properties.cluster,
-        properties.unit_number
-    )
-end
-
----Removes entity from both clusters it's associated with
----@param properties InterClusterEntity
-local function remove_from_both_clusters(properties)
-    ClusterProcessor.remove_from_cluster(
-        properties.source_cluster,
-        properties.unit_number
-    )
-    ClusterProcessor.remove_from_cluster(
-        properties.destination_cluster,
-        properties.unit_number
-    )
-end
-
--------------------------------------------------------------------------------
--- GENERAL REGISTRY OPERATIONS: ADD/DELETE/LOOKUP
--------------------------------------------------------------------------------
 
 ---List of functions to perform when registering template item io
 local template_item_io_registration = {
     cache_inventory_object,
+    cache_flow_limit_single_mode,
+}
+
+---List of functions to perform when registering template fluid io
+local template_fluid_io_registration = {
+    cache_flow_limit_single_mode,
+}
+
+---List of functions to perform when registering template energy io
+local template_energy_io_registration = {
+    cache_energy_buffer_key,
+    cache_flow_limit_single_mode,
 }
 
 ---List of functions to perform when registering cluster item io
 local cluster_item_io_registration = {
-    cache_inventory_object
+    cache_inventory_object,
+    cache_flow_limit_single_mode,
 }
 
----List of functions to perform when registering inter-cluster bridge
-local inter_cluster_bridge_registration = {
-    initialize_operation_mode
+---List of functions to perform when registering cluster fluid io
+local cluster_fluid_io_registration = {
+    cache_flow_limit_single_mode,
+}
+
+---List of functions to perform when registering cluster item io
+local cluster_energy_io_registration = {
+    cache_flow_limit_single_mode,
+    cache_energy_buffer_key,
 }
 
 ---Maps entity names to list of functions to perform on registration
@@ -362,50 +280,155 @@ local registration_hooks = {
     [PREFIX .. "template-item-io-mk1"] = template_item_io_registration,
     [PREFIX .. "template-item-io-mk2"] = template_item_io_registration,
     [PREFIX .. "template-item-io-mk3"] = template_item_io_registration,
+    [PREFIX .. "template-fluid-io-mk1"] = template_fluid_io_registration,
+    [PREFIX .. "template-fluid-io-mk2"] = template_fluid_io_registration,
+    [PREFIX .. "template-fluid-io-mk3"] = template_fluid_io_registration,
+    [PREFIX .. "template-energy-io-mk1"] = template_energy_io_registration,
+    [PREFIX .. "template-energy-io-mk2"] = template_energy_io_registration,
+    [PREFIX .. "template-energy-io-mk3"] = template_energy_io_registration,
     [PREFIX .. "cluster-item-io-mk1"] = cluster_item_io_registration,
     [PREFIX .. "cluster-item-io-mk2"] = cluster_item_io_registration,
     [PREFIX .. "cluster-item-io-mk3"] = cluster_item_io_registration,
-    [PREFIX .. "inter-cluster-bridge-mk1"] = inter_cluster_bridge_registration,
-    [PREFIX .. "inter-cluster-bridge-mk2"] = inter_cluster_bridge_registration,
-    [PREFIX .. "inter-cluster-bridge-mk3"] = inter_cluster_bridge_registration,
+    [PREFIX .. "cluster-fluid-io-mk1"] = cluster_fluid_io_registration,
+    [PREFIX .. "cluster-fluid-io-mk2"] = cluster_fluid_io_registration,
+    [PREFIX .. "cluster-fluid-io-mk3"] = cluster_fluid_io_registration,
+    [PREFIX .. "cluster-energy-io-mk1"] = cluster_energy_io_registration,
+    [PREFIX .. "cluster-energy-io-mk2"] = cluster_energy_io_registration,
+    [PREFIX .. "cluster-energy-io-mk3"] = cluster_energy_io_registration,
 }
+
+-------------------------------------------------------------------------------
+-- FIELD SETTING HOOKS
+-------------------------------------------------------------------------------
+
+---Associates a new first cluster with given entity
+---@param properties EntityProperties
+local function change_first_cluster(properties)
+    -- removing entity from old cluster
+    ClusterProcessor.remove_from_cluster(
+        properties.first_cluster,
+        properties.unit_number
+    )
+    -- adding entity to new cluster
+    properties.first_cluster = ClusterProcessor.add_to_cluster(
+        properties.entity,
+        properties.first_template
+    )
+end
+
+---Associates a new second cluster with given entity
+---@param properties EntityProperties
+local function change_second_cluster(properties)
+    -- removing entity from old cluster
+    ClusterProcessor.remove_from_cluster(
+        properties.second_cluster,
+        properties.unit_number
+    )
+    -- adding entity to new cluster
+    properties.second_cluster = ClusterProcessor.add_to_cluster(
+        properties.entity,
+        properties.second_template
+    )
+end
+
+---Generates a buffer key for given entity
+---@param properties EntityProperties
+local function generate_universal_buffer_key(properties)
+    -- if item is selected creating item key
+    local selected_item = properties.selected_item
+    if selected_item then
+        local name = selected_item.name
+        local quality = selected_item.quality
+        properties.buffer_key = name .. "//" .. quality
+        return
+    end
+    -- if fluid is selected creating fluid key
+    local selected_fluid = properties.selected_fluid
+    if selected_fluid then
+        properties.buffer_key = selected_fluid.name
+        return
+    end
+    -- if mode is energy creating energy key
+    local mode = properties.mode
+    if mode == "energy" then
+        properties.buffer_key = "electric_energy"
+        return
+    end
+end
+
+---Maps entity names to their flow limits
+local bridge_flow_limits = {
+    [PREFIX .. "inter-cluster-bridge-mk1"] = {
+        item = 1e6,
+        fluid = 1e6,
+        energy = 1e12,
+    },
+    [PREFIX .. "inter-cluster-bridge-mk2"] = {
+        item = 1e9,
+        fluid = 1e9,
+        energy = 1e15,
+    },
+    [PREFIX .. "inter-cluster-bridge-mk3"] = {
+        item = 1e12,
+        fluid = 1e12,
+        energy = 1e18,
+    },
+}
+
+---Caches flow limit for inter-cluster bridge based on tier and operation mode.
+---@param properties EntityProperties
+local function cache_flow_limit_cluster_bridge(properties)
+    local entity_name = properties.entity_name
+    local mode = properties.mode
+    local flow_limit = bridge_flow_limits[entity_name][mode]
+    properties.flow_limit = flow_limit
+end
 
 ---List of functions to perform when setting a field for template item io
 local template_item_io_field_setting = {
-    selected_item = {generate_item_buffer_key},
+    selected_item = {generate_universal_buffer_key},
+}
+
+---List of functions to perform when setting a field for template fluid io
+local template_fluid_io_field_setting = {
+    selected_fluid = {generate_universal_buffer_key},
 }
 
 ---List of functions to perform when setting a field for cluster item io
 local cluster_item_io_field_setting = {
-    selected_template = {move_to_new_cluster},
-    selected_item = {generate_item_buffer_key},
+    selected_item = {generate_universal_buffer_key},
+    first_template = {change_first_cluster},
 }
 
 ---List of functions to perform when setting a field for cluster fluid io
 local cluster_fluid_io_field_setting = {
-    selected_template = {move_to_new_cluster},
+    selected_fluid = {generate_universal_buffer_key},
+    first_template = {change_first_cluster},
 }
 
 ---List of functions to perform when setting a field for cluster energy io
 local cluster_energy_io_field_setting = {
-    selected_template = {move_to_new_cluster},
+    first_template = {change_first_cluster},
 }
 
 ---List of functions to perform when setting a field for virtualization mainframe
-local virtualization_mainframe_field_setting = {
-    selected_template = {
-        move_to_new_cluster,
-        MainframeManager.on_template_change,
+local mainframe_field_setting = {
+    first_template = {
+        change_first_cluster,
+        MainframeManager.on_cluster_change,
     },
 }
 
 ---List of functions to perform when setting a field for inter-cluster bridge
 local inter_cluster_bridge_field_setting = {
-    source_template = {ClusterBridge.change_source_cluster},
-    destination_template = {ClusterBridge.change_destination_cluster},
     selected_item = {generate_universal_buffer_key},
     selected_fluid = {generate_universal_buffer_key},
-    mode = {generate_universal_buffer_key},
+    mode = {
+        generate_universal_buffer_key,
+        cache_flow_limit_cluster_bridge,
+    },
+    first_template = {change_first_cluster},
+    second_template = {change_second_cluster},
 }
 
 ---Maps entity names to functions to perform when setting a field in properties
@@ -413,6 +436,9 @@ local field_setting_hooks = {
     [PREFIX .. "template-item-io-mk1"] = template_item_io_field_setting,
     [PREFIX .. "template-item-io-mk2"] = template_item_io_field_setting,
     [PREFIX .. "template-item-io-mk3"] = template_item_io_field_setting,
+    [PREFIX .. "template-fluid-io-mk1"] = template_fluid_io_field_setting,
+    [PREFIX .. "template-fluid-io-mk2"] = template_fluid_io_field_setting,
+    [PREFIX .. "template-fluid-io-mk3"] = template_fluid_io_field_setting,
     [PREFIX .. "cluster-item-io-mk1"] = cluster_item_io_field_setting,
     [PREFIX .. "cluster-item-io-mk2"] = cluster_item_io_field_setting,
     [PREFIX .. "cluster-item-io-mk3"] = cluster_item_io_field_setting,
@@ -422,37 +448,60 @@ local field_setting_hooks = {
     [PREFIX .. "cluster-energy-io-mk1"] = cluster_energy_io_field_setting,
     [PREFIX .. "cluster-energy-io-mk2"] = cluster_energy_io_field_setting,
     [PREFIX .. "cluster-energy-io-mk3"] = cluster_energy_io_field_setting,
-    [PREFIX .. "virtualization-mainframe-mk1"] = virtualization_mainframe_field_setting,
-    [PREFIX .. "virtualization-mainframe-mk2"] = virtualization_mainframe_field_setting,
-    [PREFIX .. "virtualization-mainframe-mk3"] = virtualization_mainframe_field_setting,
+    [PREFIX .. "virtualization-mainframe-mk1"] = mainframe_field_setting,
+    [PREFIX .. "virtualization-mainframe-mk2"] = mainframe_field_setting,
+    [PREFIX .. "virtualization-mainframe-mk3"] = mainframe_field_setting,
     [PREFIX .. "inter-cluster-bridge-mk1"] = inter_cluster_bridge_field_setting,
     [PREFIX .. "inter-cluster-bridge-mk2"] = inter_cluster_bridge_field_setting,
     [PREFIX .. "inter-cluster-bridge-mk3"] = inter_cluster_bridge_field_setting,
 }
 
+-------------------------------------------------------------------------------
+-- UNREGISTRATION HOOKS
+-------------------------------------------------------------------------------
+
+---Removes entity from the first cluster it's associated with
+---@param properties EntityProperties
+local function remove_from_first_cluster(properties)
+    ClusterProcessor.remove_from_cluster(
+        properties.first_cluster,
+        properties.unit_number
+    )
+end
+
+---Removes entity from the second cluster it's associated with
+---@param properties EntityProperties
+local function remove_from_second_cluster(properties)
+    ClusterProcessor.remove_from_cluster(
+        properties.second_cluster,
+        properties.unit_number
+    )
+end
+
 ---List of functions to perform when removing cluster item io from registry
 local cluster_item_io_unregistration = {
-    remove_from_own_cluster,
+    remove_from_first_cluster,
 }
 
 ---List of functions to perform when removing cluster fluid io from registry
 local cluster_fluid_io_unregistration = {
-    remove_from_own_cluster,
+    remove_from_first_cluster,
 }
 
 ---List of functions to perform when removing cluster energy io from registry
 local cluster_energy_io_unregistration = {
-    remove_from_own_cluster,
+    remove_from_first_cluster,
 }
 
 ---List of functions to perform when removing virtualization mainframe from registry
-local virtualization_mainframe_unregistration = {
-    remove_from_own_cluster,
+local mainframe_unregistration = {
+    remove_from_first_cluster,
 }
 
 ---List of functions to perform when removing inter-cluster bridge from registry
 local inter_cluster_bridge_unregistration = {
-    remove_from_both_clusters,
+    remove_from_first_cluster,
+    remove_from_second_cluster,
 }
 
 ---Maps entity names to functions to perform when removing entity from registry
@@ -466,74 +515,79 @@ local unregistration_hooks = {
     [PREFIX .. "cluster-energy-io-mk1"] = cluster_energy_io_unregistration,
     [PREFIX .. "cluster-energy-io-mk2"] = cluster_energy_io_unregistration,
     [PREFIX .. "cluster-energy-io-mk3"] = cluster_energy_io_unregistration,
-    [PREFIX .. "virtualization-mainframe-mk1"] = virtualization_mainframe_unregistration,
-    [PREFIX .. "virtualization-mainframe-mk2"] = virtualization_mainframe_unregistration,
-    [PREFIX .. "virtualization-mainframe-mk3"] = virtualization_mainframe_unregistration,
+    [PREFIX .. "virtualization-mainframe-mk1"] = mainframe_unregistration,
+    [PREFIX .. "virtualization-mainframe-mk2"] = mainframe_unregistration,
+    [PREFIX .. "virtualization-mainframe-mk3"] = mainframe_unregistration,
     [PREFIX .. "inter-cluster-bridge-mk1"] = inter_cluster_bridge_unregistration,
     [PREFIX .. "inter-cluster-bridge-mk2"] = inter_cluster_bridge_unregistration,
     [PREFIX .. "inter-cluster-bridge-mk3"] = inter_cluster_bridge_unregistration,
 }
 
----Adds given entity to registry. Is called when any build event is triggered.
----@param entity LuaEntity
+-------------------------------------------------------------------------------
+-- GENERAL REGISTRY OPERATIONS: ADD/DELETE/LOOKUP
+-------------------------------------------------------------------------------
+
+---Adds given entity to registry. Called when any build event is triggered.
+---@param entity LuaEntity assumed to be valid
 ---@param tags table|nil build event tags
 function EntityProcessor.register_entity(entity, tags)
-    if not entity.valid then return end
-
-    -- avoiding duplicates
-    local reg = storage.entity_registry
-    if reg.lookup[entity.unit_number] then return end
+    local registry = storage.entity_registry
+    ---@type number assuming entity has unit number
+    local unit_number = entity.unit_number
+    -- entity with this unit number is already registered
+    if registry.lookup[unit_number] then return end
 
     -- mandatory entity properties
-    local name = entity.name
-    local on_vsurface = not not VSurfaceManager.get_vsurface_data(entity.surface_index)
+    local entity_name = entity.name
     local properties = {
+        unit_number = unit_number,
         entity = entity,
-        unit_number = entity.unit_number,
-        name = name,
-        on_vsurface = on_vsurface,
+        entity_name = entity_name,
     }
 
     -- adding event tags to properties
-    if tags and tags[ENTITY_TAG_KEY] then
-        local relevant_tags = tags[ENTITY_TAG_KEY]
-        -- copyable fields for given entity
-        local copyable = entity_copyable_fields[name]
-        for _, field in ipairs(copyable) do
-            properties[field] = relevant_tags[field]
-            -- field setting hooks for given entity
-            local hooks = field_setting_hooks[name]
-            if hooks and hooks[field] then
-                -- calling all hooks
-                for _, hook in ipairs(hooks[field]) do
-                    hook(properties)
+    if tags then
+        local relevant_tags = tags[PREFIX]
+        if relevant_tags then
+            local copyable = entity_copyable_fields[entity_name]
+            for _, field in ipairs(copyable) do
+                properties[field] = relevant_tags[field]
+                -- field setting hooks for given entity
+                local hooks = field_setting_hooks[entity_name]
+                if hooks then
+                    local field_hooks = hooks[field]
+                    if field_hooks then
+                        -- calling all field hooks
+                        for _, hook in ipairs(field_hooks) do
+                            hook(properties)
+                        end
+                    end
                 end
             end
         end
     end
 
     -- performing necessery on-registration actions
-    local hooks = registration_hooks[name]
+    local hooks = registration_hooks[entity_name]
     if hooks then
         for _, hook in ipairs(hooks) do
             hook(properties)
         end
     end
+    properties.on_vsurface = VSurfaceManager.get_vsurface_data(entity.surface_index)
 
     -- adding table to registry
-    table.insert(reg.array, properties)
-    reg.lookup[entity.unit_number] = #reg.array
+    local array = registry.array
+    array[#array + 1] = properties
+    registry.lookup[unit_number] = properties
 end
 
 ---Removes entity from registry. Used for automatic garbage collection.
----@param unit_number number unique entity identifier
-local function unregister_entity(unit_number)
-    local reg = storage.entity_registry
-    local index = reg.lookup[unit_number]
-
+---@param properties EntityProperties properties to be removed
+---@param index number index at which properties are located
+local function unregister_entity(properties, index)
     -- performing unregistration hooks
-    local properties = reg.array[index]
-    local hooks = unregistration_hooks[properties.name]
+    local hooks = unregistration_hooks[properties.entity_name]
     if hooks then
         for _, hook in ipairs(hooks) do
             hook(properties)
@@ -541,22 +595,28 @@ local function unregister_entity(unit_number)
     end
 
     -- rewriting element we want to delete with the last one
-    local last_element = reg.array[#reg.array]
-    reg.array[index] = last_element
-    reg.lookup[last_element.unit_number] = index
+    local registry = storage.entity_registry
+    local array = registry.array
+    local last_element = array[#array]
+    array[index] = last_element
+    registry.lookup[properties.unit_number] = nil
 
-    -- removing last element from both tables 
-    table.remove(reg.array)
-    reg.lookup[unit_number] = nil
+    -- removing last element from array
+    array[#array] = nil
 end
 
+---Gets properties of given entity by unit number
+---@param unit_number number unique entity identifier
+---@return EntityProperties|nil properties entity data from registry
+local function get_entity_properties(unit_number)
+    return storage.entity_registry.lookup[unit_number]
+end
+
+---Gets properties of given entity by unit number
 ---@param unit_number number unique entity identifier
 ---@return EntityProperties|nil properties entity data from registry
 function EntityProcessor.get_entity_properties(unit_number)
-    local reg = storage.entity_registry
-    local index = reg.lookup[unit_number]
-    if not index then return end
-    return reg.array[index]
+    return storage.entity_registry.lookup[unit_number]
 end
 
 -------------------------------------------------------------------------------
@@ -571,14 +631,14 @@ end
 local function set_entity_property(entity, field, value, ignore_hooks)
     if not entity.valid then return end
     if entity.name == "entity-ghost" then
-        -- entity is a ghost data stored in tags
+        -- entity is a ghost: data stored in tags
         local tags = entity.tags or {}
-        tags[ENTITY_TAG_KEY] = tags[ENTITY_TAG_KEY] or {}
-        tags[ENTITY_TAG_KEY][field] = value
+        tags[PREFIX] = tags[PREFIX] or {}
+        tags[PREFIX][field] = value
         entity.tags = tags
     else
-        -- entity is not a ghost, information in registry
-        local properties = EntityProcessor.get_entity_properties(entity.unit_number)
+        -- entity is not a ghost: data in registry
+        local properties = get_entity_properties(entity.unit_number)
         if not properties then return end
         properties[field] = value
         if ignore_hooks then return end
@@ -587,17 +647,16 @@ local function set_entity_property(entity, field, value, ignore_hooks)
         local hooks = entity_hooks[field]
         if not hooks then return end
         for _, hook in ipairs(hooks) do
-            ---@diagnostic disable-next-line: param-type-mismatch
             hook(properties)
         end
     end
 end
 
----Sets selected template for given entity or entity-ghost
+---Sets output flag for given entity or entity-ghost
 ---@param entity LuaEntity
----@param template_name string|nil value to set or nil to clear
-function EntityProcessor.set_selected_template(entity, template_name)
-    set_entity_property(entity, "selected_template", template_name)
+---@param is_output true|nil
+function EntityProcessor.set_output_flag(entity, is_output)
+    set_entity_property(entity, "is_output", is_output)
 end
 
 ---Sets selected item for given entity or entity-ghost
@@ -611,31 +670,24 @@ end
 
 ---Sets selected fluid for given entity or entity-ghost
 ---@param entity LuaEntity
----@param fluid_name string|nil name of the fluid, or nil to clear
+---@param fluid_name string|nil name of selected fluid
 function EntityProcessor.set_selected_fluid(entity, fluid_name)
     local fluid_data = fluid_name and {name = fluid_name} or nil
     set_entity_property(entity, "selected_fluid", fluid_data)
 end
 
----Sets output flag for given entity or entity-ghost
----@param entity LuaEntity
----@param is_output boolean|nil
-function EntityProcessor.set_output_flag(entity, is_output)
-    set_entity_property(entity, "is_output", is_output)
-end
-
----Sets source template name for given entity
+---Sets first template for given entity or entity-ghost
 ---@param entity LuaEntity
 ---@param template_name string|nil value to set or nil to clear
-function EntityProcessor.set_source_template(entity, template_name)
-    set_entity_property(entity, "source_template", template_name)
+function EntityProcessor.set_first_template(entity, template_name)
+    set_entity_property(entity, "first_template", template_name)
 end
 
----Sets destination template name for given entity
+---Sets second template name for given entity or entity-ghost
 ---@param entity LuaEntity
 ---@param template_name string|nil value to set or nil to clear 
-function EntityProcessor.set_destination_template(entity, template_name)
-    set_entity_property(entity, "destination_template", template_name)
+function EntityProcessor.set_second_template(entity, template_name)
+    set_entity_property(entity, "second_template", template_name)
 end
 
 ---Sets mode of operation for given entity
@@ -664,23 +716,23 @@ end
 local function get_entity_property(entity, field)
     if not entity.valid then return end
     if entity.name == "entity-ghost" then
-        -- entity is a ghost data stored in tags
+        -- entity is a ghost: data stored in tags
         local tags = entity.tags
-        if not tags or not tags[ENTITY_TAG_KEY] then return end
-        return tags[ENTITY_TAG_KEY][field]
+        if not tags or not tags[PREFIX] then return end
+        return tags[PREFIX][field]
     else
-        -- entity is not a ghost, information in registry
-        local properties = EntityProcessor.get_entity_properties(entity.unit_number)
+        -- entity is not a ghost: data in registry
+        local properties = get_entity_properties(entity.unit_number)
         if not properties then return end
         return properties[field]
     end
 end
 
----Gets selected template for given entity or ghost-entity
+---Gets output flag for given entity or ghost-entity
 ---@param entity LuaEntity entity for which data should be retrieved
----@return string|nil template_name
-function EntityProcessor.get_selected_template(entity)
-    return get_entity_property(entity, "selected_template")
+---@return boolean|nil is_output
+function EntityProcessor.get_output_flag(entity)
+    return get_entity_property(entity, "is_output")
 end
 
 ---Gets selected item for given entity or ghost-entity
@@ -700,76 +752,25 @@ function EntityProcessor.get_selected_fluid(entity)
     return fluid and fluid.name
 end
 
----Gets output flag for given entity or ghost-entity
+---Gets first template for given entity or ghost-entity
 ---@param entity LuaEntity entity for which data should be retrieved
----@return boolean|nil is_output
-function EntityProcessor.get_output_flag(entity)
-    return get_entity_property(entity, "is_output")
+---@return string|nil template_name
+function EntityProcessor.get_first_template(entity)
+    return get_entity_property(entity, "first_template")
 end
 
----Gets source template name for given entity
----@param entity LuaEntity
+---Gets second template for given entity or ghost-entity
+---@param entity LuaEntity entity for which data should be retrieved
 ---@return string|nil template_name
-function EntityProcessor.get_source_template(entity)
-    return get_entity_property(entity, "source_template")
-end
-
----Gets destination template name for given entity
----@param entity LuaEntity
----@return string|nil template_name
-function EntityProcessor.get_destination_template(entity)
-    return get_entity_property(entity, "destination_template")
+function EntityProcessor.get_second_template(entity)
+    return get_entity_property(entity, "second_template")
 end
 
 ---Gets mode of operation for a given entity
----If mode is not in properties, defaults to "item"
 ---@param entity LuaEntity
----@return "item"|"fluid"|"energy" mode
+---@return "item"|"fluid"|"energy"|nil
 function EntityProcessor.get_mode(entity)
-    local mode = get_entity_property(entity, "mode")
-    return mode or "item"
-end
-
----List of entities for which item selection is always enabled
-local item_selection_always_enabled = {
-    [PREFIX .. "template-item-io-mk1"] = true,
-    [PREFIX .. "template-item-io-mk2"] = true,
-    [PREFIX .. "template-item-io-mk3"] = true,
-    [PREFIX .. "cluster-item-io-mk1"] = true,
-    [PREFIX .. "cluster-item-io-mk2"] = true,
-    [PREFIX .. "cluster-item-io-mk3"] = true,
-}
-
----Decides if item selection should be enabled for given entity.
----Always returns true except for entities with mode set to not "item"
----@return boolean is_enabled true if item selection should be enabled
-function EntityProcessor.get_item_selection_enabled(entity)
-    local name = (entity.name == "entity-ghost" and entity.ghost_name) or entity.name
-    if item_selection_always_enabled[name] then return true end
-    local mode = EntityProcessor.get_mode(entity)
-    if mode ~= "item" then return false end
-    return true
-end
-
----List of entities for which fluid selection is always enabled
-local fluid_selection_always_enabled = {
-    [PREFIX .. "template-fluid-io-mk1"] = true,
-    [PREFIX .. "template-fluid-io-mk2"] = true,
-    [PREFIX .. "template-fluid-io-mk3"] = true,
-    [PREFIX .. "cluster-fluid-io-mk1"] = true,
-    [PREFIX .. "cluster-fluid-io-mk2"] = true,
-    [PREFIX .. "cluster-fluid-io-mk3"] = true,
-}
-
----Decides if fluid selection should be enabled for given entity.
----Always returns true except for entities with mode set to not "fluid"
----@return boolean is_enabled true if fluid selection should be enabled
-function EntityProcessor.get_fluid_selection_enabled(entity)
-    local name = (entity.name == "entity-ghost" and entity.ghost_name) or entity.name
-    if fluid_selection_always_enabled[name] then return true end
-    local mode = EntityProcessor.get_mode(entity)
-    if mode ~= "fluid" then return false end
-    return true
+    return get_entity_property(entity, "mode")
 end
 
 -------------------------------------------------------------------------------
@@ -779,29 +780,28 @@ end
 ---Adds tags to entities when player creates blueprint
 ---@param event EventData.on_player_setup_blueprint
 function EntityProcessor.setup_blueprint_tags(event)
-    local player = game.get_player(event.player_index)
-    if not player or not player.valid then return end
     local blueprint = event.stack
     if not blueprint then return end
     -- maps blueprint entity index to "real world" entity
     local mapping = event.mapping.get()
 
     for b_entity_index, entity in ipairs(mapping) do
-        if not entity or not entity.valid then goto continue end
+        -- skipping invalid entities
+        if not entity.valid then goto continue end
+        local entity_name = entity.name
         -- skipping entities that are not recognized by this registry
-        if not entity_router[entity.name] then goto continue end
-
+        if not entity_router[entity_name] then goto continue end
         -- if registry does not have entity properties we have to skip it
-        local properties = EntityProcessor.get_entity_properties(entity.unit_number)
+        local properties = get_entity_properties(entity.unit_number)
+        -- skipping entities if their properties are not found
         if not properties then goto continue end
-
         -- creating a shallow copy with all copyable properties
         local properties_copy = {}
-        local copyable_fields = entity_copyable_fields[entity.name]
+        local copyable_fields = entity_copyable_fields[entity_name]
         for _, field in ipairs(copyable_fields) do
             properties_copy[field] = properties[field]
         end
-        blueprint.set_blueprint_entity_tag(b_entity_index, ENTITY_TAG_KEY, properties_copy)
+        blueprint.set_blueprint_entity_tag(b_entity_index, PREFIX, properties_copy)
 
         ::continue::
     end
@@ -819,21 +819,27 @@ end
 -- MAIN PROCESSOR
 -------------------------------------------------------------------------------
 
----On-tick entity processor
+---On-tick entity processor. Processing is done in 60 chunks (one chunk per tick).
 ---@param event EventData.on_tick
 function EntityProcessor.process_entities(event)
-    local reg = storage.entity_registry
-    -- processing every 60-th element each tick
-    local offset = event.tick % 60
-    for i = #reg.array - offset, 1, -60 do
-        local properties = reg.array[i]
+    local registry = storage.entity_registry
+    local array = registry.array
+    local total_size = #array
+
+    local chunk_offset = event.tick % 60
+    local chunk_size = math.ceil(total_size / 60)
+    local start_index = (chunk_size * chunk_offset) + 1
+    if start_index > total_size then return end
+    local stop_index = math.min(chunk_size * (chunk_offset + 1), total_size)
+
+    for i = stop_index, start_index, -1 do
+        local properties = array[i]
         local entity = properties.entity
         if entity.valid then
-            local handler = entity_router[entity.name]
-            handler(properties)
+            entity_router[properties.entity_name](properties)
         else
-            -- auto garbage collection
-            unregister_entity(properties.unit_number)
+            -- removing invalid entity from the registry
+            unregister_entity(properties, i)
         end
     end
 end

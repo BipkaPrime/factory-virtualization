@@ -46,7 +46,7 @@ center coordinates, total weight, weighted sum of (x^2 + y^2) for all members.
 ---@field x_pos number x-coordinate of this entity
 ---@field y_pos number y-coordinate of this entity
 ---@field weight number weight of this entity
----@field key ItemKeyString "name//quality" of this entity
+---@field key BufferKeyString "name//quality" of this entity
 ---@field crafting_power number|nil amount of crafting potential entity is contributing
 ---@field storage_capacity number|nil amount of storage capacity this entity is providing
 
@@ -57,7 +57,7 @@ center coordinates, total weight, weighted sum of (x^2 + y^2) for all members.
 ---@field surface_index number unique surface identifier
 ---@field input table<BufferKeyString, ClusterBufferEntry> cluster input buffer
 ---@field output table<BufferKeyString, ClusterBufferEntry> cluster output buffer
----@field member_counts table<ItemKeyString, number> count of all cluster members
+---@field member_counts table<BufferKeyString, number> count of all cluster members
 ---@field members table<number, ClusterMemberData> key is entity.unit_number. contains data of all members
 ---@field crafting_power number maximum number of crafts cluster can produce per second
 ---@field storage_capacity number used as per_craft multiplier to calculate maximum buffer capacity

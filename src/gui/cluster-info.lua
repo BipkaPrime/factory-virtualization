@@ -31,6 +31,7 @@ local function assemble_sprite_button_data(entry)
         local name = entry.name
         data.sprite = "item/" .. name
         -- some items only have localization as entities
+        ---@diagnostic disable-next-line
         data.tooltip = {"?", {"item-name." .. name}, {"entity-name." .. name}}
         data.quality = entry.quality
     elseif entry.type == "fluid" then
@@ -191,12 +192,14 @@ function ClusterInfo.create_member_counts(parent, cluster)
     local crafting_power = ": " .. tostring(cluster.crafting_power)
     CommonGui.create_bold_label(
         section,
+        ---@diagnostic disable-next-line
         {"", {"gui-label.cluster-crafting-power"}, crafting_power}
     )
     -- storage capacity label
     local storage_capacity = ": " .. tostring(cluster.storage_capacity)
     CommonGui.create_bold_label(
         section,
+        ---@diagnostic disable-next-line
         {"", {"gui-label.cluster-storage-capacity"}, storage_capacity}
     )
     -- distance energy tax label
@@ -210,15 +213,10 @@ function ClusterInfo.create_member_counts(parent, cluster)
     CommonGui.create_bold_label(
         section,
         {
-            "",
-            {"gui-label.cluster-energy-tax"},
-            ": ",
-            tax_formated,
-            "W (",
-            percentage_caption,
-            "% ",
-            {"gui-label.energy-tax-percentage"},
-            ")"
+            ---@diagnostic disable-next-line
+            "", {"gui-label.cluster-energy-tax"}, ": ", tax_formated, "W (",
+            ---@diagnostic disable-next-line
+            percentage_caption, "% ", {"gui-label.energy-tax-percentage"}, ")"
         }
     )
 end

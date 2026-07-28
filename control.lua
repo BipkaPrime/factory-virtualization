@@ -4,6 +4,7 @@ local ClusterProcessor = require("src.simulation.cluster-processor")
 local VEnvProcessor = require("src.simulation.venv-processor")
 local CommonGui = require("src.gui.common")
 local EntityGui = require("src.gui.entity")
+local EntityControls = require("src.gui.entity-controls")
 local SurfaceManagerGui = require("src.gui.vsurface-manager")
 local TemplateDashboard = require("src.gui.template-dashboard")
 local GuiUpdater = require("src.gui.updater")
@@ -143,9 +144,8 @@ local on_gui_text_changed_router = {
     [PREFIX .. "sm-template-name"] = SurfaceManagerGui.process_template_name_changed,
     [PREFIX .. "td-template-search"] = TemplateDashboard.process_template_search,
     [PREFIX .. "td-surface-search"] = TemplateDashboard.process_surface_search,
-    [PREFIX .. "entity-template-search"] = EntityGui.process_template_searchfield,
-    [PREFIX .. "source-cluster-search"] = EntityGui.process_source_cluster_search,
-    [PREFIX .. "destination-cluster-search"] = EntityGui.process_destination_cluster_search,
+    [PREFIX .. "first-template-search"] = EntityControls.process_first_template_searchfield,
+    [PREFIX .. "second-template-search"] = EntityControls.process_second_template_searchfield,
 }
 script.on_event(defines.events.on_gui_text_changed, function(event)
     element_name_router(event, on_gui_text_changed_router)
@@ -156,28 +156,27 @@ local on_gui_selection_state_changed_router = {
     [PREFIX .. "sm-planet-selector"] = SurfaceManagerGui.process_planet_selector,
     [PREFIX .. "td-template-selector"] = TemplateDashboard.process_template_selector,
     [PREFIX .. "td-surface-selector"] = TemplateDashboard.process_surface_selector,
-    [PREFIX .. "entity-template-selector"] = EntityGui.process_template_selector,
-    [PREFIX .. "source-cluster-selector"] = EntityGui.process_source_cluster_selector,
-    [PREFIX .. "destination-cluster-selector"] = EntityGui.process_destination_cluster_selector,
+    [PREFIX .. "first-template-selector"] = EntityControls.process_first_template_selector,
+    [PREFIX .. "second-template-selector"] = EntityControls.process_second_template_selector,
 }
 script.on_event(defines.events.on_gui_selection_state_changed, function(event)
     element_name_router(event, on_gui_selection_state_changed_router)
 end)
 
 local on_gui_elem_changed_router = {
-    [PREFIX .. "choose-item-button"] = EntityGui.process_choose_item_button,
-    [PREFIX .. "choose-fluid-button"] = EntityGui.process_choose_fluid_button,
+    [PREFIX .. "choose-item-button"] = EntityControls.process_choose_item_button,
+    [PREFIX .. "choose-fluid-button"] = EntityControls.process_choose_fluid_button,
 }
 script.on_event(defines.events.on_gui_elem_changed, function(event)
     element_name_router(event, on_gui_elem_changed_router)
 end)
 
 local on_gui_checked_state_changed_router = {
-    [PREFIX .. "input-radiobutton"] = EntityGui.process_input_chosen,
-    [PREFIX .. "output-radiobutton"] = EntityGui.process_output_chosen,
-    [PREFIX .. "item-mode-radiobutton"] = EntityGui.process_item_mode_radiobutton,
-    [PREFIX .. "fluid-mode-radiobutton"] = EntityGui.process_fluid_mode_radiobutton,
-    [PREFIX .. "energy-mode-radiobutton"] = EntityGui.process_energy_mode_radiobutton,
+    [PREFIX .. "input-radiobutton"] = EntityControls.process_input_chosen,
+    [PREFIX .. "output-radiobutton"] = EntityControls.process_output_chosen,
+    [PREFIX .. "item-mode-radiobutton"] = EntityControls.process_item_mode_radiobutton,
+    [PREFIX .. "fluid-mode-radiobutton"] = EntityControls.process_fluid_mode_radiobutton,
+    [PREFIX .. "energy-mode-radiobutton"] = EntityControls.process_energy_mode_radiobutton,
 }
 script.on_event(defines.events.on_gui_checked_state_changed, function(event)
     element_name_router(event, on_gui_checked_state_changed_router)
@@ -193,21 +192,4 @@ script.on_event(PREFIX .. "td-hotkey", TemplateDashboard.process_dashboard_hotke
 commands.add_command("save_template_data", "Saves all compiled template data to json", function()
     helpers.write_file("compiled_templates.json", serpent.block(storage.templates), false)
     game.print("Template data saved to compiled_templates.json")
-end)
-
-commands.add_command("save_planets_mapgen", "", function()
-    for name, planet in pairs(game.planets) do
-        local mgs = planet.prototype.map_gen_settings
-        helpers.write_file("magpen_settings.json", name .. serpent.block(mgs), true)
-    end
-    game.print("MGS saved")
-end)
-
-commands.add_command("print_autoplace_types", "", function()
-    local planet = game.planets["nauvis"]
-    local mgs = planet.prototype.map_gen_settings
-    for name, _ in pairs(mgs.autoplace_controls) do
-        local entity_prototype = prototypes.autoplace_control[name]
-        game.print(name .. " / " .. entity_prototype.type)
-    end
 end)

@@ -264,7 +264,7 @@ function VSurfaceManager.get_vsurface_energy_drain(surface_index)
 end
 
 ---Helps in calculating surface building cost. Adds item to total cost.
----@param total_cost table<ItemKeyString, number> building cost
+---@param total_cost table<BufferKeyString, number> building cost
 ---@param name string name of an item
 ---@param quality string quality of an item
 ---@param count number count of an item
@@ -275,7 +275,7 @@ end
 
 ---Collects building cost of a vsurface.
 ---@param surface_index number unique surface identifier
----@return table<ItemKeyString, number> building_cost
+---@return table<BufferKeyString, number> building_cost
 function VSurfaceManager.get_vsurface_building_cost(surface_index)
     local surface = game.get_surface(surface_index)
     if not surface or not surface.valid then return {} end

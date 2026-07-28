@@ -185,8 +185,11 @@ local function create_template_inputs_section(parent, dashboard_data)
     local primary = CommonGui.format_number(energy_input) .. "W"
     local drain = CommonGui.format_number(energy_drain) .. "W"
     local total = CommonGui.format_number(energy_input + energy_drain) .. "W"
+    ---@diagnostic disable-next-line
     CommonGui.create_bold_label(section, {"", {"gui-label.template-energy-input"}, ": ", primary})
+    ---@diagnostic disable-next-line
     CommonGui.create_bold_label(section, {"", {"gui-label.template-energy-drain"}, ": ", drain})
+    ---@diagnostic disable-next-line
     CommonGui.create_bold_label(section, {"", {"gui-label.template-total-energy"}, ": ", total})
 end
 
@@ -215,6 +218,7 @@ local function create_template_outputs_section(parent, dashboard_data)
     -- energy production
     local energy_output = TemplateCompiler.get_energy_production(template_name)
     local energy_out = CommonGui.format_number(energy_output) .. "W"
+    ---@diagnostic disable-next-line
     CommonGui.create_bold_label(section, {"", {"gui-label.template-energy-output"}, ": ", energy_out})
 end
 

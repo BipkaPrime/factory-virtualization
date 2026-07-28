@@ -238,6 +238,7 @@ function CommonGui.assemble_sprite_button_data(key, count)
         -- handling item key type: "name//quality"
         local name, quality = key:match("^(.+)//(.+)$")
         data.sprite = "item/" .. name
+        ---@diagnostic disable-next-line
         data.tooltip = {"?", {"item-name." .. name}, {"entity-name." .. name}}
         data.quality = quality
     elseif key == "electric_energy" then

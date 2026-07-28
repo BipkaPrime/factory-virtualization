@@ -3,7 +3,6 @@ This file helps in creation of entity GUIs. It creates information elements for
 given entity. It works directly (read only) with entity properties from registry.
 --]]
 
-
 local EntityProcessor = require("src.world.entity-processor")
 local CommonGui = require("src.gui.common")
 local ClusterInfo = require("src.gui.cluster-info")
@@ -17,7 +16,7 @@ local PREFIX = "FV-"
 -------------------------------------------------------------------------------
 
 ---Decides template item IO status based on its properties
----@param properties TemplateItemIOProperties table from entity registry
+---@param properties EntityProperties table from entity registry
 local function get_template_item_io_status(properties)
     -- entity is not on a vsurface
     if not properties.on_vsurface then
@@ -31,7 +30,7 @@ local function get_template_item_io_status(properties)
 end
 
 ---Decides template fluid IO status based on its properties
----@param properties TemplateFluidIOProperties table from entity registry
+---@param properties EntityProperties table from entity registry
 local function get_template_fluid_io_status(properties)
     -- entity is not on a vsurface
     if not properties.on_vsurface then
@@ -45,7 +44,7 @@ local function get_template_fluid_io_status(properties)
 end
 
 ---Decides template energy IO status based on its properties
----@param properties TemplateEnergyIOProperties table from entity registry
+---@param properties EntityProperties table from entity registry
 local function get_template_energy_io_status(properties)
     -- entity is not on a vsurface
     if not properties.on_vsurface then
@@ -55,7 +54,7 @@ local function get_template_energy_io_status(properties)
 end
 
 ---Decides cluster item IO status based on its properties
----@param properties ClusterItemIOProperties table from entity registry
+---@param properties EntityProperties table from entity registry
 local function get_cluster_item_io_status(properties)
     -- entity is on a vsurface
     if properties.on_vsurface then
@@ -66,54 +65,54 @@ local function get_cluster_item_io_status(properties)
         return {"entity-status.item-not-selected"}
     end
     -- entity is not connected to cluster
-    if not properties.cluster then
+    if not properties.first_cluster then
         return {"entity-status.not-connected-to-cluster"}
     end
     return {"entity-status.operational"}
 end
 
 ---Decides cluster fluid IO status based on its properties
----@param properties ClusterFluidIOProperties table from entity registry
+---@param properties EntityProperties table from entity registry
 local function get_cluster_fluid_io_status(properties)
     -- entity is on a vsurface
     if properties.on_vsurface then
         return {"entity-status.does-not-work-on-vsurface"}
     end
-    -- item is not selected
+    -- fluid is not selected
     if not properties.selected_fluid then
         return {"entity-status.fluid-not-selected"}
     end
     -- entity is not connected to cluster
-    if not properties.cluster then
+    if not properties.first_cluster then
         return {"entity-status.not-connected-to-cluster"}
     end
     return {"entity-status.operational"}
 end
 
 ---Decides cluster energy IO status based on its properties
----@param properties ClusterEnergyIOProperties table from entity registry
+---@param properties EntityProperties table from entity registry
 local function get_cluster_energy_io_status(properties)
     -- entity is on a vsurface
     if properties.on_vsurface then
         return {"entity-status.does-not-work-on-vsurface"}
     end
     -- entity is not connected to cluster
-    if not properties.cluster then
+    if not properties.first_cluster then
         return {"entity-status.not-connected-to-cluster"}
     end
     return {"entity-status.operational"}
 end
 
 ---Decides mainframe status based on its properties
----@param properties MainframeProperties table from entity registry
+---@param properties EntityProperties table from entity registry
 local function get_mainframe_status(properties)
     -- entity is on a vsurface
     if properties.on_vsurface then
         return {"entity-status.does-not-work-on-vsurface"}
     end
-    -- no selected template: mainframe is idle
-    if not properties.cluster then
-        return {"entity-status.template-not-selected"}
+    -- entity is not connected to cluster
+    if not properties.first_cluster then
+        return {"entity-status.not-connected-to-cluster"}
     end
     -- something is being requested
     local requests = properties.building_requests
@@ -127,26 +126,30 @@ local function get_mainframe_status(properties)
 end
 
 ---Decides inter-cluster bridge statusbased on its properties
----@param properties InterClusterBridgeProperties table from entity registry
+---@param properties EntityProperties table from entity registry
 local function get_inter_cluster_bridge_status(properties)
     -- entity is on a vsurface
     if properties.on_vsurface then
         return {"entity-status.does-not-work-on-vsurface"}
     end
     -- source cluster is not selected
-    if not properties.source_cluster then
+    if not properties.first_cluster then
         return {"entity-status.source-cluster-not-selected"}
     end
     -- destination cluster is not selected
-    if not properties.destination_cluster then
+    if not properties.second_cluster then
         return {"entity-status.destination-cluster-not-selected"}
     end
+    local mode = properties.mode
+    if not mode then
+        return {"entity-status.mode-not-selected"}
+    end
     -- item is not selected in item mode
-    if properties.mode == "item" and not properties.selected_item then
+    if mode == "item" and not properties.selected_item then
         return {"entity-status.item-not-selected"}
     end
     -- fluid is not selected in fluid mode
-    if properties.mode == "fluid" and not properties.selected_fluid then
+    if mode == "fluid" and not properties.selected_fluid then
         return {"entity-status.fluid-not-selected"}
     end
     return {"entity-status.operational"}
@@ -224,6 +227,7 @@ function EntityInfo.create_mainframe_construction_requests(parent, entity)
     if not properties then return end
     local requests = properties.building_requests
     if not requests or not next(requests) then return end
+    ---@cast requests table<BufferKeyString, ItemBuffer>
 
     -- Collecting sprite button data 
     ---@type SpriteButtonData[]
@@ -249,8 +253,9 @@ function EntityInfo.create_mainframe_contained_buildings(parent, entity)
     if not entity.valid then return end
     local properties = EntityProcessor.get_entity_properties(entity.unit_number)
     if not properties then return end
-    local contents = properties.contained_buildings
+    local contents = properties.building_contents
     if not contents or not next(contents) then return end
+    ---@cast contents table<BufferKeyString, ItemBuffer>
 
     -- Collecting sprite button data 
     ---@type SpriteButtonData[]
@@ -282,7 +287,7 @@ function EntityInfo.create_cluster_information_display(parent, entity)
     if not entity.valid then return end
     local properties = EntityProcessor.get_entity_properties(entity.unit_number)
     if not properties then return end
-    local cluster = properties.cluster
+    local cluster = properties.first_cluster
     ClusterInfo.create_all_cluster_info(parent, cluster)
 end
 
@@ -291,7 +296,7 @@ function EntityInfo.create_inter_cluster_bridge_display(parent, entity)
     if not entity.valid then return end
     local properties = EntityProcessor.get_entity_properties(entity.unit_number)
     if not properties then return end
-    local source_cluster = properties.source_cluster
+    local source_cluster = properties.first_cluster
     if source_cluster then
         ClusterInfo.create_output_buffer(
             parent,
@@ -299,7 +304,7 @@ function EntityInfo.create_inter_cluster_bridge_display(parent, entity)
             {"gui-label.source-cluster-output-buffer"}
         )
     end
-    local destination_cluster = properties.destination_cluster
+    local destination_cluster = properties.second_cluster
     if destination_cluster then
         ClusterInfo.create_input_buffer(
             parent,
@@ -323,6 +328,7 @@ function EntityInfo.create_last_second_flow_display(parent, entity)
 
     CommonGui.create_info_element_base(
         parent,
+        ---@diagnostic disable-next-line
         {"", {"gui-label.last-second-flow"}, ": " .. caption}
     )
 end

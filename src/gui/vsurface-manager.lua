@@ -172,6 +172,7 @@ local function configure_new_surface_drain(manager_data)
     local height = tonumber(manager_data.new_surface_height)
     local drain = VSurfaceManager.calculate_energy_drain(width, height)
     local formated_drain = CommonGui.format_number(drain) .. "W"
+    ---@diagnostic disable-next-line
     drain_label.caption = {"", {"gui-label.template-energy-drain"}, ": ", formated_drain}
 end
 
@@ -424,6 +425,7 @@ local function configure_compilation_progressbar(manager_data)
         local total = elapsed + remaining
         bar.value = (total > 0) and (elapsed / total) or 0
         local progress = tostring(elapsed) .. "/" .. tostring(elapsed + remaining)
+        ---@diagnostic disable-next-line
         label.caption = {"", {"gui-label.compilation-progress"}, ": " .. progress}
     end
 end
@@ -632,13 +634,13 @@ function SurfaceManagerGui.process_planet_selector(event)
     local selector = event.element
     local old_name = manager_data.selected_planet
     local new_name = selector.items[selector.selected_index]
-    ---@cast new_name string|nil
 
     -- if selected item is clicked again, we want to unselect it
     if old_name == new_name then
         manager_data.selected_planet = nil
         configure_planet_selector(manager_data)
     else
+        ---@diagnostic disable-next-line
         manager_data.selected_planet = new_name
     end
     configure_new_surface_confirm_btn(manager_data)

@@ -65,7 +65,7 @@ end
 
 ---Gets building cost of a given template
 ---@param template_name string|nil unique template identifier
----@return table<ItemKeyString, number> items key is "name//quality"
+---@return table<BufferKeyString, number> items key is "name//quality"
 function TemplateCompiler.get_building_cost(template_name)
     if not template_name then return {} end
     local template = storage.templates[template_name]

@@ -3,26 +3,12 @@ Template IOs help in creation of templates. They serve as inputs and outputs
 of items, fluids and electric energy on virtualization surfaces.
 --]]
 
-local VSurfaceManager = require("src.world.vsurface-manager")
 local VEnvProcessor = require("src.simulation.venv-processor")
 
 local TemplateIO = {}
-local PREFIX = "FV-"
-
-local flow_limits = {
-    [PREFIX .. "template-item-io-mk1"] = 100,
-    [PREFIX .. "template-item-io-mk2"] = 1000,
-    [PREFIX .. "template-item-io-mk3"] = 10000,
-    [PREFIX .. "template-fluid-io-mk1"] = 1000,
-    [PREFIX .. "template-fluid-io-mk2"] = 10000,
-    [PREFIX .. "template-fluid-io-mk3"] = 100000,
-    [PREFIX .. "template-energy-io-mk1"] = 1e9,
-    [PREFIX .. "template-energy-io-mk2"] = 1e10,
-    [PREFIX .. "template-energy-io-mk3"] = 1e11,
-}
 
 ---Updates given template item io
----@param properties TemplateItemIOProperties
+---@param properties EntityProperties
 function TemplateIO.process_template_item_io(properties)
     -- does not operate on any surfaces except vsufaces
     if not properties.on_vsurface then return end
@@ -32,10 +18,10 @@ function TemplateIO.process_template_item_io(properties)
     if not item then return end
 
     -- removing or adding selected item to physical inventory
-    -- and storing delta in venv if surface is compiling
     local entity = properties.entity
+    ---@type LuaInventory assuming inventory was cached
     local inventory = properties.inventory
-    item.count = flow_limits[entity.name]
+    item.count = properties.flow_limit
     local delta = 0
     if properties.is_output then
         ---@diagnostic disable-next-line: param-type-mismatch
@@ -45,14 +31,16 @@ function TemplateIO.process_template_item_io(properties)
         delta = inventory.insert(item)
     end
     properties.ls_flow = delta
-    ---@type string assuming buffer key was created at the moment of item selection
+
+    -- storing delta in venv if surface is compiling
+    ---@type string assuming buffer key was cached
     local buffer_key = properties.buffer_key
     local surface_index = entity.surface_index
     VEnvProcessor.add_io_count(surface_index, buffer_key, delta, properties.is_output)
 end
 
 ---Updates given template fluid io
----@param properties TemplateFluidIOProperties
+---@param properties EntityProperties
 function TemplateIO.process_template_fluid_io(properties)
     -- does not operate on any surfaces except vsufaces
     if not properties.on_vsurface then return end
@@ -62,9 +50,8 @@ function TemplateIO.process_template_fluid_io(properties)
     if not fluid then return end
 
     -- removing or adding selected fluid to physical inventory
-    -- and storing delta in venv if surface is compiling
     local entity = properties.entity
-    fluid.amount = flow_limits[entity.name]
+    fluid.amount = properties.flow_limit
     local delta = 0
     if properties.is_output then
         ---@diagnostic disable-next-line: param-type-mismatch
@@ -74,30 +61,33 @@ function TemplateIO.process_template_fluid_io(properties)
         delta = entity.insert_fluid(fluid)
     end
     properties.ls_flow = delta
+    -- storing delta in venv if surface is compiling
     local surface_index = entity.surface_index
     VEnvProcessor.add_io_count(surface_index, fluid.name, delta, properties.is_output)
 end
 
 ---Updates given template energy io
----@param properties TemplateEnergyIOProperties
+---@param properties EntityProperties
 function TemplateIO.process_template_energy_io(properties)
     -- does not operate on any surfaces except vsufaces
     if not properties.on_vsurface then return end
 
     -- removing or adding energy to this IO
-    -- and storing delta in venv if surface is compiling
     local entity = properties.entity
-    local buffer_key = "electric_energy"
-    local flow_limit = flow_limits[entity.name]
+    ---@type string assuming buffer key was cached
+    local buffer_key = properties.buffer_key
+    local flow_limit = properties.flow_limit
+    local current_energy = entity.energy
     local delta = 0
     if properties.is_output then
-        delta = math.min(entity.energy, flow_limit)
-        entity.energy = entity.energy - delta
+        delta = math.min(current_energy, flow_limit)
+        entity.energy = current_energy - delta
     else
-        delta = math.min(entity.electric_buffer_size - entity.energy, flow_limit)
-        entity.energy = entity.energy + delta
+        delta = math.min(entity.electric_buffer_size - current_energy, flow_limit)
+        entity.energy = current_energy + delta
     end
     properties.ls_flow = delta
+    -- storing delta in venv if surface is compiling
     local surface_index = entity.surface_index
     VEnvProcessor.add_io_count(surface_index, buffer_key, delta, properties.is_output)
 end

@@ -19,12 +19,12 @@ local building_cost_multiplier = {
 }
 
 ---Returns all buildings that were used for template construction
----to physical inventory of vmainframe
----@param properties MainframeProperties
+---to physical inventory of mainframe
+---@param properties EntityProperties
 local function return_buldings_to_inventory(properties)
     -- return if nothing is contained inside vm
-    local buildings = properties.contained_buildings
-    if not buildings or not next(buildings) then return end
+    local contents = properties.building_contents
+    if not contents or not next(contents) then return end
 
     local entity = properties.entity
     local inventory = entity.get_inventory(defines.inventory.chest)
@@ -33,7 +33,7 @@ local function return_buldings_to_inventory(properties)
 
     -- returning everything to inventory
     -- TODO: make sure everything fits
-    for _, buffer in pairs(buildings) do
+    for _, buffer in pairs(contents) do
         if buffer.count > 0 then
             inventory.insert{
                 name = buffer.name,
@@ -42,21 +42,21 @@ local function return_buldings_to_inventory(properties)
             }
         end
     end
-    properties.contained_buildings = {}
+    properties.building_contents = {}
 end
 
 ---Prepares for construction of new template: copies template building cost to requesting
 ---table, makes sure contained_buildings table has sections for all requesting items.
----@param properties MainframeProperties
+---@param properties EntityProperties
 local function prepare_new_template_construction(properties)
-    local template_name = properties.selected_template
+    local template_name = properties.first_template
     local build_cost = TemplateCompiler.get_building_cost(template_name)
-    local entity_name = properties.entity.name
+    local entity_name = properties.entity_name
     local multiplier = building_cost_multiplier[entity_name]
 
-    ---@type table<ItemKeyString, ItemBuffer>
+    ---@type table<BufferKeyString, ItemBuffer>
     local requests = {}
-    ---@type table<ItemKeyString, ItemBuffer>
+    ---@type table<BufferKeyString, ItemBuffer>
     local contents = {}
     -- processing all items from building cost of new template
     for key, count in pairs(build_cost) do
@@ -73,11 +73,11 @@ local function prepare_new_template_construction(properties)
         }
     end
     properties.building_requests = requests
-    properties.contained_buildings = contents
+    properties.building_contents = contents
 end
 
 ---Clears logistic requests of a given vmainframe
----@param properties MainframeProperties
+---@param properties EntityProperties
 ---@return LuaLogisticPoint
 local function clear_logistic_requests(properties)
     local entity = properties.entity
@@ -95,7 +95,7 @@ local function clear_logistic_requests(properties)
 end
 
 ---Adds everything from requests table to logistic requests of a given VM
----@param properties MainframeProperties
+---@param properties EntityProperties
 local function set_logistic_requests(properties)
     local requests = properties.building_requests
     if not requests or not next(requests) then return end
@@ -120,7 +120,7 @@ local function set_logistic_requests(properties)
 end
 
 ---Scans mainframe inventory and withdraws anything that is in building requests
----@param properties MainframeProperties
+---@param properties EntityProperties
 local function withdraw_building_materials(properties)
     local requests = properties.building_requests
     if not requests or not next(requests) then return end
@@ -151,20 +151,20 @@ local function withdraw_building_materials(properties)
         if buffer.count == 0 then requests[key] = nil end
 
         -- updating contained buildings
-        local contained_buffer = properties.contained_buildings[key]
-        contained_buffer.count = contained_buffer.count + removed_count
+        local contents_buffer = properties.building_contents[key]
+        contents_buffer.count = contents_buffer.count + removed_count
     end
 end
 
 ---Function that is called when template changes
----@param properties MainframeProperties
-function MainframeManager.on_template_change(properties)
+---@param properties EntityProperties
+function MainframeManager.on_cluster_change(properties)
     return_buldings_to_inventory(properties)
     prepare_new_template_construction(properties)
 end
 
 ---On-tick processor for virtualization mainframes
----@param properties MainframeProperties
+---@param properties EntityProperties
 function MainframeManager.process_vm(properties)
     -- does not work on vsurface
     if properties.on_vsurface then return end
@@ -174,8 +174,8 @@ function MainframeManager.process_vm(properties)
         withdraw_building_materials(properties)
         set_logistic_requests(properties)
         local requests = properties.building_requests
-        if properties.cluster and (not requests or not next(requests)) then
-            local cluster = properties.cluster
+        if properties.first_cluster and requests and not next(requests) then
+            local cluster = properties.first_cluster
             ClusterProcessor.enable_crafting_power(properties.entity, cluster)
             clear_logistic_requests(properties)
             properties.operational = true
