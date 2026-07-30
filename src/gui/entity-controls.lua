@@ -275,6 +275,12 @@ local mode_sensitive_entities = {
     [PREFIX .. "inter-cluster-bridge-mk1"] = true,
     [PREFIX .. "inter-cluster-bridge-mk2"] = true,
     [PREFIX .. "inter-cluster-bridge-mk3"] = true,
+    [PREFIX .. "cluster-overflow-controller-mk1"] = true,
+    [PREFIX .. "cluster-overflow-controller-mk2"] = true,
+    [PREFIX .. "cluster-overflow-controller-mk3"] = true,
+    [PREFIX .. "cluster-storage-unit-mk1"] = true,
+    [PREFIX .. "cluster-storage-unit-mk2"] = true,
+    [PREFIX .. "cluster-storage-unit-mk3"] = true,
 }
 
 ---Configures item selection button

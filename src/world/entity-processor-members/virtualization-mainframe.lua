@@ -8,7 +8,7 @@ Requests construction materials for selected template and makes it operational w
 local ClusterProcessor = require("src.simulation.cluster-processor")
 local TemplateCompiler = require("src.simulation.template-compiler")
 
-local MainframeManager = {}
+local VMainframe = {}
 local PREFIX = "FV-"
 
 ---Maps entity names to amount of buildings it requests
@@ -158,14 +158,14 @@ end
 
 ---Function that is called when template changes
 ---@param properties EntityProperties
-function MainframeManager.on_cluster_change(properties)
+function VMainframe.on_cluster_change(properties)
     return_buldings_to_inventory(properties)
     prepare_new_template_construction(properties)
 end
 
 ---On-tick processor for virtualization mainframes
 ---@param properties EntityProperties
-function MainframeManager.process_vm(properties)
+function VMainframe.process_vm(properties)
     -- does not work on vsurface
     if properties.on_vsurface then return end
 
@@ -183,4 +183,4 @@ function MainframeManager.process_vm(properties)
     end
 end
 
-return MainframeManager
+return VMainframe

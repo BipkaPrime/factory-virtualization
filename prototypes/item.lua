@@ -299,10 +299,44 @@ local inter_cluster_bridge_mk3 = {
 	stack_size = 20,
 }
 
+local cluster_overflow_controller_mk1 = {
+	type = "item",
+	name = PREFIX .. "cluster-overflow-controller-mk1",
+	subgroup = PREFIX .. "advanced-cluster-io",
+	icon = iconpath .. "cluster-overflow-controller-mk1.png",
+	icon_size = 64,
+	place_result = PREFIX .. "cluster-overflow-controller-mk1",
+	stack_size = 20,
+}
+
+local cluster_overflow_controller_mk2 = {
+	type = "item",
+	name = PREFIX .. "cluster-overflow-controller-mk2",
+	subgroup = PREFIX .. "advanced-cluster-io",
+	icon = iconpath .. "cluster-overflow-controller-mk2.png",
+	icon_size = 64,
+	place_result = PREFIX .. "cluster-overflow-controller-mk2",
+	stack_size = 20,
+}
+
+local cluster_overflow_controller_mk3 = {
+	type = "item",
+	name = PREFIX .. "cluster-overflow-controller-mk3",
+	subgroup = PREFIX .. "advanced-cluster-io",
+	icon = iconpath .. "cluster-overflow-controller-mk3.png",
+	icon_size = 64,
+	place_result = PREFIX .. "cluster-overflow-controller-mk3",
+	stack_size = 20,
+}
+
+
 data.extend{
 	inter_cluster_bridge_mk1,
 	inter_cluster_bridge_mk2,
 	inter_cluster_bridge_mk3,
+	cluster_overflow_controller_mk1,
+	cluster_overflow_controller_mk2,
+	cluster_overflow_controller_mk3,
 }
 
 -------------------------------------------------------------------------------
@@ -339,10 +373,43 @@ local virtualization_mainframe_mk3 = {
 	stack_size = 20,
 }
 
+local cluster_storage_unit_mk1 = {
+	type = "item",
+	name = PREFIX .. "cluster-storage-unit-mk1",
+	subgroup = PREFIX .. "cluster-members",
+	icon = iconpath .. "cluster-storage-unit-mk1.png",
+	icon_size = 64,
+	place_result = PREFIX .. "cluster-storage-unit-mk1",
+	stack_size = 20,
+}
+
+local cluster_storage_unit_mk2 = {
+	type = "item",
+	name = PREFIX .. "cluster-storage-unit-mk2",
+	subgroup = PREFIX .. "cluster-members",
+	icon = iconpath .. "cluster-storage-unit-mk2.png",
+	icon_size = 64,
+	place_result = PREFIX .. "cluster-storage-unit-mk2",
+	stack_size = 20,
+}
+
+local cluster_storage_unit_mk3 = {
+	type = "item",
+	name = PREFIX .. "cluster-storage-unit-mk3",
+	subgroup = PREFIX .. "cluster-members",
+	icon = iconpath .. "cluster-storage-unit-mk3.png",
+	icon_size = 64,
+	place_result = PREFIX .. "cluster-storage-unit-mk3",
+	stack_size = 20,
+}
+
 data.extend{
 	virtualization_mainframe_mk1,
 	virtualization_mainframe_mk2,
 	virtualization_mainframe_mk3,
+	cluster_storage_unit_mk1,
+	cluster_storage_unit_mk2,
+	cluster_storage_unit_mk3,
 }
 
 -------------------------------------------------------------------------------

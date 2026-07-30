@@ -363,10 +363,61 @@ local inter_cluster_bridge_mk3 = {
 	results = {{type = "item", name = PREFIX .. "inter-cluster-bridge-mk3", amount = 1}},
 }
 
+local cluster_overflow_controller_mk1 = {
+	type = "recipe",
+	name = PREFIX .. "cluster-overflow-controller-mk1",
+	enabled = true,
+	ingredients =
+	{
+		{type = "item", name = "refined-concrete", amount = 500},
+		{type = "item", name = "tungsten-plate", amount = 500},
+		{type = "item", name = PREFIX .. "transmission-core-mk1", amount = 1},
+		{type = "item", name = PREFIX .. "storage-core-mk1", amount = 1},
+		{type = "item", name = PREFIX .. "computation-core-mk1", amount = 1},
+	},
+	energy_required = 30,
+	results = {{type = "item", name = PREFIX .. "cluster-overflow-controller-mk1", amount = 1}},
+}
+
+local cluster_overflow_controller_mk2 = {
+	type = "recipe",
+	name = PREFIX .. "cluster-overflow-controller-mk2",
+	enabled = true,
+	ingredients =
+	{
+		{type = "item", name = "refined-concrete", amount = 500},
+		{type = "item", name = "tungsten-plate", amount = 500},
+		{type = "item", name = PREFIX .. "transmission-core-mk2", amount = 1},
+		{type = "item", name = PREFIX .. "storage-core-mk2", amount = 1},
+		{type = "item", name = PREFIX .. "computation-core-mk2", amount = 1},
+	},
+	energy_required = 30,
+	results = {{type = "item", name = PREFIX .. "cluster-overflow-controller-mk2", amount = 1}},
+}
+
+local cluster_overflow_controller_mk3 = {
+	type = "recipe",
+	name = PREFIX .. "cluster-overflow-controller-mk3",
+	enabled = true,
+	ingredients =
+	{
+		{type = "item", name = "refined-concrete", amount = 500},
+		{type = "item", name = "tungsten-plate", amount = 500},
+		{type = "item", name = PREFIX .. "transmission-core-mk3", amount = 1},
+		{type = "item", name = PREFIX .. "storage-core-mk3", amount = 1},
+		{type = "item", name = PREFIX .. "computation-core-mk3", amount = 1},
+	},
+	energy_required = 30,
+	results = {{type = "item", name = PREFIX .. "cluster-overflow-controller-mk3", amount = 1}},
+}
+
 data.extend{
 	inter_cluster_bridge_mk1,
 	inter_cluster_bridge_mk2,
 	inter_cluster_bridge_mk3,
+	cluster_overflow_controller_mk1,
+	cluster_overflow_controller_mk2,
+	cluster_overflow_controller_mk3,
 }
 
 -------------------------------------------------------------------------------
@@ -421,10 +472,61 @@ local virtualization_mainframe_mk3 = {
 	results = {{type = "item", name = PREFIX .. "virtualization-mainframe-mk3", amount = 1}},
 }
 
+local cluster_storage_unit_mk1 = {
+	type = "recipe",
+	name = PREFIX .. "cluster-storage-unit-mk1",
+	enabled = true,
+	ingredients =
+	{
+		{type = "item", name = "refined-concrete", amount = 1000},
+		{type = "item", name = "tungsten-plate", amount = 1000},
+		{type = "item", name = PREFIX .. "transmission-core-mk1", amount = 10},
+		{type = "item", name = PREFIX .. "storage-core-mk1", amount = 50},
+		{type = "item", name = PREFIX .. "computation-core-mk1", amount = 5},
+	},
+	energy_required = 300,
+	results = {{type = "item", name = PREFIX .. "cluster-storage-unit-mk1", amount = 1}},
+}
+
+local cluster_storage_unit_mk2 = {
+	type = "recipe",
+	name = PREFIX .. "cluster-storage-unit-mk2",
+	enabled = true,
+	ingredients =
+	{
+		{type = "item", name = "refined-concrete", amount = 1000},
+		{type = "item", name = "tungsten-plate", amount = 1000},
+		{type = "item", name = PREFIX .. "transmission-core-mk2", amount = 10},
+		{type = "item", name = PREFIX .. "storage-core-mk2", amount = 50},
+		{type = "item", name = PREFIX .. "computation-core-mk2", amount = 5},
+	},
+	energy_required = 300,
+	results = {{type = "item", name = PREFIX .. "cluster-storage-unit-mk2", amount = 1}},
+}
+
+local cluster_storage_unit_mk3 = {
+	type = "recipe",
+	name = PREFIX .. "cluster-storage-unit-mk3",
+	enabled = true,
+	ingredients =
+	{
+		{type = "item", name = "refined-concrete", amount = 1000},
+		{type = "item", name = "tungsten-plate", amount = 1000},
+		{type = "item", name = PREFIX .. "transmission-core-mk3", amount = 10},
+		{type = "item", name = PREFIX .. "storage-core-mk3", amount = 50},
+		{type = "item", name = PREFIX .. "computation-core-mk3", amount = 5},
+	},
+	energy_required = 300,
+	results = {{type = "item", name = PREFIX .. "cluster-storage-unit-mk3", amount = 1}},
+}
+
 data.extend{
 	virtualization_mainframe_mk1,
 	virtualization_mainframe_mk2,
 	virtualization_mainframe_mk3,
+	cluster_storage_unit_mk1,
+	cluster_storage_unit_mk2,
+	cluster_storage_unit_mk3,
 }
 
 -------------------------------------------------------------------------------

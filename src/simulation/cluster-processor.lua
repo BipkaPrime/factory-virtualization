@@ -95,6 +95,12 @@ local entity_weights = {
     [PREFIX .. "inter-cluster-bridge-mk1"] = 5,
     [PREFIX .. "inter-cluster-bridge-mk2"] = 50,
     [PREFIX .. "inter-cluster-bridge-mk3"] = 500,
+    [PREFIX .. "cluster-overflow-controller-mk1"] = 1,
+    [PREFIX .. "cluster-overflow-controller-mk2"] = 10,
+    [PREFIX .. "cluster-overflow-controller-mk3"] = 100,
+    [PREFIX .. "cluster-storage-unit-mk1"] = 1,
+    [PREFIX .. "cluster-storage-unit-mk2"] = 10,
+    [PREFIX .. "cluster-storage-unit-mk3"] = 100,
 }
 
 ---Maps entity names to amount of crafting power they provide

@@ -353,10 +353,97 @@ local inter_cluster_bridge_mk3 = {
     }
 }
 
+local cluster_overflow_controller_mk1 = {
+    type = "electric-energy-interface",
+    gui_mode = "all",
+    energy_source = {
+        type = "electric",
+        buffer_capacity = "10GJ",
+        usage_priority = "primary-input",
+        drain = "100MW",
+    },
+    name = PREFIX .. "cluster-overflow-controller-mk1",
+    icon = iconpath .. "cluster-overflow-controller-mk1.png",
+    icon_size = 64,
+    flags = {"placeable-neutral", "placeable-player", "player-creation"},
+    minable = {mining_time = 1, result = PREFIX .. "cluster-overflow-controller-mk1"},
+    collision_box = {{-3.7, -3.7}, {3.7, 3.7}},
+    selection_box = {{-4, -4}, {4, 4}},
+    picture = {
+        layers = {
+            {
+                filename = entitypath .. "cluster-overflow-controller-mk1.png",
+                width = 1024,
+                height = 1024,
+                scale = 0.25,
+            }
+        },
+    }
+}
+
+local cluster_overflow_controller_mk2 = {
+    type = "electric-energy-interface",
+    gui_mode = "all",
+    energy_source = {
+        type = "electric",
+        buffer_capacity = "100GJ",
+        usage_priority = "primary-input",
+        drain = "1GW",
+    },
+    name = PREFIX .. "cluster-overflow-controller-mk2",
+    icon = iconpath .. "cluster-overflow-controller-mk2.png",
+    icon_size = 64,
+    flags = {"placeable-neutral", "placeable-player", "player-creation"},
+    minable = {mining_time = 1, result = PREFIX .. "cluster-overflow-controller-mk2"},
+    collision_box = {{-3.7, -3.7}, {3.7, 3.7}},
+    selection_box = {{-4, -4}, {4, 4}},
+    picture = {
+        layers = {
+            {
+                filename = entitypath .. "cluster-overflow-controller-mk2.png",
+                width = 1024,
+                height = 1024,
+                scale = 0.25,
+            }
+        },
+    }
+}
+
+local cluster_overflow_controller_mk3 = {
+    type = "electric-energy-interface",
+    gui_mode = "all",
+    energy_source = {
+        type = "electric",
+        buffer_capacity = "1TJ",
+        usage_priority = "primary-input",
+        drain = "10GW",
+    },
+    name = PREFIX .. "cluster-overflow-controller-mk3",
+    icon = iconpath .. "cluster-overflow-controller-mk3.png",
+    icon_size = 64,
+    flags = {"placeable-neutral", "placeable-player", "player-creation"},
+    minable = {mining_time = 1, result = PREFIX .. "cluster-overflow-controller-mk3"},
+    collision_box = {{-3.7, -3.7}, {3.7, 3.7}},
+    selection_box = {{-4, -4}, {4, 4}},
+    picture = {
+        layers = {
+            {
+                filename = entitypath .. "cluster-overflow-controller-mk3.png",
+                width = 1024,
+                height = 1024,
+                scale = 0.25,
+            }
+        },
+    }
+}
+
 data.extend{
     inter_cluster_bridge_mk1,
     inter_cluster_bridge_mk2,
     inter_cluster_bridge_mk3,
+    cluster_overflow_controller_mk1,
+    cluster_overflow_controller_mk2,
+    cluster_overflow_controller_mk3,
 }
 
 -------------------------------------------------------------------------------
@@ -459,10 +546,97 @@ local virtualization_mainframe_mk3 = {
     },
 }
 
+local cluster_storage_unit_mk1 = {
+    type = "electric-energy-interface",
+    gui_mode = "all",
+    energy_source = {
+        type = "electric",
+        buffer_capacity = "10GJ",
+        usage_priority = "primary-input",
+        drain = "100MW",
+    },
+    name = PREFIX .. "cluster-storage-unit-mk1",
+    icon = iconpath .. "cluster-storage-unit-mk1.png",
+    icon_size = 64,
+    flags = {"placeable-neutral", "placeable-player", "player-creation"},
+    minable = {mining_time = 1, result = PREFIX .. "cluster-storage-unit-mk1"},
+    collision_box = {{-3.7, -3.7}, {3.7, 3.7}},
+    selection_box = {{-4, -4}, {4, 4}},
+    picture = {
+        layers = {
+            {
+                filename = entitypath .. "cluster-storage-unit-mk1.png",
+                width = 512,
+                height = 512,
+                scale = 0.5,
+            }
+        },
+    }
+}
+
+local cluster_storage_unit_mk2 = {
+    type = "electric-energy-interface",
+    gui_mode = "all",
+    energy_source = {
+        type = "electric",
+        buffer_capacity = "100GJ",
+        usage_priority = "primary-input",
+        drain = "1GW",
+    },
+    name = PREFIX .. "cluster-storage-unit-mk2",
+    icon = iconpath .. "cluster-storage-unit-mk2.png",
+    icon_size = 64,
+    flags = {"placeable-neutral", "placeable-player", "player-creation"},
+    minable = {mining_time = 1, result = PREFIX .. "cluster-storage-unit-mk2"},
+    collision_box = {{-3.7, -3.7}, {3.7, 3.7}},
+    selection_box = {{-4, -4}, {4, 4}},
+    picture = {
+        layers = {
+            {
+                filename = entitypath .. "cluster-storage-unit-mk2.png",
+                width = 512,
+                height = 512,
+                scale = 0.5,
+            }
+        },
+    }
+}
+
+local cluster_storage_unit_mk3 = {
+    type = "electric-energy-interface",
+    gui_mode = "all",
+    energy_source = {
+        type = "electric",
+        buffer_capacity = "1TJ",
+        usage_priority = "primary-input",
+        drain = "10GW",
+    },
+    name = PREFIX .. "cluster-storage-unit-mk3",
+    icon = iconpath .. "cluster-storage-unit-mk3.png",
+    icon_size = 64,
+    flags = {"placeable-neutral", "placeable-player", "player-creation"},
+    minable = {mining_time = 1, result = PREFIX .. "cluster-storage-unit-mk3"},
+    collision_box = {{-3.7, -3.7}, {3.7, 3.7}},
+    selection_box = {{-4, -4}, {4, 4}},
+    picture = {
+        layers = {
+            {
+                filename = entitypath .. "cluster-storage-unit-mk3.png",
+                width = 512,
+                height = 512,
+                scale = 0.5,
+            }
+        },
+    }
+}
+
 data.extend{
     virtualization_mainframe_mk1,
     virtualization_mainframe_mk2,
     virtualization_mainframe_mk3,
+    cluster_storage_unit_mk1,
+    cluster_storage_unit_mk2,
+    cluster_storage_unit_mk3,
 }
 
 -------------------------------------------------------------------------------

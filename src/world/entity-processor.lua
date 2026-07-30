@@ -71,10 +71,12 @@ Third group is internal: these can only be assigned by entity processor.
 
 local VSurfaceManager = require("src.world.vsurface-manager")
 local ClusterProcessor = require("src.simulation.cluster-processor")
-local MainframeManager = require("src.world.mainframe-manager")
-local ClusterIO = require("src.world.cluster-io-manager")
-local TemplateIO = require("src.world.template-io-manager")
-local ClusterBridge = require("src.world.cluster-bridge-manager")
+local VMainframe = require("src.world.entity-processor-members.virtualization-mainframe")
+local ClusterIO = require("src.world.entity-processor-members.cluster-io")
+local TemplateIO = require("src.world.entity-processor-members.template-io")
+local ClusterBridge = require("src.world.entity-processor-members.inter-cluster-bridge")
+local OverflowController = require("src.world.entity-processor-members.cluster-overflow-controller")
+local StorageUnit = require("src.world.entity-processor-members.cluster-storage-unit")
 
 local PREFIX = "FV-"
 local EntityProcessor = {}
@@ -99,12 +101,18 @@ local entity_router = {
     [PREFIX .. "cluster-energy-io-mk1"] = ClusterIO.process_cluster_energy_io,
     [PREFIX .. "cluster-energy-io-mk2"] = ClusterIO.process_cluster_energy_io,
     [PREFIX .. "cluster-energy-io-mk3"] = ClusterIO.process_cluster_energy_io,
-    [PREFIX .. "virtualization-mainframe-mk1"] = MainframeManager.process_vm,
-    [PREFIX .. "virtualization-mainframe-mk2"] = MainframeManager.process_vm,
-    [PREFIX .. "virtualization-mainframe-mk3"] = MainframeManager.process_vm,
+    [PREFIX .. "virtualization-mainframe-mk1"] = VMainframe.process_vm,
+    [PREFIX .. "virtualization-mainframe-mk2"] = VMainframe.process_vm,
+    [PREFIX .. "virtualization-mainframe-mk3"] = VMainframe.process_vm,
     [PREFIX .. "inter-cluster-bridge-mk1"] = ClusterBridge.process_bridge,
     [PREFIX .. "inter-cluster-bridge-mk2"] = ClusterBridge.process_bridge,
     [PREFIX .. "inter-cluster-bridge-mk3"] = ClusterBridge.process_bridge,
+    [PREFIX .. "cluster-overflow-controller-mk1"] = OverflowController.process_entity,
+    [PREFIX .. "cluster-overflow-controller-mk2"] = OverflowController.process_entity,
+    [PREFIX .. "cluster-overflow-controller-mk3"] = OverflowController.process_entity,
+    [PREFIX .. "cluster-storage-unit-mk1"] = StorageUnit.process_entity,
+    [PREFIX .. "cluster-storage-unit-mk2"] = StorageUnit.process_entity,
+    [PREFIX .. "cluster-storage-unit-mk3"] = StorageUnit.process_entity,
 }
 
 ---Filter used to subscribe to build events
@@ -164,6 +172,22 @@ local inter_cluster_bridge_copyable = {
     "second_template",
 }
 
+---Copyable fields of cluster overflow controller
+local cluster_overflow_controller_copyable = {
+    "mode",
+    "selected_item",
+    "selected_fluid",
+    "first_template",
+}
+
+---Copyable fields of cluster storage unit
+local cluster_storage_unit_copyable = {
+    "mode",
+    "selected_item",
+    "selected_fluid",
+    "first_template",
+}
+
 ---Maps entity names to their copyable properties
 local entity_copyable_fields = {
     [PREFIX .. "template-item-io-mk1"] = template_item_io_copyable,
@@ -190,6 +214,12 @@ local entity_copyable_fields = {
     [PREFIX .. "inter-cluster-bridge-mk1"] = inter_cluster_bridge_copyable,
     [PREFIX .. "inter-cluster-bridge-mk2"] = inter_cluster_bridge_copyable,
     [PREFIX .. "inter-cluster-bridge-mk3"] = inter_cluster_bridge_copyable,
+    [PREFIX .. "cluster-overflow-controller-mk1"] = cluster_overflow_controller_copyable,
+    [PREFIX .. "cluster-overflow-controller-mk2"] = cluster_overflow_controller_copyable,
+    [PREFIX .. "cluster-overflow-controller-mk3"] = cluster_overflow_controller_copyable,
+    [PREFIX .. "cluster-storage-unit-mk1"] = cluster_storage_unit_copyable,
+    [PREFIX .. "cluster-storage-unit-mk2"] = cluster_storage_unit_copyable,
+    [PREFIX .. "cluster-storage-unit-mk3"] = cluster_storage_unit_copyable,
 }
 
 -------------------------------------------------------------------------------
@@ -357,7 +387,7 @@ local function generate_universal_buffer_key(properties)
 end
 
 ---Maps entity names to their flow limits
-local bridge_flow_limits = {
+local multi_mode_flow_limits = {
     [PREFIX .. "inter-cluster-bridge-mk1"] = {
         item = 1e6,
         fluid = 1e6,
@@ -373,14 +403,29 @@ local bridge_flow_limits = {
         fluid = 1e12,
         energy = 1e18,
     },
+    [PREFIX .. "cluster-overflow-controller-mk1"] = {
+        item = 1e6,
+        fluid = 1e6,
+        energy = 1e12,
+    },
+    [PREFIX .. "cluster-overflow-controller-mk2"] = {
+        item = 1e9,
+        fluid = 1e9,
+        energy = 1e15,
+    },
+    [PREFIX .. "cluster-overflow-controller-mk3"] = {
+        item = 1e12,
+        fluid = 1e12,
+        energy = 1e18,
+    },
 }
 
 ---Caches flow limit for inter-cluster bridge based on tier and operation mode.
 ---@param properties EntityProperties
-local function cache_flow_limit_cluster_bridge(properties)
+local function cache_multi_mode_flow_limit(properties)
     local entity_name = properties.entity_name
     local mode = properties.mode
-    local flow_limit = bridge_flow_limits[entity_name][mode]
+    local flow_limit = multi_mode_flow_limits[entity_name][mode]
     properties.flow_limit = flow_limit
 end
 
@@ -415,7 +460,7 @@ local cluster_energy_io_field_setting = {
 local mainframe_field_setting = {
     first_template = {
         change_first_cluster,
-        MainframeManager.on_cluster_change,
+        VMainframe.on_cluster_change,
     },
 }
 
@@ -425,10 +470,29 @@ local inter_cluster_bridge_field_setting = {
     selected_fluid = {generate_universal_buffer_key},
     mode = {
         generate_universal_buffer_key,
-        cache_flow_limit_cluster_bridge,
+        cache_multi_mode_flow_limit,
     },
     first_template = {change_first_cluster},
     second_template = {change_second_cluster},
+}
+
+---List of functions to perform when setting a field for cluster overflow controller
+local cluster_overflow_controller_field_setting = {
+    selected_item = {generate_universal_buffer_key},
+    selected_fluid = {generate_universal_buffer_key},
+    mode = {
+        generate_universal_buffer_key,
+        cache_multi_mode_flow_limit,
+    },
+    first_template = {change_first_cluster},
+}
+
+---List of functions to perform when setting a field for cluster storage unit
+local cluster_storage_unit_field_setting = {
+    selected_item = {generate_universal_buffer_key},
+    selected_fluid = {generate_universal_buffer_key},
+    mode = {generate_universal_buffer_key},
+    first_template = {change_first_cluster},
 }
 
 ---Maps entity names to functions to perform when setting a field in properties
@@ -454,6 +518,12 @@ local field_setting_hooks = {
     [PREFIX .. "inter-cluster-bridge-mk1"] = inter_cluster_bridge_field_setting,
     [PREFIX .. "inter-cluster-bridge-mk2"] = inter_cluster_bridge_field_setting,
     [PREFIX .. "inter-cluster-bridge-mk3"] = inter_cluster_bridge_field_setting,
+    [PREFIX .. "cluster-overflow-controller-mk1"] = cluster_overflow_controller_field_setting,
+    [PREFIX .. "cluster-overflow-controller-mk2"] = cluster_overflow_controller_field_setting,
+    [PREFIX .. "cluster-overflow-controller-mk3"] = cluster_overflow_controller_field_setting,
+    [PREFIX .. "cluster-storage-unit-mk1"] = cluster_storage_unit_field_setting,
+    [PREFIX .. "cluster-storage-unit-mk2"] = cluster_storage_unit_field_setting,
+    [PREFIX .. "cluster-storage-unit-mk3"] = cluster_storage_unit_field_setting,
 }
 
 -------------------------------------------------------------------------------
@@ -504,6 +574,16 @@ local inter_cluster_bridge_unregistration = {
     remove_from_second_cluster,
 }
 
+---List of functions to perform when removing cluster overflow controller from registry
+local cluster_overflow_controller_unregistration = {
+    remove_from_first_cluster,
+}
+
+---List of functions to perform when removing cluster storage unit from registry
+local cluster_storage_unit_unregistration = {
+    remove_from_first_cluster,
+}
+
 ---Maps entity names to functions to perform when removing entity from registry
 local unregistration_hooks = {
     [PREFIX .. "cluster-item-io-mk1"] = cluster_item_io_unregistration,
@@ -521,6 +601,12 @@ local unregistration_hooks = {
     [PREFIX .. "inter-cluster-bridge-mk1"] = inter_cluster_bridge_unregistration,
     [PREFIX .. "inter-cluster-bridge-mk2"] = inter_cluster_bridge_unregistration,
     [PREFIX .. "inter-cluster-bridge-mk3"] = inter_cluster_bridge_unregistration,
+    [PREFIX .. "cluster-overflow-controller-mk1"] = cluster_overflow_controller_unregistration,
+    [PREFIX .. "cluster-overflow-controller-mk2"] = cluster_overflow_controller_unregistration,
+    [PREFIX .. "cluster-overflow-controller-mk3"] = cluster_overflow_controller_unregistration,
+    [PREFIX .. "cluster-storage-unit-mk1"] = cluster_storage_unit_unregistration,
+    [PREFIX .. "cluster-storage-unit-mk2"] = cluster_storage_unit_unregistration,
+    [PREFIX .. "cluster-storage-unit-mk3"] = cluster_storage_unit_unregistration,
 }
 
 -------------------------------------------------------------------------------

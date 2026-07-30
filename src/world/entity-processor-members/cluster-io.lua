@@ -2,11 +2,11 @@
 
 local ClusterProcessor = require("src.simulation.cluster-processor")
 
-local MainframeIO = {}
+local ClusterIO = {}
 
 ---Updates given cluster item io
 ---@param properties EntityProperties
-function MainframeIO.process_cluster_item_io(properties)
+function ClusterIO.process_cluster_item_io(properties)
     -- does not operate on vsurfaces
     if properties.on_vsurface then return end
 
@@ -56,7 +56,7 @@ end
 
 ---Updates given cluster fluid io
 ---@param properties EntityProperties
-function MainframeIO.process_cluster_fluid_io(properties)
+function ClusterIO.process_cluster_fluid_io(properties)
     -- does not operate on vsurfaces
     if properties.on_vsurface then return end
 
@@ -106,7 +106,7 @@ end
 
 ---Updates given cluster energy io
 ---@param properties EntityProperties
-function MainframeIO.process_cluster_energy_io(properties)
+function ClusterIO.process_cluster_energy_io(properties)
     -- does not operate on vsurfaces
     if properties.on_vsurface then return end
 
@@ -151,4 +151,4 @@ function MainframeIO.process_cluster_energy_io(properties)
     end
 end
 
-return MainframeIO
+return ClusterIO

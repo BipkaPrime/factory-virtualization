@@ -188,6 +188,45 @@ local function create_cluster_energy_io_gui(player, entity)
     )
 end
 
+---Creates inter-cluster bridge interface
+---@param player LuaPlayer assumed to be valid
+---@param entity LuaEntity assumed to be valid
+local function create_inter_cluster_bridge_gui(player, entity)
+    local gui_data = create_entity_gui_base(player, entity)
+    local left_frame = gui_data.elements.left_frame
+    EntityControls.create_mode_selection_widget(left_frame, gui_data)
+    EntityControls.create_choose_item_button(left_frame, gui_data)
+    EntityControls.create_choose_fluid_button(left_frame, gui_data)
+    EntityControls.create_first_template_selection_widget(
+        left_frame,
+        gui_data,
+        {"gui-label.select-source-cluster"},
+        100
+    )
+    EntityControls.create_second_template_selection_widget(
+        left_frame,
+        gui_data,
+        {"gui-label.select-destination-cluster"},
+        100
+    )
+end
+
+---Creates cluster overflow controller interface
+---@param player LuaPlayer assumed to be valid
+---@param entity LuaEntity assumed to be valid
+local function create_cluster_overflow_controller_gui(player, entity)
+    local gui_data = create_entity_gui_base(player, entity)
+    local left_frame = gui_data.elements.left_frame
+    EntityControls.create_mode_selection_widget(left_frame, gui_data)
+    EntityControls.create_choose_item_button(left_frame, gui_data)
+    EntityControls.create_choose_fluid_button(left_frame, gui_data)
+    EntityControls.create_first_template_selection_widget(
+        left_frame,
+        gui_data,
+        {"gui-label.select-cluster"}
+    )
+end
+
 ---Creates virtualization mainframe interface
 ---@param player LuaPlayer assumed to be valid
 ---@param entity LuaEntity assumed to be valid
@@ -201,10 +240,10 @@ local function create_virtualization_mainframe_gui(player, entity)
     )
 end
 
----Creates inter-cluster bridge interface
+---Creates cluster storage unit interface
 ---@param player LuaPlayer assumed to be valid
 ---@param entity LuaEntity assumed to be valid
-local function create_inter_cluster_bridge_gui(player, entity)
+local function create_cluster_storage_unit_gui(player, entity)
     local gui_data = create_entity_gui_base(player, entity)
     local left_frame = gui_data.elements.left_frame
     EntityControls.create_mode_selection_widget(left_frame, gui_data)
@@ -213,12 +252,7 @@ local function create_inter_cluster_bridge_gui(player, entity)
     EntityControls.create_first_template_selection_widget(
         left_frame,
         gui_data,
-        {"gui-label.select-source-cluster"}
-    )
-    EntityControls.create_second_template_selection_widget(
-        left_frame,
-        gui_data,
-        {"gui-label.select-destination-cluster"}
+        {"gui-label.select-cluster"}
     )
 end
 
@@ -252,6 +286,12 @@ local entity_gui_router = {
     [PREFIX .. "inter-cluster-bridge-mk1"] = create_inter_cluster_bridge_gui,
     [PREFIX .. "inter-cluster-bridge-mk2"] = create_inter_cluster_bridge_gui,
     [PREFIX .. "inter-cluster-bridge-mk3"] = create_inter_cluster_bridge_gui,
+    [PREFIX .. "cluster-overflow-controller-mk1"] = create_cluster_overflow_controller_gui,
+    [PREFIX .. "cluster-overflow-controller-mk2"] = create_cluster_overflow_controller_gui,
+    [PREFIX .. "cluster-overflow-controller-mk3"] = create_cluster_overflow_controller_gui,
+    [PREFIX .. "cluster-storage-unit-mk1"] = create_cluster_storage_unit_gui,
+    [PREFIX .. "cluster-storage-unit-mk2"] = create_cluster_storage_unit_gui,
+    [PREFIX .. "cluster-storage-unit-mk3"] = create_cluster_storage_unit_gui,
 }
 
 ---Handles gui being opened by the player. If entity from the table above is
@@ -290,7 +330,7 @@ end
 
 ---Used for time-based updates of template IO GUIs
 ---@param gui_data EntityGuiData
-local function update_template_io_datafield(gui_data)
+local function update_template_io_gui(gui_data)
     local entity = gui_data.entity
     local datafield = gui_data.elements.datafield
     datafield.clear()
@@ -301,7 +341,7 @@ end
 
 ---Used for time-based updates of cluster IO GUIs
 ---@param gui_data EntityGuiData
-local function update_cluster_io_datafield(gui_data)
+local function update_cluster_io_gui(gui_data)
     local entity = gui_data.entity
     local datafield = gui_data.elements.datafield
     datafield.clear()
@@ -313,7 +353,7 @@ end
 
 ---Used for time-based updates of mainframe GUIs
 ---@param gui_data EntityGuiData
-local function update_virtualization_mainframe_datafield(gui_data)
+local function update_virtualization_mainframe_gui(gui_data)
     local entity = gui_data.entity
     local datafield = gui_data.elements.datafield
     datafield.clear()
@@ -326,7 +366,7 @@ end
 
 ---Used for time-based updates of inter-cluster bridge GUIs
 ---@param gui_data EntityGuiData
-local function update_inter_cluster_bridge_datafield(gui_data)
+local function update_inter_cluster_bridge_gui(gui_data)
     local entity = gui_data.entity
     local datafield = gui_data.elements.datafield
     datafield.clear()
@@ -336,32 +376,50 @@ local function update_inter_cluster_bridge_datafield(gui_data)
     EntityInfo.create_inter_cluster_bridge_display(datafield, entity)
 end
 
+---Used for time-based updates of cluster overflow controller GUIs
+---@param gui_data EntityGuiData
+local function update_cluster_overflow_controller_gui(gui_data)
+
+end
+
+---Used for time-based updates of cluster storage unit GUIs
+---@param gui_data EntityGuiData
+local function update_cluster_storage_unit_gui(gui_data)
+
+end
+
 ---Maps entity names to functions used to update their GUIs
 local gui_update_router = {
-    [PREFIX .. "template-item-io-mk1"] = update_template_io_datafield,
-    [PREFIX .. "template-item-io-mk2"] = update_template_io_datafield,
-    [PREFIX .. "template-item-io-mk3"] = update_template_io_datafield,
-    [PREFIX .. "template-fluid-io-mk1"] = update_template_io_datafield,
-    [PREFIX .. "template-fluid-io-mk2"] = update_template_io_datafield,
-    [PREFIX .. "template-fluid-io-mk3"] = update_template_io_datafield,
-    [PREFIX .. "template-energy-io-mk1"] = update_template_io_datafield,
-    [PREFIX .. "template-energy-io-mk2"] = update_template_io_datafield,
-    [PREFIX .. "template-energy-io-mk3"] = update_template_io_datafield,
-    [PREFIX .. "cluster-item-io-mk1"] = update_cluster_io_datafield,
-    [PREFIX .. "cluster-item-io-mk2"] = update_cluster_io_datafield,
-    [PREFIX .. "cluster-item-io-mk3"] = update_cluster_io_datafield,
-    [PREFIX .. "cluster-fluid-io-mk1"] = update_cluster_io_datafield,
-    [PREFIX .. "cluster-fluid-io-mk2"] = update_cluster_io_datafield,
-    [PREFIX .. "cluster-fluid-io-mk3"] = update_cluster_io_datafield,
-    [PREFIX .. "cluster-energy-io-mk1"] = update_cluster_io_datafield,
-    [PREFIX .. "cluster-energy-io-mk2"] = update_cluster_io_datafield,
-    [PREFIX .. "cluster-energy-io-mk3"] = update_cluster_io_datafield,
-    [PREFIX .. "virtualization-mainframe-mk1"] = update_virtualization_mainframe_datafield,
-    [PREFIX .. "virtualization-mainframe-mk2"] = update_virtualization_mainframe_datafield,
-    [PREFIX .. "virtualization-mainframe-mk3"] = update_virtualization_mainframe_datafield,
-    [PREFIX .. "inter-cluster-bridge-mk1"] = update_inter_cluster_bridge_datafield,
-    [PREFIX .. "inter-cluster-bridge-mk2"] = update_inter_cluster_bridge_datafield,
-    [PREFIX .. "inter-cluster-bridge-mk3"] = update_inter_cluster_bridge_datafield,
+    [PREFIX .. "template-item-io-mk1"] = update_template_io_gui,
+    [PREFIX .. "template-item-io-mk2"] = update_template_io_gui,
+    [PREFIX .. "template-item-io-mk3"] = update_template_io_gui,
+    [PREFIX .. "template-fluid-io-mk1"] = update_template_io_gui,
+    [PREFIX .. "template-fluid-io-mk2"] = update_template_io_gui,
+    [PREFIX .. "template-fluid-io-mk3"] = update_template_io_gui,
+    [PREFIX .. "template-energy-io-mk1"] = update_template_io_gui,
+    [PREFIX .. "template-energy-io-mk2"] = update_template_io_gui,
+    [PREFIX .. "template-energy-io-mk3"] = update_template_io_gui,
+    [PREFIX .. "cluster-item-io-mk1"] = update_cluster_io_gui,
+    [PREFIX .. "cluster-item-io-mk2"] = update_cluster_io_gui,
+    [PREFIX .. "cluster-item-io-mk3"] = update_cluster_io_gui,
+    [PREFIX .. "cluster-fluid-io-mk1"] = update_cluster_io_gui,
+    [PREFIX .. "cluster-fluid-io-mk2"] = update_cluster_io_gui,
+    [PREFIX .. "cluster-fluid-io-mk3"] = update_cluster_io_gui,
+    [PREFIX .. "cluster-energy-io-mk1"] = update_cluster_io_gui,
+    [PREFIX .. "cluster-energy-io-mk2"] = update_cluster_io_gui,
+    [PREFIX .. "cluster-energy-io-mk3"] = update_cluster_io_gui,
+    [PREFIX .. "virtualization-mainframe-mk1"] = update_virtualization_mainframe_gui,
+    [PREFIX .. "virtualization-mainframe-mk2"] = update_virtualization_mainframe_gui,
+    [PREFIX .. "virtualization-mainframe-mk3"] = update_virtualization_mainframe_gui,
+    [PREFIX .. "inter-cluster-bridge-mk1"] = update_inter_cluster_bridge_gui,
+    [PREFIX .. "inter-cluster-bridge-mk2"] = update_inter_cluster_bridge_gui,
+    [PREFIX .. "inter-cluster-bridge-mk3"] = update_inter_cluster_bridge_gui,
+    [PREFIX .. "cluster-overflow-controller-mk1"] = update_cluster_overflow_controller_gui,
+    [PREFIX .. "cluster-overflow-controller-mk2"] = update_cluster_overflow_controller_gui,
+    [PREFIX .. "cluster-overflow-controller-mk3"] = update_cluster_overflow_controller_gui,
+    [PREFIX .. "cluster-storage-unit-mk1"] = update_cluster_storage_unit_gui,
+    [PREFIX .. "cluster-storage-unit-mk2"] = update_cluster_storage_unit_gui,
+    [PREFIX .. "cluster-storage-unit-mk3"] = update_cluster_storage_unit_gui,
 }
 
 ---Time-based updater for entity GUI window
