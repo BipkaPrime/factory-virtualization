@@ -31,6 +31,8 @@ at storage.entity_gui. For this table key is player index, value is table contai
 ---@field item_mode_radiobutton LuaGuiElement|nil
 ---@field fluid_mode_radiobutton LuaGuiElement|nil
 ---@field energy_mode_radiobutton LuaGuiElement|nil
+---@field capability_override_textfield LuaGuiElement|nil
+---@field capability_override_checkbox LuaGuiElement|nil
 
 ---Table describing entity GUI state
 ---@class EntityGuiData: GuiDataBase
@@ -108,7 +110,6 @@ local function create_entity_gui_base(player, entity)
     }
 
     local datafield = right_frame.add{type = "scroll-pane"}
-    -- datafield.style.minimal_width = 
     datafield.style.vertically_stretchable = true
     gui_data.elements.datafield = datafield
     GuiUpdater.register_gui("entity", gui_data, player_index)
@@ -223,7 +224,15 @@ local function create_cluster_overflow_controller_gui(player, entity)
     EntityControls.create_first_template_selection_widget(
         left_frame,
         gui_data,
-        {"gui-label.select-cluster"}
+        {"gui-label.select-cluster"},
+        100
+    )
+    EntityControls.create_overflow_threshold_widget(left_frame, gui_data)
+    EntityControls.create_capability_override_widget(
+        left_frame,
+        gui_data,
+        {"gui-label.enable-flow-limit-override"},
+        {"gui-label.set-flow-limit-to"}
     )
 end
 

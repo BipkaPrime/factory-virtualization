@@ -485,4 +485,178 @@ function EntityControls.process_energy_mode_radiobutton(event)
     process_operation_mode_radiobutton(event.player_index, "energy")
 end
 
+-------------------------------------------------------------------------------
+-- CAPABILITY OVERRIDE WIDGET
+-------------------------------------------------------------------------------
+
+---Configures capability override widget
+---@param gui_data EntityGuiData table containing entity gui data
+---@param checkbox_state boolean true if second row should be enabled
+local function configure_capability_override_widget(gui_data, checkbox_state)
+    ---@type LuaGuiElement
+    local textfield = gui_data.elements.capability_override_textfield
+    ---@type LuaGuiElement
+    local checkbox = gui_data.elements.capability_override_checkbox
+    if not textfield.valid or not checkbox.valid then return end
+
+    checkbox.state = checkbox_state
+    -- enabling/disabling second row based on checkbox state
+    for _, child in ipairs(textfield.parent.children) do
+        child.enabled = checkbox_state
+    end
+
+    -- setting textfield text based on override value
+    local entity = gui_data.entity
+    local override = EntityProcessor.get_capability_override(entity)
+    local percent_value = override and override * 100
+    textfield.text = CommonGui.number_to_string(percent_value, 2)
+end
+
+---Adds capability override widget, which gives player a way to underclock
+---buildings. Artificially lowering flow limit, capacity limit, etc.
+---@param parent LuaGuiElement widget will be added here
+---@param gui_data EntityGuiData table containing entity gui data
+---@param checkbox_caption LocalisedString caption to display by checkbox
+---@param textbox_caption LocalisedString caption to display by textbox
+function EntityControls.create_capability_override_widget(
+    parent,
+    gui_data,
+    checkbox_caption,
+    textbox_caption
+)
+    local flow = parent.add{type = "flow", direction = "vertical"}
+
+    -- first row: label and checkbox that enables the second row
+    local checkbox_flow = flow.add{type = "flow", direction = "horizontal"}
+    checkbox_flow.style.vertical_align = "center"
+    local checkbox = checkbox_flow.add{
+        type = "checkbox",
+        name = PREFIX .. "capability-override-checkbox",
+        state = false,
+    }
+    checkbox_flow.add{type = "label", caption = checkbox_caption}
+    gui_data.elements.capability_override_checkbox = checkbox
+
+    -- second row: textfield and 2 labels
+    local textfield_flow = flow.add{type = "flow", direction = "horizontal"}
+    textfield_flow.style.vertical_align = "center"
+    textfield_flow.add{
+        type = "label",
+        caption = textbox_caption
+    }
+    local textfield = textfield_flow.add{
+        type = "textfield",
+        name = PREFIX .. "capability-override-textfield",
+        numeric = true,
+        allow_decimal = true,
+        allow_negative = false,
+        lose_focus_on_confirm = true,
+    }
+    textfield_flow.add{type = "label", caption = "%"}
+    textfield.style.width = 75
+    gui_data.elements.capability_override_textfield = textfield
+
+    local entity = gui_data.entity
+    -- second row should be enabled if override is present in entity properties
+    local checkbox_state = not not EntityProcessor.get_capability_override(entity)
+    configure_capability_override_widget(gui_data, checkbox_state)
+end
+
+---Handles capability override checkbox being pressed
+---@param event EventData.on_gui_checked_state_changed
+function EntityControls.process_capability_override_checkbox(event)
+    local player_index = event.player_index
+    local gui_data = storage.entity_gui[player_index]
+    local status = EntityControls.assert_entity_validity(player_index, gui_data)
+    if not status then return end
+
+    local state = event.element.state
+    -- if checkbox was disabled, clearing capability override
+    if not state then
+        local entity = gui_data.entity
+        EntityProcessor.set_capability_override(entity, nil)
+    end
+    configure_capability_override_widget(gui_data, state)
+end
+
+---Handles capability override textfield being changed
+---@param event EventData.on_gui_text_changed
+function EntityControls.process_capability_override_textfield(event)
+    local player_index = event.player_index
+    local gui_data = storage.entity_gui[player_index]
+    local status = EntityControls.assert_entity_validity(player_index, gui_data)
+    if not status then return end
+
+    local textfield = event.element
+    local input_text = textfield.text
+    local value = tonumber(input_text)
+
+    -- if provided value is greater than 100%, set it to 100
+    if value and value > 100 then
+        value = 100
+        textfield.text = "100"
+    end
+
+    -- assuming that value can not be a negative number
+    local entity = gui_data.entity
+    local override_value = value and value / 100
+    EntityProcessor.set_capability_override(entity, override_value)
+end
+
+-------------------------------------------------------------------------------
+-- OVERFLOW THRESHOLD
+-------------------------------------------------------------------------------
+
+---Adds overflow threshold widget, which is used to configure cluster overflow controller
+---@param parent LuaGuiElement widget will be added here
+---@param gui_data EntityGuiData table containing entity gui data
+function EntityControls.create_overflow_threshold_widget(parent, gui_data)
+    local flow = parent.add{type = "flow", direction = "horizontal"}
+    flow.style.vertical_align = "center"
+    flow.add{
+        type = "label",
+        caption = {"gui-label.overflow-threshold"},
+    }
+    local textfield = flow.add{
+        type = "textfield",
+        name = PREFIX .. "overflow-threshold-textfield",
+        numeric = true,
+        allow_decimal = true,
+        allow_negative = false,
+        lose_focus_on_confirm = true,
+    }
+    flow.add{type = "label", caption = "%"}
+    textfield.style.width = 75
+
+    -- setting threshold to match data from registry
+    local entity = gui_data.entity
+    local threshold = EntityProcessor.get_overflow_threshold(entity)
+    local percent_value = threshold and (threshold * 100)
+    textfield.text = CommonGui.number_to_string(percent_value, 2)
+end
+
+---Handles overflow threshold textfield being changed
+---@param event EventData.on_gui_text_changed
+function EntityControls.process_overflow_threshold_textfield(event)
+    local player_index = event.player_index
+    local gui_data = storage.entity_gui[player_index]
+    local status = EntityControls.assert_entity_validity(player_index, gui_data)
+    if not status then return end
+
+    local textfield = event.element
+    local input_text = textfield.text
+    local value = tonumber(input_text)
+
+    -- if provided value is greater than 100%, set it to 100
+    if value and value > 100 then
+        value = 100
+        textfield.text = "100"
+    end
+
+    -- assuming that value can not be a negative number
+    local entity = gui_data.entity
+    local override_value = value and value / 100
+    EntityProcessor.set_overflow_threshold(entity, override_value)
+end
+
 return EntityControls

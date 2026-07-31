@@ -146,6 +146,8 @@ local on_gui_text_changed_router = {
     [PREFIX .. "td-surface-search"] = TemplateDashboard.process_surface_search,
     [PREFIX .. "first-template-search"] = EntityControls.process_first_template_searchfield,
     [PREFIX .. "second-template-search"] = EntityControls.process_second_template_searchfield,
+    [PREFIX .. "capability-override-textfield"] = EntityControls.process_capability_override_textfield,
+    [PREFIX .. "overflow-threshold-textfield"] = EntityControls.process_overflow_threshold_textfield,
 }
 script.on_event(defines.events.on_gui_text_changed, function(event)
     element_name_router(event, on_gui_text_changed_router)
@@ -177,6 +179,7 @@ local on_gui_checked_state_changed_router = {
     [PREFIX .. "item-mode-radiobutton"] = EntityControls.process_item_mode_radiobutton,
     [PREFIX .. "fluid-mode-radiobutton"] = EntityControls.process_fluid_mode_radiobutton,
     [PREFIX .. "energy-mode-radiobutton"] = EntityControls.process_energy_mode_radiobutton,
+    [PREFIX .. "capability-override-checkbox"] = EntityControls.process_capability_override_checkbox,
 }
 script.on_event(defines.events.on_gui_checked_state_changed, function(event)
     element_name_router(event, on_gui_checked_state_changed_router)

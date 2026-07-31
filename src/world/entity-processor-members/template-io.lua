@@ -10,7 +10,8 @@ local TemplateIO = {}
 ---Updates given template item io
 ---@param properties EntityProperties
 function TemplateIO.process_template_item_io(properties)
-    -- does not operate on any surfaces except vsufaces
+    properties.ls_flow = 0
+    -- does not operate on any surface except vsufaces
     if not properties.on_vsurface then return end
 
     -- does not operate without selected item
@@ -42,6 +43,7 @@ end
 ---Updates given template fluid io
 ---@param properties EntityProperties
 function TemplateIO.process_template_fluid_io(properties)
+    properties.ls_flow = 0
     -- does not operate on any surfaces except vsufaces
     if not properties.on_vsurface then return end
 
@@ -69,6 +71,7 @@ end
 ---Updates given template energy io
 ---@param properties EntityProperties
 function TemplateIO.process_template_energy_io(properties)
+    properties.ls_flow = 0
     -- does not operate on any surfaces except vsufaces
     if not properties.on_vsurface then return end
 

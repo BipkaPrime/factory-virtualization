@@ -17,6 +17,17 @@ CommonGui.yellow = {r = 0.85, g = 0.85, b = 0.4}
 CommonGui.green = {r = 0.2, g = 0.8, b = 0.2}
 CommonGui.grey = {r = 0.5, g = 0.5, b = 0.5}
 
+
+---Rounds number to given precision and converts it to string
+---@param value number|nil number that should be converted
+---@param precision number|nil maximum decimal places. Defaults to 0
+---@return string
+function CommonGui.number_to_string(value, precision)
+    if not value then return "" end
+    local formatted = string.format("%." .. tostring(precision or 0) .. "f", value)
+    return string.format("%g", tonumber(formatted))
+end
+
 -- used to convert large numbers to human-readable format
 local number_prefixes = {
     {suffix = "", value = 1},

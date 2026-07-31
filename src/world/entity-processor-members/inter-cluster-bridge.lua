@@ -12,6 +12,7 @@ local ClusterBridge = {}
 ---On-tick updater for inter cluster bridge
 ---@param properties EntityProperties
 function ClusterBridge.process_bridge(properties)
+    properties.ls_flow = 0
     -- does not operate on a vsurface
     if properties.on_vsurface then return end
 

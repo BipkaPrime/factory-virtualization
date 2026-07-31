@@ -7,6 +7,7 @@ local ClusterIO = {}
 ---Updates given cluster item io
 ---@param properties EntityProperties
 function ClusterIO.process_cluster_item_io(properties)
+    properties.ls_flow = 0
     -- does not operate on vsurfaces
     if properties.on_vsurface then return end
 
@@ -27,10 +28,7 @@ function ClusterIO.process_cluster_item_io(properties)
     if properties.is_output then
         -- getting available products
         local available = ClusterProcessor.get_output_capacity(cluster, buffer_key)
-        if available <= 1 then
-            properties.ls_flow = 0
-            return
-        end
+        if available <= 1 then return end
 
         -- moving items from cluster to entity inventory
         item.count = math.min(flow_limit, available)
@@ -40,10 +38,7 @@ function ClusterIO.process_cluster_item_io(properties)
         ClusterProcessor.remove_from_buffer(cluster, buffer_key, inserted_count)
     else
         local available_space = ClusterProcessor.get_input_space(cluster, buffer_key)
-        if available_space <= 1 then
-            properties.ls_flow = 0
-            return
-        end
+        if available_space <= 1 then return end
 
         -- moving items from physical inventory to cluster
         item.count = math.min(flow_limit, available_space)
@@ -57,6 +52,7 @@ end
 ---Updates given cluster fluid io
 ---@param properties EntityProperties
 function ClusterIO.process_cluster_fluid_io(properties)
+    properties.ls_flow = 0
     -- does not operate on vsurfaces
     if properties.on_vsurface then return end
 
@@ -76,10 +72,7 @@ function ClusterIO.process_cluster_fluid_io(properties)
     if properties.is_output then
         -- getting available products
         local available = ClusterProcessor.get_output_capacity(cluster, buffer_key)
-        if available <= 0 then
-            properties.ls_flow = 0
-            return
-        end
+        if available <= 0 then return end
 
         -- moving fluid from vcluster to physical inventory
         fluid.amount = math.min(flow_limit, available)
@@ -90,10 +83,7 @@ function ClusterIO.process_cluster_fluid_io(properties)
     else
         -- getting available space
         local available = ClusterProcessor.get_input_space(cluster, buffer_key)
-        if available <= 0 then
-            properties.ls_flow = 0
-            return
-        end
+        if available <= 0 then return end
 
         -- moving fluid from physical inventory to vcluster
         fluid.amount = math.min(flow_limit, available)
@@ -107,6 +97,7 @@ end
 ---Updates given cluster energy io
 ---@param properties EntityProperties
 function ClusterIO.process_cluster_energy_io(properties)
+    properties.ls_flow = 0
     -- does not operate on vsurfaces
     if properties.on_vsurface then return end
 
@@ -122,10 +113,7 @@ function ClusterIO.process_cluster_energy_io(properties)
     if properties.is_output then
         -- getting available products
         local available_amount = ClusterProcessor.get_output_capacity(cluster, buffer_key)
-        if available_amount <= 0 then
-            properties.ls_flow = 0
-            return
-        end
+        if available_amount <= 0 then return end
 
         -- moving energy from vcluster to entity
         local current_energy = entity.energy
@@ -137,10 +125,7 @@ function ClusterIO.process_cluster_energy_io(properties)
     else
         -- getting available space in cluster input
         local available_space = ClusterProcessor.get_input_space(cluster, buffer_key)
-        if available_space <= 0 then
-            properties.ls_flow = 0
-            return
-        end
+        if available_space <= 0 then return end
 
         -- moving energy from entity to vcluster
         local current_energy = entity.energy

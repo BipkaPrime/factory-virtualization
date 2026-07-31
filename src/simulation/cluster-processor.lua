@@ -48,7 +48,8 @@ center coordinates, total weight, weighted sum of (x^2 + y^2) for all members.
 ---@field weight number weight of this entity
 ---@field key BufferKeyString "name//quality" of this entity
 ---@field crafting_power number|nil amount of crafting potential entity is contributing
----@field storage_capacity number|nil amount of storage capacity this entity is providing
+---@field storage_capacity number|nil amount of storage this entity is contributing
+---@field buffer ClusterBufferEntry|nil buffer to which entity is contributing storage capacity
 
 ---Table describing one virtualization cluster
 ---@class ClusterData
@@ -60,7 +61,6 @@ center coordinates, total weight, weighted sum of (x^2 + y^2) for all members.
 ---@field member_counts table<BufferKeyString, number> count of all cluster members
 ---@field members table<number, ClusterMemberData> key is entity.unit_number. contains data of all members
 ---@field crafting_power number maximum number of crafts cluster can produce per second
----@field storage_capacity number used as per_craft multiplier to calculate maximum buffer capacity
 ---@field sum_x number weighted sum of x-coordinates of all members
 ---@field sum_y number weighted sum of y coordinates of all members
 ---@field total_weight number sum of weights of all members
@@ -108,13 +108,6 @@ local entity_crafting_power = {
     [PREFIX .. "virtualization-mainframe-mk1"] = 1,
     [PREFIX .. "virtualization-mainframe-mk2"] = 10,
     [PREFIX .. "virtualization-mainframe-mk3"] = 100,
-}
-
----Maps entity names to amount of storage capacity they provide
-local entity_storage_capacity = {
-    [PREFIX .. "virtualization-mainframe-mk1"] = 1,
-    [PREFIX .. "virtualization-mainframe-mk2"] = 1,
-    [PREFIX .. "virtualization-mainframe-mk3"] = 1,
 }
 
 -- multiplayer of energy tax on distance from cluster center
@@ -329,7 +322,7 @@ function ClusterProcessor.get_cluster_by_names(template_name, surface_name)
 end
 
 -------------------------------------------------------------------------------
--- VCLUSTER BUFFER IO
+-- CLUSTER BUFFER IO
 -------------------------------------------------------------------------------
 
 ---Gets input buffer space for provided key
@@ -374,29 +367,30 @@ function ClusterProcessor.remove_from_buffer(cluster, key, amount)
     buffer.cs_flow = buffer.cs_flow + amount
 end
 
+---Removes overflow from the cluster buffer. Cluster must be provided,
+---key must correspond to an existing buffer in cluster.
+---@param cluster ClusterData
+---@param key BufferKeyString buffer identifier
+---@param max_amount number maximum number of items that can be voided
+---@param threshold number from 0 to 1. Defines what is considered an overflow.
+---@return number amount number of voided items
+function ClusterProcessor.void_overflow(cluster, key, max_amount, threshold)
+    local buffer = cluster.output[key]
+    local maximum = buffer.maximum
+    local current_amount = buffer.current
+    local target_delta = current_amount - maximum * threshold
+    local delta = math.floor(math.min(target_delta, max_amount))
+    if delta < 1 then return 0 end
+    buffer.current = buffer.current - delta
+    return delta
+end
+
 -------------------------------------------------------------------------------
 -- VCLUSTER UPDATE OPERAIONS: ADD/REMOVE MEMBER, UPDATE BUFFER SIZE, ETC.
 -------------------------------------------------------------------------------
 
----Updates maximum buffer size of given table of buffers
----@param buffer ClusterBufferEntry[] buffer to be updated
----@param multiplier number buffer size multiplier
-local function update_buffers_table(buffer, multiplier)
-    for _, entry in pairs(buffer) do
-        entry.maximum = math.ceil(entry.per_craft * multiplier) + 1
-    end
-end
-
----Recalculates size of io buffers for a given cluster.
----@param cluster ClusterData
-local function update_buffers(cluster)
-    local multiplier = cluster.storage_capacity
-    update_buffers_table(cluster.input, multiplier)
-    update_buffers_table(cluster.output, multiplier)
-end
-
----Updates total energy tax for a given cluster. Also updates input energy
----buffer per_craft field. Should be called before resizing buffers.
+---Updates total energy tax for a given cluster.
+---Also updates input energy buffer per_craft field.
 ---@param cluster ClusterData
 local function update_total_energy_tax(cluster)
     local weight = cluster.total_weight
@@ -430,10 +424,13 @@ function ClusterProcessor.add_to_cluster(entity, template_name)
     local cluster = get_or_create_cluster(template, template_name, entity)
 
     -- avoiding duplicates: if entity is already in this cluster, return it
-    if cluster.members[entity.unit_number] then return cluster end
+    ---@type number assuming entity has a unit number
+    local unit_number = entity.unit_number
+    if cluster.members[unit_number] then return cluster end
 
     -- updating member coordinate related data
-    local x, y = entity.position.x, entity.position.y
+    local position = entity.position
+    local x, y = position.x, position.y
     local name = entity.name
     local weight = entity_weights[name]
     cluster.sum_x = cluster.sum_x + x * weight
@@ -441,69 +438,72 @@ function ClusterProcessor.add_to_cluster(entity, template_name)
     cluster.sum_squares = cluster.sum_squares + weight * (x * x + y * y)
     cluster.total_weight = cluster.total_weight + weight
 
-    -- adding entity storage capacity to cluster storage capacity
-    local storage_capacity = entity_storage_capacity[name]
-    cluster.storage_capacity = cluster.storage_capacity + (storage_capacity or 0)
-
     -- updating member counts
     local key = name .. "//" .. entity.quality.name
     cluster.member_counts[key] = (cluster.member_counts[key] or 0) + 1
 
     -- adding member data
     ---@type ClusterMemberData
-    cluster.members[entity.unit_number] = {
+    cluster.members[unit_number] = {
         x_pos = x,
         y_pos = y,
         weight = weight,
         key = key,
-        storage_capacity = storage_capacity,
     }
     update_total_energy_tax(cluster)
-    update_buffers(cluster)
     return cluster
 end
 
----Removes an entity from cluster given its unit_number.
----Entity can be invalid when this function is called.
+---Adds storage capacity associated with given unit number. For this function to work
+---entity with given unit number must be present in the cluster.
+---@param cluster ClusterData|nil
+---@param unit_number number
+---@param amount number|nil
+---@param buffer_key string|nil
+---@param is_output boolean|nil true to add capacity to output
+---@return boolean status true if capacity was successfully added
+function ClusterProcessor.add_storage_capacity(
+    cluster,
+    unit_number,
+    amount,
+    buffer_key,
+    is_output
+)
+    if not cluster then return false end
+    local member_data = cluster.members[unit_number]
+    if not member_data then return false end
+    -- if entity already has associated capacity, return
+    if member_data.buffer then return false end
+
+    if not buffer_key then return false end
+    local io_key = is_output and "output" or "input"
+    local buffer = cluster[io_key][buffer_key]
+    -- if buffer with provided key is not found, return
+    if not buffer then return false end
+
+    -- adding capacity to buffer and saving it in member data
+    buffer.maximum = buffer.maximum + amount
+    member_data.storage_capacity = amount
+    member_data.buffer = buffer
+    return true
+end
+
+---Removes storage capacity associated with given unit number from the cluster
 ---@param cluster ClusterData|nil
 ---@param unit_number number unique entity identifier
-function ClusterProcessor.remove_from_cluster(cluster, unit_number)
+function ClusterProcessor.remove_storage_capacity(cluster, unit_number)
     if not cluster then return end
     local member_data = cluster.members[unit_number]
-    -- if entity is not found in the cluster, return
     if not member_data then return end
-    cluster.members[unit_number] = nil
 
-    -- correcting member counts
-    local member_counts = cluster.member_counts
-    local key = member_data.key
-    member_counts[key] = member_counts[key] - 1
-    if member_counts[key] == 0 then member_counts[key] = nil end
+    -- checking for a buffer associated with this entity
+    local buffer = member_data.buffer
+    if not buffer then return end
 
-    -- cleanup: deleting cluster if it has no members left
-    if not next(member_counts) then
-        delete_cluster(cluster.cluster_id)
-        return
-    end
-
-    -- correcting coordinate sums and total weight
-    local x, y, weight = member_data.x_pos, member_data.y_pos, member_data.weight
-    cluster.sum_x = cluster.sum_x - x * weight
-    cluster.sum_y = cluster.sum_y - y * weight
-    cluster.sum_squares = cluster.sum_squares - weight * (x * x + y * y)
-    cluster.total_weight = cluster.total_weight - weight
-
-    -- correcting cluster storage capacity
-    local storage_capacity = (member_data.storage_capacity or 0)
-    cluster.storage_capacity = cluster.storage_capacity - storage_capacity
-
-    -- correcting cluster crafting power
-    local crafting_power = (member_data.crafting_power or 0)
-    cluster.crafting_power = cluster.crafting_power - crafting_power
-
-    -- correcting buffers and total energy tax
-    update_total_energy_tax(cluster)
-    update_buffers(cluster)
+    -- removing capacity from the buffer and from member data
+    buffer.maximum = buffer.maximum - member_data.storage_capacity
+    member_data.storage_capacity = nil
+    member_data.buffer = nil
 end
 
 ---Enabled crafting power of a given entity in the cluster.
@@ -525,6 +525,47 @@ function ClusterProcessor.enable_crafting_power(entity, cluster)
     -- adding crafting power to member data and cluster data
     member_data.crafting_power = crafting_power
     cluster.crafting_power = cluster.crafting_power + crafting_power
+end
+
+---Removes an entity from cluster given its unit_number.
+---Entity can be invalid when this function is called.
+---@param cluster ClusterData|nil
+---@param unit_number number unique entity identifier
+function ClusterProcessor.remove_from_cluster(cluster, unit_number)
+    if not cluster then return end
+    local member_data = cluster.members[unit_number]
+    -- if entity is not found in the cluster, return
+    if not member_data then return end
+
+    -- correcting member counts
+    local member_counts = cluster.member_counts
+    local key = member_data.key
+    member_counts[key] = member_counts[key] - 1
+    if member_counts[key] == 0 then member_counts[key] = nil end
+
+    -- cleanup: deleting cluster if it has no members left
+    if not next(member_counts) then
+        delete_cluster(cluster.cluster_id)
+        return
+    end
+
+    -- correcting coordinate sums and total weight
+    local x, y, weight = member_data.x_pos, member_data.y_pos, member_data.weight
+    cluster.sum_x = cluster.sum_x - x * weight
+    cluster.sum_y = cluster.sum_y - y * weight
+    cluster.sum_squares = cluster.sum_squares - weight * (x * x + y * y)
+    cluster.total_weight = cluster.total_weight - weight
+
+    -- correcting cluster buffer capacity
+    ClusterProcessor.remove_storage_capacity(cluster, unit_number)
+
+    -- correcting cluster crafting power
+    local crafting_power = (member_data.crafting_power or 0)
+    cluster.crafting_power = cluster.crafting_power - crafting_power
+
+    cluster.members[unit_number] = nil
+    -- correcting decentralization energy tax
+    update_total_energy_tax(cluster)
 end
 
 -------------------------------------------------------------------------------

@@ -58,6 +58,8 @@ Third group is internal: these can only be assigned by entity processor.
 ---@field first_template string|nil user-input. Name of first selected template
 ---@field second_template string|nil user-input. Name of second selected template
 ---@field mode "item"|"fluid"|"energy"|nil user-input. Selected mode of operation
+---@field capability_override number|nil user-input. Number from 0 to 1. Allows user to limit building capability.
+---@field overflow_threshold number|nil user-input. Number from 0 to 1. Defines what is considered an overflow by overflow controller.
 ---@field on_vsurface boolean|nil internal. True is entity is located on a vsurface
 ---@field buffer_key BufferKeyString|nil internal. String used for access to cluster/venv tables
 ---@field first_cluster ClusterData|nil internal. Reference to cluster associated with first selected template
@@ -65,7 +67,7 @@ Third group is internal: these can only be assigned by entity processor.
 ---@field inventory LuaInventory|nil internal. Inventory object of this entity
 ---@field flow_limit number|nil internal. Maximum flow limit of this entity
 ---@field ls_flow number|nil internal. Last second flow of this entity
----@field operational boolean|nil internal. True if this entity is an operational mainframe
+---@field operational boolean|nil internal. True if this entity is an operational cluster member (for example mainframe providing crafting power)
 ---@field building_requests table<BufferKeyString, ItemBuffer>|nil internal. requests of this mainframe
 ---@field building_contents table<BufferKeyString, ItemBuffer>|nil internal. contents of this mainframe
 
@@ -170,6 +172,7 @@ local inter_cluster_bridge_copyable = {
     "selected_fluid",
     "first_template",
     "second_template",
+    "capability_override"
 }
 
 ---Copyable fields of cluster overflow controller
@@ -178,6 +181,8 @@ local cluster_overflow_controller_copyable = {
     "selected_item",
     "selected_fluid",
     "first_template",
+    "capability_override",
+    "overflow_threshold",
 }
 
 ---Copyable fields of cluster storage unit
@@ -186,6 +191,7 @@ local cluster_storage_unit_copyable = {
     "selected_item",
     "selected_fluid",
     "first_template",
+    "capability_override",
 }
 
 ---Maps entity names to their copyable properties
@@ -420,7 +426,7 @@ local multi_mode_flow_limits = {
     },
 }
 
----Caches flow limit for inter-cluster bridge based on tier and operation mode.
+---Caches flow limit for multi-mode buildings based on tier and operation mode.
 ---@param properties EntityProperties
 local function cache_multi_mode_flow_limit(properties)
     local entity_name = properties.entity_name
@@ -493,6 +499,7 @@ local cluster_storage_unit_field_setting = {
     selected_fluid = {generate_universal_buffer_key},
     mode = {generate_universal_buffer_key},
     first_template = {change_first_cluster},
+    capability_override = {},
 }
 
 ---Maps entity names to functions to perform when setting a field in properties
@@ -547,67 +554,6 @@ local function remove_from_second_cluster(properties)
         properties.unit_number
     )
 end
-
----List of functions to perform when removing cluster item io from registry
-local cluster_item_io_unregistration = {
-    remove_from_first_cluster,
-}
-
----List of functions to perform when removing cluster fluid io from registry
-local cluster_fluid_io_unregistration = {
-    remove_from_first_cluster,
-}
-
----List of functions to perform when removing cluster energy io from registry
-local cluster_energy_io_unregistration = {
-    remove_from_first_cluster,
-}
-
----List of functions to perform when removing virtualization mainframe from registry
-local mainframe_unregistration = {
-    remove_from_first_cluster,
-}
-
----List of functions to perform when removing inter-cluster bridge from registry
-local inter_cluster_bridge_unregistration = {
-    remove_from_first_cluster,
-    remove_from_second_cluster,
-}
-
----List of functions to perform when removing cluster overflow controller from registry
-local cluster_overflow_controller_unregistration = {
-    remove_from_first_cluster,
-}
-
----List of functions to perform when removing cluster storage unit from registry
-local cluster_storage_unit_unregistration = {
-    remove_from_first_cluster,
-}
-
----Maps entity names to functions to perform when removing entity from registry
-local unregistration_hooks = {
-    [PREFIX .. "cluster-item-io-mk1"] = cluster_item_io_unregistration,
-    [PREFIX .. "cluster-item-io-mk2"] = cluster_item_io_unregistration,
-    [PREFIX .. "cluster-item-io-mk3"] = cluster_item_io_unregistration,
-    [PREFIX .. "cluster-fluid-io-mk1"] = cluster_fluid_io_unregistration,
-    [PREFIX .. "cluster-fluid-io-mk2"] = cluster_fluid_io_unregistration,
-    [PREFIX .. "cluster-fluid-io-mk3"] = cluster_fluid_io_unregistration,
-    [PREFIX .. "cluster-energy-io-mk1"] = cluster_energy_io_unregistration,
-    [PREFIX .. "cluster-energy-io-mk2"] = cluster_energy_io_unregistration,
-    [PREFIX .. "cluster-energy-io-mk3"] = cluster_energy_io_unregistration,
-    [PREFIX .. "virtualization-mainframe-mk1"] = mainframe_unregistration,
-    [PREFIX .. "virtualization-mainframe-mk2"] = mainframe_unregistration,
-    [PREFIX .. "virtualization-mainframe-mk3"] = mainframe_unregistration,
-    [PREFIX .. "inter-cluster-bridge-mk1"] = inter_cluster_bridge_unregistration,
-    [PREFIX .. "inter-cluster-bridge-mk2"] = inter_cluster_bridge_unregistration,
-    [PREFIX .. "inter-cluster-bridge-mk3"] = inter_cluster_bridge_unregistration,
-    [PREFIX .. "cluster-overflow-controller-mk1"] = cluster_overflow_controller_unregistration,
-    [PREFIX .. "cluster-overflow-controller-mk2"] = cluster_overflow_controller_unregistration,
-    [PREFIX .. "cluster-overflow-controller-mk3"] = cluster_overflow_controller_unregistration,
-    [PREFIX .. "cluster-storage-unit-mk1"] = cluster_storage_unit_unregistration,
-    [PREFIX .. "cluster-storage-unit-mk2"] = cluster_storage_unit_unregistration,
-    [PREFIX .. "cluster-storage-unit-mk3"] = cluster_storage_unit_unregistration,
-}
 
 -------------------------------------------------------------------------------
 -- GENERAL REGISTRY OPERATIONS: ADD/DELETE/LOOKUP
@@ -673,12 +619,8 @@ end
 ---@param index number index at which properties are located
 local function unregister_entity(properties, index)
     -- performing unregistration hooks
-    local hooks = unregistration_hooks[properties.entity_name]
-    if hooks then
-        for _, hook in ipairs(hooks) do
-            hook(properties)
-        end
-    end
+    remove_from_first_cluster(properties)
+    remove_from_second_cluster(properties)
 
     -- rewriting element we want to delete with the last one
     local registry = storage.entity_registry
@@ -712,7 +654,7 @@ end
 ---Abstract setter. Sets specified property for a given entity or entity-ghost
 ---@param entity LuaEntity entity for which data should be retrieved
 ---@param field string field in properties that will be set
----@param value nil|boolean|table|string value to write in properties[field]
+---@param value nil|boolean|table|string|number value to write in properties[field]
 ---@param ignore_hooks boolean|nil true to ignore field setting hooks
 local function set_entity_property(entity, field, value, ignore_hooks)
     if not entity.valid then return end
@@ -791,6 +733,20 @@ function EntityProcessor.set_mode(entity, mode)
     set_entity_property(entity, "mode", mode)
 end
 
+---Sets capability override for a given entity
+---@param entity LuaEntity
+---@param value number|nil in the range [0, 1]
+function EntityProcessor.set_capability_override(entity, value)
+    set_entity_property(entity, "capability_override", value)
+end
+
+---Sets overflow threshold for a given entity
+---@param entity LuaEntity
+---@param value number|nil in the range [0, 1]
+function EntityProcessor.set_overflow_threshold(entity, value)
+    set_entity_property(entity, "overflow_threshold", value)
+end
+
 -------------------------------------------------------------------------------
 -- ENTITY DATA GETTERS: PUBLIC API (GUI CALLS)
 -------------------------------------------------------------------------------
@@ -857,6 +813,20 @@ end
 ---@return "item"|"fluid"|"energy"|nil
 function EntityProcessor.get_mode(entity)
     return get_entity_property(entity, "mode")
+end
+
+---Gets capability override for a given entity
+---@param entity LuaEntity
+---@return number|nil number in the range [0, 1]
+function EntityProcessor.get_capability_override(entity)
+    return get_entity_property(entity, "capability_override")
+end
+
+---Gets overflow threshold for a given entity
+---@param entity LuaEntity
+---@return number|nil number in the range [0, 1]
+function EntityProcessor.get_overflow_threshold(entity)
+    return get_entity_property(entity, "overflow_threshold")
 end
 
 -------------------------------------------------------------------------------
