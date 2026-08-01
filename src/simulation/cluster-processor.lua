@@ -36,7 +36,7 @@ center coordinates, total weight, weighted sum of (x^2 + y^2) for all members.
 ---@field ls_possible_crafts number number of crafts this buffer could allow at the time of last craft
 ---@field ls_input_flow number amount that entered the buffer in the last second
 ---@field ls_output_flow number amount that left the buffer in the last second
----@field cs_flow number amount that entered (input buffer)/exited (output buffer) from the time of last craft
+---@field cs_flow number amount that entered(input buffer)/exited(output buffer) from the time of last craft
 ---@field type "item"|"fluid"|"energy"
 ---@field name string|nil only present for items and fluids
 ---@field quality string|nil only present for items
@@ -114,7 +114,7 @@ local entity_crafting_power = {
 local energy_tax_rate = 1e-3
 
 -------------------------------------------------------------------------------
--- VCLUSTER CREATION
+-- CLUSTER CREATION
 -------------------------------------------------------------------------------
 
 ---Retrieves vcluster data from storage.
@@ -252,7 +252,7 @@ local function get_or_create_cluster(template, template_name, entity)
 end
 
 -------------------------------------------------------------------------------
--- API for GUI
+-- CLUSTER GETTERS FOR GUI
 -------------------------------------------------------------------------------
 
 ---Gets all clusters that exist on a given surface
@@ -296,6 +296,7 @@ function ClusterProcessor.get_template_clusters(template_name)
     return result
 end
 
+---TODO: account for duplicates
 ---Gets names of all surfaces that have at least one cluster
 ---@return string[] surface_names
 function ClusterProcessor.get_all_surfaces()
@@ -322,71 +323,68 @@ function ClusterProcessor.get_cluster_by_names(template_name, surface_name)
 end
 
 -------------------------------------------------------------------------------
--- CLUSTER BUFFER IO
+-- PUBLIC API FOR INTERACTION WITH BUFFER ENTRIES
 -------------------------------------------------------------------------------
 
----Gets input buffer space for provided key
----If buffer is not found returns 0
----@param cluster ClusterData
----@param key BufferKeyString buffer identifier
----@return number available_space
-function ClusterProcessor.get_input_space(cluster, key)
-    local buffer = cluster.input[key]
-    if not buffer then return 0 end
-    return buffer.maximum - buffer.current
+---@param cluster ClusterData cluster from which buffer entry is returned
+---@param buffer_key BufferKeyString buffer entry identifier
+---@param io_mode "input"|"output" determines which buffer is accessed
+---@return ClusterBufferEntry|nil
+function ClusterProcessor.get_buffer_entry(cluster, buffer_key, io_mode)
+    return cluster[io_mode][buffer_key]
 end
 
----Gets output buffer capacity for provided key
----If buffer is not found returns 0
----@param cluster ClusterData
----@param key BufferKeyString buffer identifier
----@return number available_amount
-function ClusterProcessor.get_output_capacity(cluster, key)
-    local buffer = cluster.output[key]
-    if not buffer then return 0 end
-    return buffer.current
+---Gets available space in provided buffer entry
+---@param buffer_entry ClusterBufferEntry
+---@return number avilable_space
+function ClusterProcessor.get_available_space(buffer_entry)
+    return buffer_entry.maximum - buffer_entry.current
 end
 
----Adds provided amount to input buffer. Key must exist in the buffer
----@param cluster ClusterData
----@param key BufferKeyString buffer identifier
----@param amount number number of items to add
-function ClusterProcessor.add_to_buffer(cluster, key, amount)
-    local buffer = cluster.input[key]
-    buffer.current = buffer.current + amount
-    buffer.cs_flow = buffer.cs_flow + amount
+---Gets current amount stored in provided buffer entry
+---@param buffer_entry ClusterBufferEntry
+---@return number current_amount
+function ClusterProcessor.get_current_amount(buffer_entry)
+    return buffer_entry.current
 end
 
----Removes provided amount from output buffer. Key must exist in the buffer
----@param cluster ClusterData
----@param key BufferKeyString buffer identifier
----@param amount number number of items to remove
-function ClusterProcessor.remove_from_buffer(cluster, key, amount)
-    local buffer = cluster.output[key]
-    buffer.current = buffer.current - amount
-    buffer.cs_flow = buffer.cs_flow + amount
+---Adds provided amount to current amount in the buffer entry
+---@param buffer_entry ClusterBufferEntry
+---@param amount number number to add
+function ClusterProcessor.add_to_buffer_entry(buffer_entry, amount)
+    buffer_entry.current = buffer_entry.current + amount
+    buffer_entry.cs_flow = buffer_entry.cs_flow + amount
 end
 
----Removes overflow from the cluster buffer. Cluster must be provided,
----key must correspond to an existing buffer in cluster.
----@param cluster ClusterData
----@param key BufferKeyString buffer identifier
----@param max_amount number maximum number of items that can be voided
----@param threshold number from 0 to 1. Defines what is considered an overflow.
----@return number amount number of voided items
-function ClusterProcessor.void_overflow(cluster, key, max_amount, threshold)
-    local buffer = cluster.output[key]
-    local maximum = buffer.maximum
-    local current_amount = buffer.current
-    local target_delta = current_amount - maximum * threshold
+---Removes provided amount from buffer entry
+---@param buffer_entry ClusterBufferEntry
+---@param amount number number to remove
+function ClusterProcessor.remove_from_buffer_entry(buffer_entry, amount)
+    buffer_entry.current = buffer_entry.current - amount
+    buffer_entry.cs_flow = buffer_entry.cs_flow + amount
+end
+
+---Removes overflow from provided cluster buffer entry
+---@param buffer_entry ClusterBufferEntry
+---@param max_amount number maximum amount that can be voided
+---@param threshold number from 0 to 1. Defines what is considered an overflow
+---@return number voided_amount number of voided items
+function ClusterProcessor.void_overflow(buffer_entry, max_amount, threshold)
+    local current_amount = buffer_entry.current
+    ---Calculating target delta: how much should be voided from current amount in
+    ---order to make buffer fullness be equal to threshold.
+    local target_delta = current_amount - buffer_entry.maximum * threshold
+    -- Accounting to max_amount and rounding delta ensuring that
+    -- only whole amount can be voided
     local delta = math.floor(math.min(target_delta, max_amount))
+    -- can not void if delta is not positive
     if delta < 1 then return 0 end
-    buffer.current = buffer.current - delta
+    buffer_entry.current = buffer_entry.current - delta
     return delta
 end
 
 -------------------------------------------------------------------------------
--- VCLUSTER UPDATE OPERAIONS: ADD/REMOVE MEMBER, UPDATE BUFFER SIZE, ETC.
+-- CLUSTER UPDATE OPERATIONS: ADD/REMOVE MEMBER, ADD STORAGE CAPACITY, ETC.
 -------------------------------------------------------------------------------
 
 ---Updates total energy tax for a given cluster.
@@ -409,14 +407,13 @@ local function update_total_energy_tax(cluster)
     cluster.input.electric_energy.per_craft = base_cost + energy_tax
 end
 
----Adds an entity to a virtualization cluster. Cluster_id is decided automatically
+---Adds an entity to a cluster. Cluster_id is decided automatically
 ---based on template name and surface entity is located on.
 ---@param entity LuaEntity assumed to be valid
----@param template_name string|nil unique template identifier
----@return ClusterData|nil: cluster that this entity was assigned to
+---@param template_name string unique template identifier
+---@return ClusterData|nil cluster cluster that this entity was assigned to
 function ClusterProcessor.add_to_cluster(entity, template_name)
     -- getting template and checking that it exists
-    if not template_name then return end
     local template = TemplateCompiler.get_template(template_name)
     if not template then return end
 
@@ -456,43 +453,28 @@ end
 
 ---Adds storage capacity associated with given unit number. For this function to work
 ---entity with given unit number must be present in the cluster.
----@param cluster ClusterData|nil
----@param unit_number number
----@param amount number|nil
----@param buffer_key string|nil
----@param is_output boolean|nil true to add capacity to output
+---@param cluster ClusterData cluster for which capacity is added
+---@param unit_number number unit number of entity for which capacity is assigned
+---@param buffer_entry ClusterBufferEntry entry of the buffer that gets capacity increase
+---@param amount number amount of capacity increase
 ---@return boolean status true if capacity was successfully added
-function ClusterProcessor.add_storage_capacity(
-    cluster,
-    unit_number,
-    amount,
-    buffer_key,
-    is_output
-)
-    if not cluster then return false end
+function ClusterProcessor.add_storage_capacity(cluster, unit_number, buffer_entry, amount)
     local member_data = cluster.members[unit_number]
     if not member_data then return false end
     -- if entity already has associated capacity, return
     if member_data.buffer then return false end
 
-    if not buffer_key then return false end
-    local io_key = is_output and "output" or "input"
-    local buffer = cluster[io_key][buffer_key]
-    -- if buffer with provided key is not found, return
-    if not buffer then return false end
-
     -- adding capacity to buffer and saving it in member data
-    buffer.maximum = buffer.maximum + amount
+    buffer_entry.maximum = buffer_entry.maximum + amount
     member_data.storage_capacity = amount
-    member_data.buffer = buffer
+    member_data.buffer = buffer_entry
     return true
 end
 
 ---Removes storage capacity associated with given unit number from the cluster
----@param cluster ClusterData|nil
+---@param cluster ClusterData cluster for which capacity is removed
 ---@param unit_number number unique entity identifier
 function ClusterProcessor.remove_storage_capacity(cluster, unit_number)
-    if not cluster then return end
     local member_data = cluster.members[unit_number]
     if not member_data then return end
 

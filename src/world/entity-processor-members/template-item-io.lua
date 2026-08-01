@@ -1,0 +1,100 @@
+--[[
+Template item IOs are used in creation of templates on virtualization surfaces.
+They serve as inputs and outputs of items.
+-------------------------------------------------------------------------------
+-- ENTITY CONFIGURATION
+-------------------------------------------------------------------------------
+For this building to function following conditions must be met:
+I. Mandatory entity controls are provided:
+    1. IO mode. Used to determine the entity operation.
+    2. Selected item. Used to determine the buffer key.
+II. Entity is located on a vsurface.
+-------------------------------------------------------------------------------
+-- ON-TICK PROCESSING
+-------------------------------------------------------------------------------
+Properties that are assigned on initialization:
+1. Is output. Used to determine entity operation
+2. Buffer key. Used to make calls to venv processor
+3. Inventory. Used to make calls to factorio API
+4. selected_item.count. Used to make calls to factorio API
+
+Properties that can be assigned during on-tick processing:
+1. Ls flow. Can be used to track entity work.
+--]]
+
+local VEnvProcessor = require("src.simulation.venv-processor")
+local VSurfaceManager = require("src.world.vsurface-manager")
+
+
+local PREFIX = "FV-"
+local TemplateItemIO = {}
+
+---Maps entity names to their flow limits
+local flow_limits = {
+    [PREFIX .. "template-item-io-mk1"] = 100,
+    [PREFIX .. "template-item-io-mk2"] = 1000,
+    [PREFIX .. "template-item-io-mk3"] = 10000,
+}
+
+---Checks that all requirements for operation of template item IO are met.
+---If they are, prepares entity properties for on-tick processing.
+---@param properties EntityProperties table from entity processor
+---@return boolean status true if initialization was successful
+function TemplateItemIO.attempt_entity_initialization(properties)
+    -- 1. IO mode is selected
+    local io_mode = properties.io_mode
+    if not io_mode then return false end
+    -- 2. Item is selected
+    local selected_item = properties.selected_item
+    if not selected_item then return false end
+    -- 3. Entity is located on a vsurface
+    local entity = properties.entity
+    if not VSurfaceManager.get_vsurface_data(entity.surface_index) then return false end
+
+    ---All requirements are met. Preparing properties for on-tick processing
+    -- assigning io mode flag to entity
+    properties.is_output = (io_mode == "output")
+    -- assigning buffer key to entity
+    properties.buffer_key = selected_item.name .. "//" .. selected_item.quality
+    -- caching flow limit of the entity to selected item table
+    properties.selected_item.count = flow_limits[properties.entity_name]
+    -- caching LuaInventory of the entity
+    properties.inventory = entity.get_inventory(defines.inventory.chest)
+    return true
+end
+
+---Clears properties of anything assigned on initialization or during on-tick processing.
+---Should be called when stopping on-tick processing of entity to clear fields that were
+---assigned on initialization or during on-tick processing
+---@param properties EntityProperties table from entity processor
+function TemplateItemIO.on_processing_stopped(properties)
+    properties.ls_flow = nil
+    properties.selected_item.count = nil
+    properties.inventory = nil
+    properties.buffer_key = nil
+    properties.is_output = nil
+end
+
+
+---Used for on-tick processing of template item IOs.
+---@param properties EntityProperties
+function TemplateItemIO.process_entity(properties)
+    local delta = 0
+    if properties.is_output then
+        ---@diagnostic disable-next-line: param-type-mismatch
+        delta = properties.inventory.remove(properties.selected_item)
+    else
+        ---@diagnostic disable-next-line: param-type-mismatch
+        delta = properties.inventory.insert(properties.selected_item)
+    end
+    properties.ls_flow = delta
+    ---Storing delta in venv if surface is compiling
+    VEnvProcessor.add_io_count(
+        properties.entity.surface_index,
+        properties.buffer_key,
+        delta,
+        properties.is_output
+    )
+end
+
+return TemplateItemIO
