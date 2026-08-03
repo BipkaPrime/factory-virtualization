@@ -547,23 +547,6 @@ local function get_current_chunk(array, tick)
     return start_index, stop_index
 end
 
----Handles processing of a given registry section
----@param array EntityProperties[] table of properties to be processed
----@param tick integer current game tick
----@param handler_router table<string, fun(properties: EntityProperties)>
-local function process_section(array, tick, handler_router)
-    local start_idx, stop_idx = get_current_chunk(array, tick)
-    for i = stop_idx, start_idx, -1 do
-        local properties = array[i]
-        local entity = properties.entity
-        if entity.valid then
-            handler_router[properties.entity_name](properties)
-        else
-            unregister_entity(properties)
-        end
-    end
-end
-
 ---On-tick entity processor. Processing is done in 60 chunks (one chunk per tick).
 ---@param event EventData.on_tick
 function EntityProcessor.process_entities(event)
@@ -571,18 +554,30 @@ function EntityProcessor.process_entities(event)
     local tick = event.tick
 
     -- processing uninitialized section of registry
-    process_section(
-        registry.uninitialized,
-        tick,
-        initialization_router
-    )
+    local uninit = registry.uninitialized
+    local start_idx, stop_idx = get_current_chunk(uninit, tick)
+    for i = stop_idx, start_idx, -1 do
+        local properties = uninit[i]
+        local entity = properties.entity
+        if entity.valid then
+            attempt_entity_initialization(properties)
+        else
+            unregister_entity(properties)
+        end
+    end
 
     -- processing initialized section of registry
-    process_section(
-        registry.initialized,
-        tick,
-        processing_router
-    )
+    local init = registry.initialized
+    local start_idx, stop_idx = get_current_chunk(init, tick)
+    for i = stop_idx, start_idx, -1 do
+        local properties = init[i]
+        local entity = properties.entity
+        if entity.valid then
+            processing_router[properties.entity_name](properties)
+        else
+            unregister_entity(properties)
+        end
+    end
 end
 
 return EntityProcessor
