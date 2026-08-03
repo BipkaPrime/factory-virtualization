@@ -41,6 +41,16 @@ local Utilities = require("src.world.entity-processor-members.utilities")
 local PREFIX = "FV-"
 local OverflowController = {}
 
+---List of all copyable properties of this entity
+OverflowController.copyable = {
+    "first_template",
+    "operation_mode",
+    "overflow_threshold",
+    "selected_item",
+    "selected_fluid",
+    "capability_override",
+}
+
 ---Maps entity names to their flow limits
 local flow_limits = {
     [PREFIX .. "cluster-overflow-controller-mk1"] = {

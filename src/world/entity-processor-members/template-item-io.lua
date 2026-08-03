@@ -29,6 +29,12 @@ local VSurfaceManager = require("src.world.vsurface-manager")
 local PREFIX = "FV-"
 local TemplateItemIO = {}
 
+---List of all copyable properties of this entity
+TemplateItemIO.copyable = {
+    "io_mode",
+    "selected_item",
+}
+
 ---Maps entity names to their flow limits
 local flow_limits = {
     [PREFIX .. "template-item-io-mk1"] = 100,

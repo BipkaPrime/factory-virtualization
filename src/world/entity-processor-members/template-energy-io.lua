@@ -27,6 +27,11 @@ local VSurfaceManager = require("src.world.vsurface-manager")
 local PREFIX = "FV-"
 local TemplateEnergyIO = {}
 
+---List of all copyable properties of this entity
+TemplateEnergyIO.copyable = {
+    "io_mode",
+}
+
 ---Maps entity names to their flow limits
 local flow_limits = {
     [PREFIX .. "template-energy-io-mk1"] = 1e8,

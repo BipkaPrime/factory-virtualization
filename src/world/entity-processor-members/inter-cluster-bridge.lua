@@ -45,6 +45,16 @@ local Utilities = require("src.world.entity-processor-members.utilities")
 local PREFIX = "FV-"
 local ClusterBridge = {}
 
+---List of all copyable properties of this entity
+ClusterBridge.copyable = {
+    "first_template",
+    "second_template",
+    "operation_mode",
+    "selected_item",
+    "selected_fluid",
+    "capability_override",
+}
+
 ---Maps entity names to their flow limits
 local flow_limits = {
     [PREFIX .. "inter-cluster-bridge-mk1"] = {

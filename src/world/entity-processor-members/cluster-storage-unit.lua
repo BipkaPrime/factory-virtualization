@@ -46,6 +46,16 @@ local Utilities = require("src.world.entity-processor-members.utilities")
 local PREFIX = "FV-"
 local StorageUnit = {}
 
+---List of all copyable properties of this entity
+StorageUnit.copyable = {
+    "first_template",
+    "io_mode",
+    "operation_mode",
+    "selected_item",
+    "selected_fluid",
+    "capability_override",
+}
+
 ---Maps entity names to their capacity limits
 local capacity_limits = {
     [PREFIX .. "cluster-storage-unit-mk1"] = {

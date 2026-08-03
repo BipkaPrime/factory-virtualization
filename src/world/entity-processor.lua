@@ -1,30 +1,32 @@
 --[[
 This mod introduces several entities that must have data associated with them in storage,
 they also need to be tracked and updated once in a while. This file is used for that.
-Entity registry is located at storage.entity_registry and consists of 2 parts:
+Data associated with entity will be reffered to as entity "properties". They can be
+stored in 2 places depending on state of the entity. Ghost-entities have their properties
+stored in their ghost tags. Alive entities have their properties in the "entity registry".
+
+Entity registry is located at storage.entity_registry and consists of 3 parts:
 storage.entity_registry = {
-    array = {},
-    lookup = {},
+    initialized: EntityProperties[],
+    uninitialized: EntityProperties[],
+    lookup: table<number, EntityProperties>,
 }
-Array is 1-indexed and contains data of all entities in the registry.
-It is required for efficient on-tick processing.
-Lookup maps unit number of an entity to its properties. It is required to
-find properties in O(1).
+Entities are first registered to "uninitialized" array, from which they can be moved to
+"initialized" array if their properties satisfy certain conditions. "Initialized" array is 
+for regular entity operation. Both "initializaed" and "uninitialized" arrays are processed
+incrementally on-tick. Each time properties from "uninitialized" array are processed,
+initialization is attempted. "Lookup" maps unit number of an entity to its properties.
+It is required to find properties of a given entity in O(1) time.
 
-Entities are added to the registry when build event are fired. Entities are
+Entities are registered when build events are fired. Entities are
 deleted from then registry automatically when they become invalid. To delete item in
-O(1), properties must contain it's key in lookup. In our case entity unit number.
-
-Only alive entities (not ghosts) can have properties in entity registry.
-However, entity processor provides functionality to manipulate entity tags 
-for ghosts, where entity properties are stored before entity is built.
-When entity is constructed/revived, ghost tags migrate to entity registry.
+O(1) time, properties must contain it's key in lookup. In our case unit number of the entity.
 
 Entity properties can be divided into 3 groups.
 First group is mandatory: every entity must have these.
 Second group is user-inputs: they have setter and getter functions and
 can be directly influenced by the player.
-Third group is internal: these can only be assigned by entity processor.
+Third group is internal: these can only be assigned on initialization or during regular processing.
 --]]
 
 ---Serves as key in tables where items, fluids and energy are stored together
@@ -52,7 +54,8 @@ Third group is internal: these can only be assigned by entity processor.
 ---@field unit_number number unique entity identifier: used as lookup key
 ---@field entity LuaEntity entity that owns these properties
 ---@field entity_name string name of entity that owns these properties
----@field is_processing boolean true if entity is configured and initialized for on-tick processing
+---@field initialized boolean true if entity is initialized
+---@field index number location of table in the data structure
 
 ---@class EntityProperties entity configuration fields (user-inputs)
 ---@field io_mode "input"|"output"|nil selected io mode
@@ -80,161 +83,100 @@ Third group is internal: these can only be assigned by entity processor.
 ---@field building_requests table<BufferKeyString, ItemBuffer>|nil internal. requests of this mainframe
 ---@field building_contents table<BufferKeyString, ItemBuffer>|nil internal. contents of this mainframe
 
-local VSurfaceManager = require("src.world.vsurface-manager")
-local VMainframe = require("src.world.entity-processor-members.virtualization-mainframe")
-local ClusterIO = require("src.world.entity-processor-members.cluster-io")
-local TemplateIO = require("src.world.entity-processor-members.template-io")
-local ClusterBridge = require("src.world.entity-processor-members.inter-cluster-bridge")
+---Defines a standard interface (handler module) for a specific building type.
+---@class EntityProcessorMember
+---@field copyable string[] names of copyable entity properties
+---@field attempt_entity_initialization fun(properties: EntityProperties): boolean used to attempt entity initialization
+---@field on_processing_stopped fun(properties: EntityProperties) used when entity is being uninitialized
+---@field process_entity fun(properties: EntityProperties) used for regular on-tick processing of initialized entity
+
+
+local ClusterEnergyIO = require("src.world.entity-processor-members.cluster-energy-io")
+local ClusterFluidIO = require("src.world.entity-processor-members.cluster-fluid-io")
+local ClusterItemIO = require("src.world.entity-processor-members.cluster-item-io")
 local OverflowController = require("src.world.entity-processor-members.cluster-overflow-controller")
 local StorageUnit = require("src.world.entity-processor-members.cluster-storage-unit")
+local ClusterBridge = require("src.world.entity-processor-members.inter-cluster-bridge")
+local TemplateEnergyIO = require("src.world.entity-processor-members.template-energy-io")
+local TemplateFluidIO = require("src.world.entity-processor-members.template-fluid-io")
+local TemplateItemIO = require("src.world.entity-processor-members.template-item-io")
+
 
 local PREFIX = "FV-"
 local EntityProcessor = {}
 
----Mapping of entity names recognized by this registry to their on-tick handlers
-local entity_router = {
-    [PREFIX .. "template-item-io-mk1"] = TemplateIO.process_template_item_io,
-    [PREFIX .. "template-item-io-mk2"] = TemplateIO.process_template_item_io,
-    [PREFIX .. "template-item-io-mk3"] = TemplateIO.process_template_item_io,
-    [PREFIX .. "template-fluid-io-mk1"] = TemplateIO.process_template_fluid_io,
-    [PREFIX .. "template-fluid-io-mk2"] = TemplateIO.process_template_fluid_io,
-    [PREFIX .. "template-fluid-io-mk3"] = TemplateIO.process_template_fluid_io,
-    [PREFIX .. "template-energy-io-mk1"] = TemplateIO.process_template_energy_io,
-    [PREFIX .. "template-energy-io-mk2"] = TemplateIO.process_template_energy_io,
-    [PREFIX .. "template-energy-io-mk3"] = TemplateIO.process_template_energy_io,
-    [PREFIX .. "cluster-item-io-mk1"] = ClusterIO.process_cluster_item_io,
-    [PREFIX .. "cluster-item-io-mk2"] = ClusterIO.process_cluster_item_io,
-    [PREFIX .. "cluster-item-io-mk3"] = ClusterIO.process_cluster_item_io,
-    [PREFIX .. "cluster-fluid-io-mk1"] = ClusterIO.process_cluster_fluid_io,
-    [PREFIX .. "cluster-fluid-io-mk2"] = ClusterIO.process_cluster_fluid_io,
-    [PREFIX .. "cluster-fluid-io-mk3"] = ClusterIO.process_cluster_fluid_io,
-    [PREFIX .. "cluster-energy-io-mk1"] = ClusterIO.process_cluster_energy_io,
-    [PREFIX .. "cluster-energy-io-mk2"] = ClusterIO.process_cluster_energy_io,
-    [PREFIX .. "cluster-energy-io-mk3"] = ClusterIO.process_cluster_energy_io,
-    [PREFIX .. "virtualization-mainframe-mk1"] = VMainframe.process_vm,
-    [PREFIX .. "virtualization-mainframe-mk2"] = VMainframe.process_vm,
-    [PREFIX .. "virtualization-mainframe-mk3"] = VMainframe.process_vm,
-    [PREFIX .. "inter-cluster-bridge-mk1"] = ClusterBridge.process_bridge,
-    [PREFIX .. "inter-cluster-bridge-mk2"] = ClusterBridge.process_bridge,
-    [PREFIX .. "inter-cluster-bridge-mk3"] = ClusterBridge.process_bridge,
-    [PREFIX .. "cluster-overflow-controller-mk1"] = OverflowController.process_entity,
-    [PREFIX .. "cluster-overflow-controller-mk2"] = OverflowController.process_entity,
-    [PREFIX .. "cluster-overflow-controller-mk3"] = OverflowController.process_entity,
-    [PREFIX .. "cluster-storage-unit-mk1"] = StorageUnit.process_entity,
-    [PREFIX .. "cluster-storage-unit-mk2"] = StorageUnit.process_entity,
-    [PREFIX .. "cluster-storage-unit-mk3"] = StorageUnit.process_entity,
+-------------------------------------------------------------------------------
+-- ENTITY PROCESSOR INITIALIZATION
+-------------------------------------------------------------------------------
+
+---Maps entity names to their handler modules
+---@type table<string, EntityProcessorMember>
+local module_router = {
+    [PREFIX .. "cluster-energy-io-mk1"] = ClusterEnergyIO,
+    [PREFIX .. "cluster-energy-io-mk2"] = ClusterEnergyIO,
+    [PREFIX .. "cluster-energy-io-mk3"] = ClusterEnergyIO,
+    [PREFIX .. "cluster-fluid-io-mk1"] = ClusterFluidIO,
+    [PREFIX .. "cluster-fluid-io-mk2"] = ClusterFluidIO,
+    [PREFIX .. "cluster-fluid-io-mk3"] = ClusterFluidIO,
+    [PREFIX .. "cluster-item-io-mk1"] = ClusterItemIO,
+    [PREFIX .. "cluster-item-io-mk2"] = ClusterItemIO,
+    [PREFIX .. "cluster-item-io-mk3"] = ClusterItemIO,
+    [PREFIX .. "cluster-overflow-controller-mk1"] = OverflowController,
+    [PREFIX .. "cluster-overflow-controller-mk2"] = OverflowController,
+    [PREFIX .. "cluster-overflow-controller-mk3"] = OverflowController,
+    [PREFIX .. "cluster-storage-unit-mk1"] = StorageUnit,
+    [PREFIX .. "cluster-storage-unit-mk2"] = StorageUnit,
+    [PREFIX .. "cluster-storage-unit-mk3"] = StorageUnit,
+    [PREFIX .. "inter-cluster-bridge-mk1"] = ClusterBridge,
+    [PREFIX .. "inter-cluster-bridge-mk2"] = ClusterBridge,
+    [PREFIX .. "inter-cluster-bridge-mk3"] = ClusterBridge,
+    [PREFIX .. "template-energy-io-mk1"] = TemplateEnergyIO,
+    [PREFIX .. "template-energy-io-mk2"] = TemplateEnergyIO,
+    [PREFIX .. "template-energy-io-mk3"] = TemplateEnergyIO,
+    [PREFIX .. "template-fluid-io-mk1"] = TemplateFluidIO,
+    [PREFIX .. "template-fluid-io-mk2"] = TemplateFluidIO,
+    [PREFIX .. "template-fluid-io-mk3"] = TemplateFluidIO,
+    [PREFIX .. "template-item-io-mk1"] = TemplateItemIO,
+    [PREFIX .. "template-item-io-mk2"] = TemplateItemIO,
+    [PREFIX .. "template-item-io-mk3"] = TemplateItemIO,
+    [PREFIX .. "virtualization-mainframe-mk1"] = virtualization_mainframe_copyable,
+    [PREFIX .. "virtualization-mainframe-mk2"] = virtualization_mainframe_copyable,
+    [PREFIX .. "virtualization-mainframe-mk3"] = virtualization_mainframe_copyable,
 }
 
 ---Filter used to subscribe to build events
 EntityProcessor.build_filter = {}
-for name, _ in pairs(entity_router) do
+for name, _ in pairs(module_router) do
     table.insert(EntityProcessor.build_filter, {filter = "name", name = name})
 end
 
----Copyable fields of template item io
-local template_item_io_copyable = {
-    "selected_item",
-    "is_output",
-}
-
----Copyable fields of template fluid io
-local template_fluid_io_copyable = {
-    "selected_fluid",
-    "is_output",
-}
-
----Copyable fields of template energy io
-local template_energy_io_copyable = {
-    "is_output",
-}
-
----Copyable fields of cluster item io
-local cluster_item_io_copyable = {
-    "first_template",
-    "selected_item",
-    "is_output",
-}
-
----Copyable fields of cluster fluid io
-local cluster_fluid_io_copyable = {
-    "first_template",
-    "selected_fluid",
-    "is_output",
-}
-
----Copyable fields of cluster energy io
-local cluster_energy_io_copyable = {
-    "first_template",
-    "is_output",
-}
-
----Copyable fields of virtualization mainframe
-local virtualization_mainframe_copyable = {
-    "first_template",
-}
-
----Copyable fields of inter-cluster bridge
-local inter_cluster_bridge_copyable = {
-    "mode",
-    "selected_item",
-    "selected_fluid",
-    "first_template",
-    "second_template",
-    "capability_override"
-}
-
----Copyable fields of cluster overflow controller
-local cluster_overflow_controller_copyable = {
-    "mode",
-    "selected_item",
-    "selected_fluid",
-    "first_template",
-    "capability_override",
-    "overflow_threshold",
-}
-
----Copyable fields of cluster storage unit
-local cluster_storage_unit_copyable = {
-    "mode",
-    "selected_item",
-    "selected_fluid",
-    "first_template",
-    "capability_override",
-}
-
 ---Maps entity names to their copyable properties
-local entity_copyable_fields = {
-    [PREFIX .. "template-item-io-mk1"] = template_item_io_copyable,
-    [PREFIX .. "template-item-io-mk2"] = template_item_io_copyable,
-    [PREFIX .. "template-item-io-mk3"] = template_item_io_copyable,
-    [PREFIX .. "template-fluid-io-mk1"] = template_fluid_io_copyable,
-    [PREFIX .. "template-fluid-io-mk2"] = template_fluid_io_copyable,
-    [PREFIX .. "template-fluid-io-mk3"] = template_fluid_io_copyable,
-    [PREFIX .. "template-energy-io-mk1"] = template_energy_io_copyable,
-    [PREFIX .. "template-energy-io-mk2"] = template_energy_io_copyable,
-    [PREFIX .. "template-energy-io-mk3"] = template_energy_io_copyable,
-    [PREFIX .. "cluster-item-io-mk1"] = cluster_item_io_copyable,
-    [PREFIX .. "cluster-item-io-mk2"] = cluster_item_io_copyable,
-    [PREFIX .. "cluster-item-io-mk3"] = cluster_item_io_copyable,
-    [PREFIX .. "cluster-fluid-io-mk1"] = cluster_fluid_io_copyable,
-    [PREFIX .. "cluster-fluid-io-mk2"] = cluster_fluid_io_copyable,
-    [PREFIX .. "cluster-fluid-io-mk3"] = cluster_fluid_io_copyable,
-    [PREFIX .. "cluster-energy-io-mk1"] = cluster_energy_io_copyable,
-    [PREFIX .. "cluster-energy-io-mk2"] = cluster_energy_io_copyable,
-    [PREFIX .. "cluster-energy-io-mk3"] = cluster_energy_io_copyable,
-    [PREFIX .. "virtualization-mainframe-mk1"] = virtualization_mainframe_copyable,
-    [PREFIX .. "virtualization-mainframe-mk2"] = virtualization_mainframe_copyable,
-    [PREFIX .. "virtualization-mainframe-mk3"] = virtualization_mainframe_copyable,
-    [PREFIX .. "inter-cluster-bridge-mk1"] = inter_cluster_bridge_copyable,
-    [PREFIX .. "inter-cluster-bridge-mk2"] = inter_cluster_bridge_copyable,
-    [PREFIX .. "inter-cluster-bridge-mk3"] = inter_cluster_bridge_copyable,
-    [PREFIX .. "cluster-overflow-controller-mk1"] = cluster_overflow_controller_copyable,
-    [PREFIX .. "cluster-overflow-controller-mk2"] = cluster_overflow_controller_copyable,
-    [PREFIX .. "cluster-overflow-controller-mk3"] = cluster_overflow_controller_copyable,
-    [PREFIX .. "cluster-storage-unit-mk1"] = cluster_storage_unit_copyable,
-    [PREFIX .. "cluster-storage-unit-mk2"] = cluster_storage_unit_copyable,
-    [PREFIX .. "cluster-storage-unit-mk3"] = cluster_storage_unit_copyable,
-}
+---@type table<string, string[]>
+local copyable = {}
+for entity_name, module in pairs(module_router) do
+    copyable[entity_name] = module.copyable
+end
+
+---Maps entity names to functions used for their initialization
+---@type table<string, fun(properties: EntityProperties): boolean>
+local initialization_router = {}
+for entity_name, module in pairs(module_router) do
+    initialization_router[entity_name] = module.attempt_entity_initialization
+end
+
+---Maps entity names to functions used for their uninitialization
+---@type table<string, fun(properties: EntityProperties)>
+local uninitialization_router = {}
+for entity_name, module in pairs(module_router) do
+    uninitialization_router[entity_name] = module.on_processing_stopped
+end
+
+---Maps entity names to functions used for regular updates after initialization
+---@type table<string, fun(properties: EntityProperties)>
+local processing_router = {}
+for entity_name, module in pairs(module_router) do
+    processing_router[entity_name] = module.process_entity
+end
 
 -------------------------------------------------------------------------------
 -- GENERAL REGISTRY OPERATIONS: ADD/DELETE/LOOKUP
@@ -245,73 +187,113 @@ local entity_copyable_fields = {
 ---@param tags table|nil build event tags
 function EntityProcessor.register_entity(entity, tags)
     local registry = storage.entity_registry
+    local lookup = registry.lookup
     ---@type number assuming entity has unit number
     local unit_number = entity.unit_number
     -- entity with this unit number is already registered
-    if registry.lookup[unit_number] then return end
+    if lookup[unit_number] then return end
 
     -- mandatory entity properties
+    local uninitialized = registry.uninitialized
+    local index = #uninitialized + 1
     local entity_name = entity.name
     local properties = {
         unit_number = unit_number,
         entity = entity,
         entity_name = entity_name,
+        initialized = false,
+        index = index,
     }
 
-    -- adding event tags to properties
+    -- adding tags to properties
     if tags then
         local relevant_tags = tags[PREFIX]
         if relevant_tags then
-            local copyable = entity_copyable_fields[entity_name]
-            for _, field in ipairs(copyable) do
+            local copyable_fields = copyable[entity_name]
+            for _, field in ipairs(copyable_fields) do
                 properties[field] = relevant_tags[field]
-                -- field setting hooks for given entity
-                local hooks = field_setting_hooks[entity_name]
-                if hooks then
-                    local field_hooks = hooks[field]
-                    if field_hooks then
-                        -- calling all field hooks
-                        for _, hook in ipairs(field_hooks) do
-                            hook(properties)
-                        end
-                    end
-                end
             end
         end
     end
 
-    -- performing necessery on-registration actions
-    local hooks = registration_hooks[entity_name]
-    if hooks then
-        for _, hook in ipairs(hooks) do
-            hook(properties)
-        end
-    end
-    properties.on_vsurface = VSurfaceManager.get_vsurface_data(entity.surface_index)
+    -- adding properties to uninitialized section
+    uninitialized[index] = properties
+    lookup[unit_number] = properties
+end
 
-    -- adding table to registry
-    local array = registry.array
-    array[#array + 1] = properties
-    registry.lookup[unit_number] = properties
+---Moves properties from source array to destination array
+---@param properties EntityProperties
+---@param source EntityProperties[]
+---@param destination EntityProperties[]
+local function move_properties(properties, source, destination)
+    -- rewriting properties in source array with the last element
+    local last_element = source[#source]
+    local index = properties.index
+    source[index] = last_element
+    last_element.index = index
+    source[#source] = nil
+
+    -- writing properties to destination array
+    local new_index = #destination + 1
+    destination[new_index] = properties
+    -- updating properties location data
+    properties.index = new_index
+    properties.initialized = not properties.initialized
+end
+
+---Attempts to initialize an entity.
+---It's assumed that properties are located in "uninitialized" section
+---@param properties EntityProperties properties to be initialized
+local function attempt_entity_initialization(properties)
+    local status = initialization_router[properties.entity_name](properties)
+    -- if initialization failed: return
+    if not status then return end
+
+    -- moving properties to initialized section
+    local registry = storage.entity_registry
+    move_properties(
+        properties,
+        registry.uninitialized,
+        registry.initialized
+    )
+end
+
+---Uninitializes the entity if it's initialized, otherwise does nothing.
+---@param properties EntityProperties properties to be uninitialized
+local function uninitialize_entity(properties)
+    if not properties.initialized then return end
+    uninitialization_router[properties.entity_name](properties)
+
+    -- moving properties to uninitialized section
+    local registry = storage.entity_registry
+    move_properties(
+        properties,
+        registry.initialized,
+        registry.uninitialized
+    )
 end
 
 ---Removes entity from registry. Used for automatic garbage collection.
 ---@param properties EntityProperties properties to be removed
----@param index number index at which properties are located
-local function unregister_entity(properties, index)
-    -- performing unregistration hooks
-    remove_from_first_cluster(properties)
-    remove_from_second_cluster(properties)
+local function unregister_entity(properties)
+    -- uninitializing entity before deleting its properties
+    if properties.initialized then
+        uninitialization_router[properties.entity_name](properties)
+    end
 
-    -- rewriting element we want to delete with the last one
     local registry = storage.entity_registry
-    local array = registry.array
+    local is_init = properties.initialized
+    local array = (is_init and registry.initialized) or registry.uninitialized
+
+    -- rewriting properties we want to delete with the last element
+    local index = properties.index
     local last_element = array[#array]
     array[index] = last_element
-    registry.lookup[properties.unit_number] = nil
+    last_element.index = index
 
-    -- removing last element from array
+    -- removing last element from array and lookup
     array[#array] = nil
+    registry.lookup[properties.unit_number] = nil
 end
 
 ---Gets properties of given entity by unit number
@@ -333,11 +315,10 @@ end
 -------------------------------------------------------------------------------
 
 ---Abstract setter. Sets specified property for a given entity or entity-ghost
----@param entity LuaEntity entity for which data should be retrieved
+---@param entity LuaEntity entity for which data should be set
 ---@param field string field in properties that will be set
 ---@param value nil|boolean|table|string|number value to write in properties[field]
----@param ignore_hooks boolean|nil true to ignore field setting hooks
-local function set_entity_property(entity, field, value, ignore_hooks)
+local function set_entity_property(entity, field, value)
     if not entity.valid then return end
     if entity.name == "entity-ghost" then
         -- entity is a ghost: data stored in tags
@@ -350,22 +331,16 @@ local function set_entity_property(entity, field, value, ignore_hooks)
         local properties = get_entity_properties(entity.unit_number)
         if not properties then return end
         properties[field] = value
-        if ignore_hooks then return end
-        local entity_hooks = field_setting_hooks[entity.name]
-        if not entity_hooks then return end
-        local hooks = entity_hooks[field]
-        if not hooks then return end
-        for _, hook in ipairs(hooks) do
-            hook(properties)
-        end
+        -- uninitializing entity when any field is set
+        uninitialize_entity(properties)
     end
 end
 
----Sets output flag for given entity or entity-ghost
+---Sets io mode for given entity or entity-ghost
 ---@param entity LuaEntity
----@param is_output true|nil
-function EntityProcessor.set_output_flag(entity, is_output)
-    set_entity_property(entity, "is_output", is_output)
+---@param io_mode "input"|"output"
+function EntityProcessor.set_io_mode(entity, io_mode)
+    set_entity_property(entity, "io_mode", io_mode)
 end
 
 ---Sets selected item for given entity or entity-ghost
@@ -401,17 +376,17 @@ end
 
 ---Sets mode of operation for given entity
 ---@param entity LuaEntity
----@param mode "item"|"fluid"|"energy" mode of operation
-function EntityProcessor.set_mode(entity, mode)
+---@param operation_mode "item"|"fluid"|"energy" mode of operation
+function EntityProcessor.set_operation_mode(entity, operation_mode)
     -- when changing mode we also want to cleanup unused information
     -- for instance, when item mode is chosen, selected fluid is cleared
-    if mode ~= "item" then
-        set_entity_property(entity, "selected_item", nil, true)
+    if operation_mode ~= "item" then
+        set_entity_property(entity, "selected_item", nil)
     end
-    if mode ~= "fluid" then
-        set_entity_property(entity, "selected_fluid", nil, true)
+    if operation_mode ~= "fluid" then
+        set_entity_property(entity, "selected_fluid", nil)
     end
-    set_entity_property(entity, "mode", mode)
+    set_entity_property(entity, "operation_mode", operation_mode)
 end
 
 ---Sets capability override for a given entity
@@ -435,7 +410,7 @@ end
 ---Abstract getter. Gets specified property for a given entity.
 ---@param entity LuaEntity entity for which data should be retrieved
 ---@param field string field in properties that is retrieved
----@return any property for table returns reference, not a copy
+---@return any property for tables returns reference, not a copy
 local function get_entity_property(entity, field)
     if not entity.valid then return end
     if entity.name == "entity-ghost" then
@@ -451,11 +426,11 @@ local function get_entity_property(entity, field)
     end
 end
 
----Gets output flag for given entity or ghost-entity
+---Gets io_mode for given entity or ghost-entity
 ---@param entity LuaEntity entity for which data should be retrieved
----@return boolean|nil is_output
-function EntityProcessor.get_output_flag(entity)
-    return get_entity_property(entity, "is_output")
+---@return "input"|"output"|nil io_mode
+function EntityProcessor.get_io_mode(entity)
+    return get_entity_property(entity, "io_mode")
 end
 
 ---Gets selected item for given entity or ghost-entity
@@ -492,8 +467,8 @@ end
 ---Gets mode of operation for a given entity
 ---@param entity LuaEntity
 ---@return "item"|"fluid"|"energy"|nil
-function EntityProcessor.get_mode(entity)
-    return get_entity_property(entity, "mode")
+function EntityProcessor.get_operation_mode(entity)
+    return get_entity_property(entity, "operation_mode")
 end
 
 ---Gets capability override for a given entity
@@ -527,14 +502,14 @@ function EntityProcessor.setup_blueprint_tags(event)
         if not entity.valid then goto continue end
         local entity_name = entity.name
         -- skipping entities that are not recognized by this registry
-        if not entity_router[entity_name] then goto continue end
+        if not copyable[entity_name] then goto continue end
         -- if registry does not have entity properties we have to skip it
         local properties = get_entity_properties(entity.unit_number)
         -- skipping entities if their properties are not found
         if not properties then goto continue end
         -- creating a shallow copy with all copyable properties
         local properties_copy = {}
-        local copyable_fields = entity_copyable_fields[entity_name]
+        local copyable_fields = copyable[entity_name]
         for _, field in ipairs(copyable_fields) do
             properties_copy[field] = properties[field]
         end
@@ -556,29 +531,58 @@ end
 -- MAIN PROCESSOR
 -------------------------------------------------------------------------------
 
+---Given an array and current tick, calculates the chunk that needs to be
+---processed in this tick. This function aims to split the array into 60
+---chunks of similar size, so the whole array is processed each second.
+---@param array any[] 
+---@param tick integer 
+---@return integer start_idx, integer stop_idx
+local function get_current_chunk(array, tick)
+    local total_size = #array
+    local offset = tick % 60
+    local chunk_size = math.ceil(total_size / 60)
+    local start_index = (chunk_size * offset) + 1
+    if start_index > total_size then return 0, -1 end
+    local stop_index = math.min(chunk_size * (offset + 1), total_size)
+    return start_index, stop_index
+end
+
+---Handles processing of a given registry section
+---@param array EntityProperties[] table of properties to be processed
+---@param tick integer current game tick
+---@param handler_router table<string, fun(properties: EntityProperties)>
+local function process_section(array, tick, handler_router)
+    local start_idx, stop_idx = get_current_chunk(array, tick)
+    for i = stop_idx, start_idx, -1 do
+        local properties = array[i]
+        local entity = properties.entity
+        if entity.valid then
+            handler_router[properties.entity_name](properties)
+        else
+            unregister_entity(properties)
+        end
+    end
+end
+
 ---On-tick entity processor. Processing is done in 60 chunks (one chunk per tick).
 ---@param event EventData.on_tick
 function EntityProcessor.process_entities(event)
     local registry = storage.entity_registry
-    local array = registry.array
-    local total_size = #array
+    local tick = event.tick
 
-    local chunk_offset = event.tick % 60
-    local chunk_size = math.ceil(total_size / 60)
-    local start_index = (chunk_size * chunk_offset) + 1
-    if start_index > total_size then return end
-    local stop_index = math.min(chunk_size * (chunk_offset + 1), total_size)
+    -- processing uninitialized section of registry
+    process_section(
+        registry.uninitialized,
+        tick,
+        initialization_router
+    )
 
-    for i = stop_index, start_index, -1 do
-        local properties = array[i]
-        local entity = properties.entity
-        if entity.valid then
-            entity_router[properties.entity_name](properties)
-        else
-            -- removing invalid entity from the registry
-            unregister_entity(properties, i)
-        end
-    end
+    -- processing initialized section of registry
+    process_section(
+        registry.initialized,
+        tick,
+        processing_router
+    )
 end
 
 return EntityProcessor
