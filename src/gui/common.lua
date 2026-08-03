@@ -38,7 +38,7 @@ local number_prefixes = {
     {suffix = "P", value = 1e15},
     {suffix = "E", value = 1e18},
 }
----Converts given number to human-readable format
+---Converts large number to human-readable format
 ---@param value number number to format
 ---@return string formated_value for example: "105 M", "5.1 G"
 function CommonGui.format_number(value)

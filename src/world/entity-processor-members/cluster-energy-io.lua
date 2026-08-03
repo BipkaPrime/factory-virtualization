@@ -44,6 +44,13 @@ local flow_limits = {
     [PREFIX .. "cluster-energy-io-mk3"] = 1e10,
 }
 
+---Maps entity names to their weights inside clusters
+local weights = {
+    [PREFIX .. "cluster-energy-io-mk1"] = 1,
+    [PREFIX .. "cluster-energy-io-mk2"] = 10,
+    [PREFIX .. "cluster-energy-io-mk3"] = 100,
+}
+
 ---Checks that all requirements for operation of cluster energy IO are met.
 ---If they are, prepares entity properties for on-tick processing.
 ---@param properties EntityProperties table from entity processor
@@ -61,7 +68,12 @@ function ClusterEnergyIO.attempt_entity_initialization(properties)
 
     ---All requirements are met. Preparing properties for on-tick processing
     -- attempting to connect entity to cluster
-    local cluster = ClusterProcessor.add_to_cluster(entity, first_template)
+    local entity_name = properties.entity_name
+    local cluster = ClusterProcessor.add_to_cluster(
+        entity,
+        first_template,
+        weights[entity_name]
+    )
     if not cluster then return false end
     properties.first_cluster = cluster
     -- attempting to assign buffer entry to entity
@@ -72,7 +84,7 @@ function ClusterEnergyIO.attempt_entity_initialization(properties)
     -- assigning io mode flag to entity
     properties.is_output = (io_mode == "output")
     -- caching flow limit of the entity
-    properties.flow_limit = flow_limits[properties.entity_name]
+    properties.flow_limit = flow_limits[entity_name]
     return true
 end
 

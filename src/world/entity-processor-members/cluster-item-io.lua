@@ -49,6 +49,13 @@ local flow_limits = {
     [PREFIX .. "cluster-item-io-mk3"] = 10000,
 }
 
+---Maps entity names to their weights inside clusters
+local weights = {
+    [PREFIX .. "cluster-item-io-mk1"] = 1,
+    [PREFIX .. "cluster-item-io-mk2"] = 10,
+    [PREFIX .. "cluster-item-io-mk3"] = 100,
+}
+
 ---Checks that all requirements for operation of cluster item IO are met.
 ---If they are, prepares entity properties for on-tick processing.
 ---@param properties EntityProperties table from entity processor
@@ -69,7 +76,12 @@ function ClusterItemIO.attempt_entity_initialization(properties)
 
     ---All requirements are met. Preparing properties for on-tick processing
     -- attempting to connect entity to cluster
-    local cluster = ClusterProcessor.add_to_cluster(entity, first_template)
+    local entity_name = properties.entity_name
+    local cluster = ClusterProcessor.add_to_cluster(
+        entity,
+        first_template,
+        weights[entity_name]
+    )
     if not cluster then return false end
     properties.first_cluster = cluster
     -- attempting to assign buffer entry to entity
@@ -80,7 +92,7 @@ function ClusterItemIO.attempt_entity_initialization(properties)
     -- assigning io mode flag to entity
     properties.is_output = (io_mode == "output")
     -- caching flow limit of the entity
-    properties.flow_limit = flow_limits[properties.entity_name]
+    properties.flow_limit = flow_limits[entity_name]
     -- caching LuaInventory of the entity
     properties.inventory = entity.get_inventory(defines.inventory.chest)
     return true

@@ -17,7 +17,7 @@ local PREFIX = "FV-"
 
 script.on_init(function()
     -- world/entity-processor
-    storage.entity_registry = {array = {}, lookup = {}}
+    storage.entity_registry = {initialized = {}, uninitialized = {}, lookup = {}}
     -- world/vsurface-chunk-processor
     storage.vsurface_chunks = {}
     -- world/vsurface-manager

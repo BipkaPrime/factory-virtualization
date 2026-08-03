@@ -6,6 +6,7 @@ given entity. It works directly (read only) with entity properties from registry
 local EntityProcessor = require("src.world.entity-processor")
 local CommonGui = require("src.gui.common")
 local ClusterInfo = require("src.gui.cluster-info")
+local VSurfaceManager = require("src.world.vsurface-manager")
 
 
 local EntityInfo = {}
@@ -15,9 +16,41 @@ local PREFIX = "FV-"
 -- ENTITY STATUS DISPLAY
 -------------------------------------------------------------------------------
 
+---Decides cluster energy IO status based on its properties
+---@param properties EntityProperties table from entity registry
+local function get_cluster_energy_io_status(properties)
+    -- entity is initialized and operational
+    if properties.initialized then
+        return {"entity-status.operational"}
+    end
+    -- entity does not work on a vsurface
+    if VSurfaceManager.get_vsurface_data(properties.entity.surface_index) then
+        return {"entity-status.does-not-work-on-vsurface"}
+    end
+    -- 
+    if not properties.first_template then
+        return {"entity-status.template-not-selected"}
+    end
+
+
+
+    
+    -- entity is not connected to cluster
+    if not properties.first_cluster then
+        return {"entity-status.not-connected-to-cluster"}
+    end
+    return 
+end
+
+
+
 ---Decides template item IO status based on its properties
 ---@param properties EntityProperties table from entity registry
 local function get_template_item_io_status(properties)
+
+
+
+
     -- entity is not on a vsurface
     if not properties.on_vsurface then
         return {"entity-status.works-only-on-vsurface"}
@@ -89,19 +122,7 @@ local function get_cluster_fluid_io_status(properties)
     return {"entity-status.operational"}
 end
 
----Decides cluster energy IO status based on its properties
----@param properties EntityProperties table from entity registry
-local function get_cluster_energy_io_status(properties)
-    -- entity is on a vsurface
-    if properties.on_vsurface then
-        return {"entity-status.does-not-work-on-vsurface"}
-    end
-    -- entity is not connected to cluster
-    if not properties.first_cluster then
-        return {"entity-status.not-connected-to-cluster"}
-    end
-    return {"entity-status.operational"}
-end
+
 
 ---Decides mainframe status based on its properties
 ---@param properties EntityProperties table from entity registry

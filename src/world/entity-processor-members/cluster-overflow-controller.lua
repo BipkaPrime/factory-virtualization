@@ -2,7 +2,6 @@
 Cluster overflow controller is used for voiding overflow in one
 cluster buffer entry. It consumes electric energy and works only
 when building has enough.
-
 -------------------------------------------------------------------------------
 -- ENTITY CONFIGURATION
 -------------------------------------------------------------------------------
@@ -70,6 +69,13 @@ local flow_limits = {
     },
 }
 
+---Maps entity names to their weights inside clusters
+local weights = {
+    [PREFIX .. "cluster-overflow-controller-mk1"] = 1,
+    [PREFIX .. "cluster-overflow-controller-mk2"] = 10,
+    [PREFIX .. "cluster-overflow-controller-mk3"] = 100,
+}
+
 ---Checks that all requirements for operation of cluster overflow controller are met.
 ---If they are, prepares entity properties for on-tick processing.
 ---@param properties EntityProperties table from entity processor
@@ -96,7 +102,12 @@ function OverflowController.attempt_entity_initialization(properties)
 
     ---All requirements are met. Preparing properties for on-tick processing
     -- attempting to connect entity to cluster
-    local cluster = ClusterProcessor.add_to_cluster(entity, first_template)
+    local entity_name = properties.entity_name
+    local cluster = ClusterProcessor.add_to_cluster(
+        entity,
+        first_template,
+        weights[entity_name]
+    )
     if not cluster then return false end
     properties.first_cluster = cluster
     -- attempting to assign buffer entry to entity
@@ -106,7 +117,7 @@ function OverflowController.attempt_entity_initialization(properties)
     properties.first_buffer_entry = buffer_entry
     -- caching flow limit considering base limit and capability override
     local override = (properties.capability_override or 1)
-    local base_limit = flow_limits[properties.entity_name][operation_mode]
+    local base_limit = flow_limits[entity_name][operation_mode]
     properties.flow_limit = base_limit * override
     return true
 end

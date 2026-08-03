@@ -3,7 +3,6 @@ Inter-cluster bridge transfers item/fluid/energy directly from output of one
 cluster to the input of another. Works as long as the building is powered.
 If energy stored in the entity is not sufficient, it stops working until
 enough energy is provided.
-
 -------------------------------------------------------------------------------
 -- ENTITY CONFIGURATION
 -------------------------------------------------------------------------------
@@ -74,6 +73,13 @@ local flow_limits = {
     },
 }
 
+---Maps entity names to their weights inside clusters
+local weights = {
+    [PREFIX .. "inter-cluster-bridge-mk1"] = 5,
+    [PREFIX .. "inter-cluster-bridge-mk2"] = 50,
+    [PREFIX .. "inter-cluster-bridge-mk3"] = 500,
+}
+
 ---Checks that all requirements for operation of inter-clister bridge are met.
 ---If they are, prepares entity properties for on-tick processing.
 ---@param properties EntityProperties table from entity processor
@@ -100,11 +106,21 @@ function ClusterBridge.attempt_entity_initialization(properties)
 
     ---All requirements are met. Preparing properties for on-tick processing
     -- attempting to connect entity to source cluster
-    local source_cluster = ClusterProcessor.add_to_cluster(entity, first_template)
+    local entity_name = properties.entity_name
+    local entity_weight = weights[entity_name]
+    local source_cluster = ClusterProcessor.add_to_cluster(
+        entity,
+        first_template,
+        entity_weight
+    )
     if not source_cluster then return false end
     properties.first_cluster = source_cluster
     -- attempting to connect entity to destination cluster
-    local destination_cluster = ClusterProcessor.add_to_cluster(entity, second_template)
+    local destination_cluster = ClusterProcessor.add_to_cluster(
+        entity,
+        second_template,
+        entity_weight
+    )
     if not destination_cluster then return false end
     properties.second_cluster = destination_cluster
     -- attempting to assign source buffer entry to entity
@@ -126,7 +142,7 @@ function ClusterBridge.attempt_entity_initialization(properties)
     properties.second_buffer_entry = destination_entry
     -- caching flow limit considering base limit and capability override
     local override = (properties.capability_override or 1)
-    local base_limit = flow_limits[properties.entity_name][operation_mode]
+    local base_limit = flow_limits[entity_name][operation_mode]
     properties.flow_limit = base_limit * override
     return true
 end

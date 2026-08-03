@@ -79,9 +79,9 @@ Third group is internal: these can only be assigned on initialization or during 
 ---@field ls_flow number|nil last second flow for this entity
 ---@field is_output boolean|nil used to indicate whether entity is an input or output
 ---@field buffer_key BufferKeyString|nil string used for access to cluster/venv tables
-
----@field building_requests table<BufferKeyString, ItemBuffer>|nil internal. requests of this mainframe
----@field building_contents table<BufferKeyString, ItemBuffer>|nil internal. contents of this mainframe
+---@field building_requests table<BufferKeyString, ItemBuffer>|nil building requests of this mainframe
+---@field building_contents table<BufferKeyString, ItemBuffer>|nil building contents of this mainframe
+---@field logistic_point LuaLogisticPoint|nil logistic point of this entity
 
 ---Defines a standard interface (handler module) for a specific building type.
 ---@class EntityProcessorMember
@@ -100,6 +100,7 @@ local ClusterBridge = require("src.world.entity-processor-members.inter-cluster-
 local TemplateEnergyIO = require("src.world.entity-processor-members.template-energy-io")
 local TemplateFluidIO = require("src.world.entity-processor-members.template-fluid-io")
 local TemplateItemIO = require("src.world.entity-processor-members.template-item-io")
+local VMainframe = require("src.world.entity-processor-members.virtualization-mainframe")
 
 
 local PREFIX = "FV-"
@@ -139,9 +140,9 @@ local module_router = {
     [PREFIX .. "template-item-io-mk1"] = TemplateItemIO,
     [PREFIX .. "template-item-io-mk2"] = TemplateItemIO,
     [PREFIX .. "template-item-io-mk3"] = TemplateItemIO,
-    [PREFIX .. "virtualization-mainframe-mk1"] = virtualization_mainframe_copyable,
-    [PREFIX .. "virtualization-mainframe-mk2"] = virtualization_mainframe_copyable,
-    [PREFIX .. "virtualization-mainframe-mk3"] = virtualization_mainframe_copyable,
+    [PREFIX .. "virtualization-mainframe-mk1"] = VMainframe,
+    [PREFIX .. "virtualization-mainframe-mk2"] = VMainframe,
+    [PREFIX .. "virtualization-mainframe-mk3"] = VMainframe,
 }
 
 ---Filter used to subscribe to build events

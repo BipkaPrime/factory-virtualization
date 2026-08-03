@@ -1,5 +1,5 @@
 --[[
-Entities that are added by this mod have custom gui for several reasons.
+Entities that are added by this mod have custom GUIs for several reasons.
 Most notably, custom gui are needed to give player the opportunity to manipulate
 entity data in entity registry. Second reason is player QoL. Entity gui will often
 display important information regarding entity. Like current status, current item
@@ -116,48 +116,18 @@ local function create_entity_gui_base(player, entity)
     return gui_data
 end
 
----Creates template item IO interface
+---Creates cluster energy IO interface
 ---@param player LuaPlayer assumed to be valid
 ---@param entity LuaEntity assumed to be valid
-local function create_template_item_io_gui(player, entity)
+local function create_cluster_energy_io_gui(player, entity)
     local gui_data = create_entity_gui_base(player, entity)
     local left_frame = gui_data.elements.left_frame
-    EntityControls.create_choose_io_buttons(left_frame, gui_data)
-    EntityControls.create_choose_item_button(left_frame, gui_data)
-end
-
----Creates template fluid IO interface
----@param player LuaPlayer assumed to be valid
----@param entity LuaEntity assumed to be valid
-local function create_template_fluid_io_gui(player, entity)
-    local gui_data = create_entity_gui_base(player, entity)
-    local left_frame = gui_data.elements.left_frame
-    EntityControls.create_choose_io_buttons(left_frame, gui_data)
-    EntityControls.create_choose_fluid_button(left_frame, gui_data)
-end
-
----Creates template energy IO interface
----@param player LuaPlayer assumed to be valid
----@param entity LuaEntity assumed to be valid
-local function create_template_energy_io_gui(player, entity)
-    local gui_data = create_entity_gui_base(player, entity)
-    local left_frame = gui_data.elements.left_frame
-    EntityControls.create_choose_io_buttons(left_frame, gui_data)
-end
-
----Creates cluster item IO interface
----@param player LuaPlayer assumed to be valid
----@param entity LuaEntity assumed to be valid
-local function create_cluster_item_io_gui(player, entity)
-    local gui_data = create_entity_gui_base(player, entity)
-    local left_frame = gui_data.elements.left_frame
-    EntityControls.create_choose_io_buttons(left_frame, gui_data)
-    EntityControls.create_choose_item_button(left_frame, gui_data)
     EntityControls.create_first_template_selection_widget(
         left_frame,
         gui_data,
         {"gui-label.select-template"}
     )
+    EntityControls.create_io_mode_selection_widget(left_frame, gui_data)
 end
 
 ---Creates cluster fluid IO interface
@@ -166,26 +136,75 @@ end
 local function create_cluster_fluid_io_gui(player, entity)
     local gui_data = create_entity_gui_base(player, entity)
     local left_frame = gui_data.elements.left_frame
-    EntityControls.create_choose_io_buttons(left_frame, gui_data)
-    EntityControls.create_choose_fluid_button(left_frame, gui_data)
     EntityControls.create_first_template_selection_widget(
         left_frame,
         gui_data,
         {"gui-label.select-template"}
     )
+    EntityControls.create_io_mode_selection_widget(left_frame, gui_data)
+    EntityControls.create_choose_fluid_button(left_frame, gui_data)
 end
 
----Creates cluster energy IO interface
+---Creates cluster item IO interface
 ---@param player LuaPlayer assumed to be valid
 ---@param entity LuaEntity assumed to be valid
-local function create_cluster_energy_io_gui(player, entity)
+local function create_cluster_item_io_gui(player, entity)
     local gui_data = create_entity_gui_base(player, entity)
     local left_frame = gui_data.elements.left_frame
-    EntityControls.create_choose_io_buttons(left_frame, gui_data)
     EntityControls.create_first_template_selection_widget(
         left_frame,
         gui_data,
         {"gui-label.select-template"}
+    )
+    EntityControls.create_io_mode_selection_widget(left_frame, gui_data)
+    EntityControls.create_choose_item_button(left_frame, gui_data)
+end
+
+---Creates cluster overflow controller interface
+---@param player LuaPlayer assumed to be valid
+---@param entity LuaEntity assumed to be valid
+local function create_cluster_overflow_controller_gui(player, entity)
+    local gui_data = create_entity_gui_base(player, entity)
+    local left_frame = gui_data.elements.left_frame
+    EntityControls.create_first_template_selection_widget(
+        left_frame,
+        gui_data,
+        {"gui-label.select-cluster"},
+        100
+    )
+    EntityControls.create_overflow_threshold_widget(left_frame, gui_data)
+    EntityControls.create_operation_mode_selection_widget(left_frame, gui_data)
+    EntityControls.create_choose_item_button(left_frame, gui_data)
+    EntityControls.create_choose_fluid_button(left_frame, gui_data)
+    EntityControls.create_capability_override_widget(
+        left_frame,
+        gui_data,
+        {"gui-label.enable-flow-limit-override"},
+        {"gui-label.set-flow-limit-to"}
+    )
+end
+
+---Creates cluster storage unit interface
+---@param player LuaPlayer assumed to be valid
+---@param entity LuaEntity assumed to be valid
+local function create_cluster_storage_unit_gui(player, entity)
+    local gui_data = create_entity_gui_base(player, entity)
+    local left_frame = gui_data.elements.left_frame
+    EntityControls.create_first_template_selection_widget(
+        left_frame,
+        gui_data,
+        {"gui-label.select-cluster"},
+        100
+    )
+    EntityControls.create_io_mode_selection_widget(left_frame, gui_data)
+    EntityControls.create_operation_mode_selection_widget(left_frame, gui_data)
+    EntityControls.create_choose_item_button(left_frame, gui_data)
+    EntityControls.create_choose_fluid_button(left_frame, gui_data)
+    EntityControls.create_capability_override_widget(
+        left_frame,
+        gui_data,
+        {"gui-label.enable-storage-limit-override"},
+        {"gui-label.set-storage-limit-to"}
     )
 end
 
@@ -195,9 +214,6 @@ end
 local function create_inter_cluster_bridge_gui(player, entity)
     local gui_data = create_entity_gui_base(player, entity)
     local left_frame = gui_data.elements.left_frame
-    EntityControls.create_mode_selection_widget(left_frame, gui_data)
-    EntityControls.create_choose_item_button(left_frame, gui_data)
-    EntityControls.create_choose_fluid_button(left_frame, gui_data)
     EntityControls.create_first_template_selection_widget(
         left_frame,
         gui_data,
@@ -210,30 +226,44 @@ local function create_inter_cluster_bridge_gui(player, entity)
         {"gui-label.select-destination-cluster"},
         100
     )
-end
-
----Creates cluster overflow controller interface
----@param player LuaPlayer assumed to be valid
----@param entity LuaEntity assumed to be valid
-local function create_cluster_overflow_controller_gui(player, entity)
-    local gui_data = create_entity_gui_base(player, entity)
-    local left_frame = gui_data.elements.left_frame
-    EntityControls.create_mode_selection_widget(left_frame, gui_data)
+    EntityControls.create_operation_mode_selection_widget(left_frame, gui_data)
     EntityControls.create_choose_item_button(left_frame, gui_data)
     EntityControls.create_choose_fluid_button(left_frame, gui_data)
-    EntityControls.create_first_template_selection_widget(
-        left_frame,
-        gui_data,
-        {"gui-label.select-cluster"},
-        100
-    )
-    EntityControls.create_overflow_threshold_widget(left_frame, gui_data)
     EntityControls.create_capability_override_widget(
         left_frame,
         gui_data,
         {"gui-label.enable-flow-limit-override"},
         {"gui-label.set-flow-limit-to"}
     )
+end
+
+---Creates template energy IO interface
+---@param player LuaPlayer assumed to be valid
+---@param entity LuaEntity assumed to be valid
+local function create_template_energy_io_gui(player, entity)
+    local gui_data = create_entity_gui_base(player, entity)
+    local left_frame = gui_data.elements.left_frame
+    EntityControls.create_io_mode_selection_widget(left_frame, gui_data)
+end
+
+---Creates template fluid IO interface
+---@param player LuaPlayer assumed to be valid
+---@param entity LuaEntity assumed to be valid
+local function create_template_fluid_io_gui(player, entity)
+    local gui_data = create_entity_gui_base(player, entity)
+    local left_frame = gui_data.elements.left_frame
+    EntityControls.create_io_mode_selection_widget(left_frame, gui_data)
+    EntityControls.create_choose_fluid_button(left_frame, gui_data)
+end
+
+---Creates template item IO interface
+---@param player LuaPlayer assumed to be valid
+---@param entity LuaEntity assumed to be valid
+local function create_template_item_io_gui(player, entity)
+    local gui_data = create_entity_gui_base(player, entity)
+    local left_frame = gui_data.elements.left_frame
+    EntityControls.create_io_mode_selection_widget(left_frame, gui_data)
+    EntityControls.create_choose_item_button(left_frame, gui_data)
 end
 
 ---Creates virtualization mainframe interface
@@ -246,22 +276,6 @@ local function create_virtualization_mainframe_gui(player, entity)
         left_frame,
         gui_data,
         {"gui-label.select-template"}
-    )
-end
-
----Creates cluster storage unit interface
----@param player LuaPlayer assumed to be valid
----@param entity LuaEntity assumed to be valid
-local function create_cluster_storage_unit_gui(player, entity)
-    local gui_data = create_entity_gui_base(player, entity)
-    local left_frame = gui_data.elements.left_frame
-    EntityControls.create_mode_selection_widget(left_frame, gui_data)
-    EntityControls.create_choose_item_button(left_frame, gui_data)
-    EntityControls.create_choose_fluid_button(left_frame, gui_data)
-    EntityControls.create_first_template_selection_widget(
-        left_frame,
-        gui_data,
-        {"gui-label.select-cluster"}
     )
 end
 

@@ -15,7 +15,6 @@ unique identifiers.
 ---@field output table<BufferKeyString, number> output per second
 ---@field building_cost table<BufferKeyString, number> items needed for construction of this template
 ---@field energy_drain number energy drain of this template (due to surface area)
----@field research_template boolean true if this is a research template
 
 
 local VSurfaceManager = require("src.world.vsurface-manager")

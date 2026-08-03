@@ -4,7 +4,6 @@ It connects to one buffer entry and provides buffer capacity as long as
 the building is powered. If energy stored in the entity is not sufficient,
 it stops working and buffer capacity provided to cluster is disabled until
 enough energy is provided.
-
 -------------------------------------------------------------------------------
 -- ENTITY CONFIGURATION
 -------------------------------------------------------------------------------
@@ -75,6 +74,13 @@ local capacity_limits = {
     },
 }
 
+---Maps entity names to their weights inside clusters
+local weights = {
+    [PREFIX .. "cluster-storage-unit-mk1"] = 1,
+    [PREFIX .. "cluster-storage-unit-mk2"] = 10,
+    [PREFIX .. "cluster-storage-unit-mk3"] = 100,
+}
+
 ---Checks that all requirements for operation of cluster storage unit are met.
 ---If they are, prepares entity properties for on-tick processing.
 ---@param properties EntityProperties table from entity processor
@@ -101,7 +107,12 @@ function StorageUnit.attempt_entity_initialization(properties)
 
     ---All requirements are met. Preparing properties for on-tick processing
     -- attempting to connect entity to cluster
-    local cluster = ClusterProcessor.add_to_cluster(entity, first_template)
+    local entity_name = properties.entity_name
+    local cluster = ClusterProcessor.add_to_cluster(
+        entity,
+        first_template,
+        weights[entity_name]
+    )
     if not cluster then return false end
     properties.first_cluster = cluster
     -- attempting to assign buffer entry to entity
@@ -111,7 +122,7 @@ function StorageUnit.attempt_entity_initialization(properties)
     properties.first_buffer_entry = buffer_entry
     -- caching storage unit capacity considering base capacity and capability override
     local capacity_override = (properties.capability_override or 1)
-    local base_capacity = capacity_limits[properties.entity_name][operation_mode]
+    local base_capacity = capacity_limits[entity_name][operation_mode]
     properties.capacity = base_capacity * capacity_override
     return true
 end

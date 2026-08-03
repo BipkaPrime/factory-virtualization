@@ -182,9 +182,9 @@ local function create_template_inputs_section(parent, dashboard_data)
     CommonGui.create_sprite_button_table(section, buttons)
 
     -- energy inputs
-    local primary = CommonGui.format_number(energy_input) .. "W"
-    local drain = CommonGui.format_number(energy_drain) .. "W"
-    local total = CommonGui.format_number(energy_input + energy_drain) .. "W"
+    local primary = CommonGui.format_number(energy_input) .. "J"
+    local drain = CommonGui.format_number(energy_drain) .. "J"
+    local total = CommonGui.format_number(energy_input + energy_drain) .. "J"
     ---@diagnostic disable-next-line
     CommonGui.create_bold_label(section, {"", {"gui-label.template-energy-input"}, ": ", primary})
     ---@diagnostic disable-next-line
@@ -217,7 +217,7 @@ local function create_template_outputs_section(parent, dashboard_data)
 
     -- energy production
     local energy_output = TemplateCompiler.get_energy_production(template_name)
-    local energy_out = CommonGui.format_number(energy_output) .. "W"
+    local energy_out = CommonGui.format_number(energy_output) .. "J"
     ---@diagnostic disable-next-line
     CommonGui.create_bold_label(section, {"", {"gui-label.template-energy-output"}, ": ", energy_out})
 end

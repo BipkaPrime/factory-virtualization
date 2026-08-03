@@ -1,19 +1,6 @@
 --[[
-We need observability over what's going inside clusters.
-What exactly whould we like to know?
-
-1. Member counts and general important stats like "crafting_power",
-"storage_capacity", energy tax?.
-
-2. The most important thing is probably input and output buffer data.
-For each entry of the buffer we want to visualize current and maximum values
-We also want to see the dyncamic: how much items entered and exited the buffer 
-over the last second (mostly for QoL of player).
-
-3. We'd like to know how well cluster is performing. For that we will need to 
-display crafting_power and last_second_crafts. That will show if cluster is
-not running to its full potential, however, would not tell exactly why.
-
+This file is used for displaying virtualization cluster information.
+It works directly (read only) with cluster data from storage.
 --]]
 
 local CommonGui = require("src.gui.common")
@@ -46,7 +33,7 @@ local function assemble_sprite_button_data(entry)
 end
 
 ---Adds an element displaying information about 1 io buffer entry.
----Following children elements are layered horizontally.
+---This elements contains several children layer horizontally.
 ---Sprite button with number indicating current amount in the entry.
 ---Progressbar indicating how full the entry. Progressbar color is based on whether this
 ---entry is a bottleneck for operation of the cluster. Labels that indicate IO flows for the entry.
@@ -68,17 +55,18 @@ local function create_cluster_buffer_entry(parent, cluster, entry)
     CommonGui.create_sprite_button(frame, button_data)
 
     -- progressbar
-    local safe_maximum = ((entry.maximum ~= 0) and entry.maximum) or 1
+    local maximum = entry.maximum
+    local fullness = (maximum == 0) and 1 or (entry.current / maximum)
     local bar = frame.add{
         type = "progressbar",
-        value = entry.current/safe_maximum,
+        value = fullness,
     }
     bar.style.bar_width = 12
     bar.style.width = 220
 
     -- deciding progressbar color
     local crafting_power = cluster.crafting_power
-    if crafting_power == 0 then
+    if crafting_power == 0 or maximum == 0 then
         bar.style.color = CommonGui.grey
     else
         local fraction = entry.ls_possible_crafts/crafting_power
@@ -195,28 +183,22 @@ function ClusterInfo.create_member_counts(parent, cluster)
         ---@diagnostic disable-next-line
         {"", {"gui-label.cluster-crafting-power"}, crafting_power}
     )
-    -- storage capacity label
-    local storage_capacity = ": " .. tostring(cluster.storage_capacity)
-    CommonGui.create_bold_label(
-        section,
-        ---@diagnostic disable-next-line
-        {"", {"gui-label.cluster-storage-capacity"}, storage_capacity}
-    )
-    -- distance energy tax label
-    local tax = cluster.total_energy_tax
-    local tax_formated = CommonGui.format_number(tax)
-    local total_energy_consumption = tax + cluster.base_energy_per_craft
-    if total_energy_consumption == 0 then return end
-    local percentage = 100 * tax / (tax + cluster.base_energy_per_craft)
-    local rounded = math.floor(percentage * 10 + 0.5) / 10
-    local percentage_caption = tostring(rounded)
+    ---Decentralization energy loss
+    local loss_mult = cluster.decentralization_loss
+    local base_consumption = cluster.base_energy_per_craft
+    -- total number of joules lost per craft due to decentralization loss
+    local loss_value = base_consumption * loss_mult
+    local loss_formatted = CommonGui.format_number(loss_value)
+    -- fraction decentralization loss in total energy consumption
+    local percentage = 100 * loss_mult / (1 + loss_mult)
+    local percentage_caption = CommonGui.number_to_string(percentage, 2)
     CommonGui.create_bold_label(
         section,
         {
             ---@diagnostic disable-next-line
-            "", {"gui-label.cluster-energy-tax"}, ": ", tax_formated, "W (",
+            "", {"gui-label.decentralization-loss"}, ": ", loss_formatted, "J (",
             ---@diagnostic disable-next-line
-            percentage_caption, "% ", {"gui-label.energy-tax-percentage"}, ")"
+            percentage_caption, "% ", {"gui-label.decentralization-loss-percentage"}, ")"
         }
     )
 end

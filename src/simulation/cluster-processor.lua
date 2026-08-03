@@ -1,29 +1,48 @@
 --[[
-Virtualization mainframes and mainframe-IOs placed on the same surface and 
-having the same template selected form a "Virtualization Cluster".
-It's basically a simulated factory consisting of multiple members. Mainframes connected to a
-cluster provide crafing power, mainframe IOs connected to a cluster move items/fluid/energy
-between factorio world and simulated factory. Technically virtualization cluster is a table in storage.
-All virtualization clusters are located at storage.vclusters which consist of 2 parts:
-storage.vclusters = {
-    array = {},
-    lookup = {},
+Virtualization clusters (also reffered to as clusters) are simulated "factories".
+Their purpose is to produce (craft) things from other things. Currently clusters
+can consume and produce items, fluids and electric energy. The rate of production and
+consumption is defined by production template that cluster is based upon.
+
+Clusters are formed from entities (buildings) added by this mod. For example,
+cluster item IOs transfer items between physical factorio world and cluster internal
+buffer (which is virtual and exists as a table in storage). Virtualization mainframes
+provide crafting power to the cluster. If cluster has X crafting power, that means
+it can perform X crafts per second. Cluster storage units provide size to cluster
+internal buffers. There are other buildings that can be cluster members too.
+
+Clusters are formed from entities (that can be cluster members) placed on the same
+surface and having the same template selected. Clusters are created when first member
+(entity) is added to them. Clusters are deleted when last remaining member is removed
+from them. These operations are performed automatically. Cluster processor fully relies
+on entity processor for managing members of clusters. Only entity processor makes calls
+to add/remove/modify members.
+
+Cluster energy consumption also depends on how far apart cluster members are from
+its center. The idea behind this is to encourage players to build compact clusters.
+It's called the "decentralization loss". It's applied multiplicatively to cluster energy
+required per craft.
+
+Decentralization loss is handled as follows. When building is added to the cluster it has
+a weight associated with it. Center of a cluster is a weighted average of coordinates of
+all its members. Loss for one cluster member is calculated using the formula:
+BASE_COST*(dist(center, member_pos))^2. Total loss is the weighted average of losses
+for each cluster member.Total value of decentralization loss can be calculated in O(1)
+time if following values are known: total cluster weight, coordinates of cluster center,
+weighted sum of (x^2 + y^2) for all members.
+For this reason each cluster will contain following fields:
+sum_x number: weighted sum of x-coordinates of all members
+sum_y number: weighted sum of y-coordinates of all members
+total_weight number: sum of weights of all members
+sum_squares number: weighted sum of squares (x^2 + y^2) of all member positions
+
+All clusters are located at storage.clusters, which consists of 2 parts:
+storage.clusters = {
+    array: ClusterData[],
+    lookup: table<string, ClusterData>,
 }
-Array is 1-indexed and contain all vclusters (which are tables).
-Lookup maps cluster identifier (string) with index of that cluster in array.
-Cluster is identified by a unique string "template_name//surface_index".
-
-Clusters are created when first member is added to them. Clusters are deleted when last remaining
-member is removed from them. These operations are performed automatically.
-Cluster processor fully relies on entity processor for managing members of clusters. Only
-entity processor makes calls to add/remove entity.
-
-To stop players from abusing cluster global mechanic, we introduce and energy tax based on how far
-cluster members are from it's center. Tax for one building is calculated like this:
-BASE_COST*(dist(center, building_pos))^2, where center is a weighted average for coordinates of all members.
-Total tax should be equal to the sum of above expression for all members.
-It turns out that this sum can be calculated in O(1) time if we have access to the following values:
-center coordinates, total weight, weighted sum of (x^2 + y^2) for all members.
+Array stores all existing clusters and used for on-tick processing.
+Lookup maps cluster identifier (string) with corresponding ClusterData.
 --]]
 
 ---@alias ClusterIdString string template_name//surface_index
@@ -46,14 +65,15 @@ center coordinates, total weight, weighted sum of (x^2 + y^2) for all members.
 ---@field x_pos number x-coordinate of this entity
 ---@field y_pos number y-coordinate of this entity
 ---@field weight number weight of this entity
----@field key BufferKeyString "name//quality" of this entity
+---@field key BufferKeyString name//quality of this entity
 ---@field crafting_power number|nil amount of crafting potential entity is contributing
 ---@field storage_capacity number|nil amount of storage this entity is contributing
 ---@field buffer ClusterBufferEntry|nil buffer to which entity is contributing storage capacity
 
 ---Table describing one virtualization cluster
 ---@class ClusterData
----@field cluster_id string "template_name//surface_index"
+---@field index number position of this cluster in the data structure
+---@field cluster_id ClusterIdString template_name//surface_index
 ---@field template_name string name of template for this cluster
 ---@field surface_index number unique surface identifier
 ---@field input table<BufferKeyString, ClusterBufferEntry> cluster input buffer
@@ -65,7 +85,7 @@ center coordinates, total weight, weighted sum of (x^2 + y^2) for all members.
 ---@field sum_y number weighted sum of y coordinates of all members
 ---@field total_weight number sum of weights of all members
 ---@field sum_squares number weighted sum of squares (x^2 + y^2) of all member positions
----@field total_energy_tax number additional energy required per craft of this cluster
+---@field decentralization_loss number multiplier of energy per craft of this cluster
 ---@field base_energy_per_craft number base electric energy consumption per craft
 ---@field last_cycle_crafts number crafts performed in the last crafting cycle
 ---@field item_statistics LuaFlowStatistics|nil for player force and cluster surface (will be cached when crafting)
@@ -73,84 +93,42 @@ center coordinates, total weight, weighted sum of (x^2 + y^2) for all members.
 
 local TemplateCompiler = require("src.simulation.template-compiler")
 
+
 local ClusterProcessor = {}
 
-local PREFIX = "FV-"
-
----Maps entity names to their weights.
----Contains all buildings which can be a part of a cluster.
-local entity_weights = {
-    [PREFIX .. "cluster-item-io-mk1"] = 1,
-    [PREFIX .. "cluster-item-io-mk2"] = 10,
-    [PREFIX .. "cluster-item-io-mk3"] = 100,
-    [PREFIX .. "cluster-fluid-io-mk1"] = 1,
-    [PREFIX .. "cluster-fluid-io-mk2"] = 10,
-    [PREFIX .. "cluster-fluid-io-mk3"] = 100,
-    [PREFIX .. "cluster-energy-io-mk1"] = 1,
-    [PREFIX .. "cluster-energy-io-mk2"] = 10,
-    [PREFIX .. "cluster-energy-io-mk3"] = 100,
-    [PREFIX .. "virtualization-mainframe-mk1"] = 10,
-    [PREFIX .. "virtualization-mainframe-mk2"] = 100,
-    [PREFIX .. "virtualization-mainframe-mk3"] = 1000,
-    [PREFIX .. "inter-cluster-bridge-mk1"] = 5,
-    [PREFIX .. "inter-cluster-bridge-mk2"] = 50,
-    [PREFIX .. "inter-cluster-bridge-mk3"] = 500,
-    [PREFIX .. "cluster-overflow-controller-mk1"] = 1,
-    [PREFIX .. "cluster-overflow-controller-mk2"] = 10,
-    [PREFIX .. "cluster-overflow-controller-mk3"] = 100,
-    [PREFIX .. "cluster-storage-unit-mk1"] = 1,
-    [PREFIX .. "cluster-storage-unit-mk2"] = 10,
-    [PREFIX .. "cluster-storage-unit-mk3"] = 100,
-}
-
----Maps entity names to amount of crafting power they provide
-local entity_crafting_power = {
-    [PREFIX .. "virtualization-mainframe-mk1"] = 1,
-    [PREFIX .. "virtualization-mainframe-mk2"] = 10,
-    [PREFIX .. "virtualization-mainframe-mk3"] = 100,
-}
-
--- multiplayer of energy tax on distance from cluster center
-local energy_tax_rate = 1e-3
-
 -------------------------------------------------------------------------------
--- CLUSTER CREATION
+-- CLUSTER CREATION/DELETION
 -------------------------------------------------------------------------------
 
----Retrieves vcluster data from storage.
----@param cluster_id ClusterIdString unique cluster identifier
----@return ClusterData|nil cluster
-local function get_cluster(cluster_id)
-    local reg = storage.vclusters
-    local index = reg.lookup[cluster_id]
-    if not index then return end
-    return reg.array[index]
-end
-
----Adds new vcluster to storage
+---Adds new cluster to storage
 ---@param cluster ClusterData cluster data
 ---@param cluster_id ClusterIdString unique cluster identifier
 local function add_cluster(cluster, cluster_id)
-    local array = storage.vclusters.array
-    local lookup = storage.vclusters.lookup
-    table.insert(array, cluster)
-    lookup[cluster_id] = #array
+    local clusters = storage.clusters
+    local array = clusters.array
+    local lookup = clusters.lookup
+    local index = #array + 1
+    array[index] = cluster
+    cluster.index = index
+    lookup[cluster_id] = cluster
 end
 
----Deletes cluster from storage
+---Deletes the cluster from storage given its cluster id.
 ---@param cluster_id ClusterIdString unique cluster identifier
 local function delete_cluster(cluster_id)
-    local array = storage.vclusters.array
-    local lookup = storage.vclusters.lookup
-    local index = lookup[cluster_id]
+    local clusters = storage.clusters
+    local array = clusters.array
+    local lookup = clusters.lookup
 
     -- rewriting element we want to delete with the last one
+    local cluster = lookup[cluster_id]
+    local index = cluster.index
     local last_cluster = array[#array]
     array[index] = last_cluster
-    lookup[last_cluster.cluster_id] = index
+    last_cluster.index = index
 
-    -- removing last element from both tables 
-    table.remove(array)
+    -- cleaning up both tables
+    array[#array] = nil
     lookup[cluster_id] = nil
 end
 
@@ -186,14 +164,14 @@ local function create_buffer(io_flow)
     return buffer
 end
 
----Adds all required data from template to vcluster
+---Adds all required data from template to cluster
 ---@param cluster ClusterData new cluster data
 ---@param template TemplateData compiled template
 local function add_template_data(cluster, template)
     cluster.input = create_buffer(template.input)
     cluster.output = create_buffer(template.output)
 
-    -- electric_energy is a mandatory field in input
+    -- electric_energy is a mandatory entry in the input buffer
     if not cluster.input.electric_energy then
         cluster.input.electric_energy = {
             current = 0,
@@ -222,13 +200,15 @@ end
 ---@return ClusterData cluster existing or created cluster
 local function get_or_create_cluster(template, template_name, entity)
     -- retrieving vcluster from storage if it exists
-    local cluster_id = template_name .. "//" .. entity.surface_index
-    local cluster = get_cluster(cluster_id)
+    local surface_index = entity.surface_index
+    local cluster_id = template_name .. "//" .. surface_index
+    local cluster = storage.clusters.lookup[cluster_id]
     if cluster then return cluster end
 
-    -- if cluster does not exist we create a new one
+    -- if cluster does not exist we need to create a new one
     ---@type ClusterData
     local new_cluster = {
+        index = 0,
         cluster_id = cluster_id,
         template_name = template_name,
         surface_index = entity.surface_index,
@@ -242,7 +222,7 @@ local function get_or_create_cluster(template, template_name, entity)
         sum_y = 0,
         total_weight = 0,
         sum_squares = 0,
-        total_energy_tax = 0,
+        decentralization_loss = 0,
         base_energy_per_craft = 0,
         last_cycle_crafts = 0,
     }
@@ -259,9 +239,9 @@ end
 ---@param surface_index number unique surface identifier
 ---@return string[] template_names
 function ClusterProcessor.get_surface_clusters(surface_index)
-    local clusters = storage.vclusters.array
+    local array = storage.clusters.array
     local result = {}
-    for _, cluster in pairs(clusters) do
+    for _, cluster in ipairs(array) do
         if cluster.surface_index == surface_index then
             table.insert(result, cluster.template_name)
         end
@@ -282,10 +262,10 @@ end
 ---@param template_name string unique cluster identifier
 ---@return string[] surface_names 
 function ClusterProcessor.get_template_clusters(template_name)
-    local clusters = storage.vclusters.array
+    local array = storage.clusters.array
     local surfaces = game.surfaces
     local result = {}
-    for _, cluster in pairs(clusters) do
+    for _, cluster in ipairs(array) do
         if cluster.template_name == template_name then
             local surface = surfaces[cluster.surface_index]
             if surface then
@@ -296,20 +276,28 @@ function ClusterProcessor.get_template_clusters(template_name)
     return result
 end
 
----TODO: account for duplicates
 ---Gets names of all surfaces that have at least one cluster
 ---@return string[] surface_names
 function ClusterProcessor.get_all_surfaces()
-    local clusters = storage.vclusters.array
+    local array = storage.clusters.array
     local surfaces = game.surfaces
+
+    ---Creating hmap first to avoid duplicates
+    ---@type table<string, true>
     local result = {}
-    for _, cluster in pairs(clusters) do
+    for _, cluster in ipairs(array) do
         local surface = surfaces[cluster.surface_index]
         if surface then
-            table.insert(result, surface.name)
+            result[surface.name] = true
         end
     end
-    return result
+
+    -- converting hmap to flat array
+    local output = {}
+    for name, _ in pairs(result) do
+        table.insert(output, name)
+    end
+    return output
 end
 
 ---@param template_name string unique template identifier
@@ -319,13 +307,14 @@ function ClusterProcessor.get_cluster_by_names(template_name, surface_name)
     local surface = game.get_surface(surface_name)
     if not surface then return end
     local cluster_id = template_name .. "//" .. tostring(surface.index)
-    return get_cluster(cluster_id)
+    return storage.clusters.lookup[cluster_id]
 end
 
 -------------------------------------------------------------------------------
--- PUBLIC API FOR INTERACTION WITH BUFFER ENTRIES
+-- PUBLIC API FOR INTERACTION WITH CLUSTER BUFFER ENTRIES
 -------------------------------------------------------------------------------
 
+---Retrieves a buffer entry from a given cluster by key
 ---@param cluster ClusterData cluster from which buffer entry is returned
 ---@param buffer_key BufferKeyString buffer entry identifier
 ---@param io_mode "input"|"output" determines which buffer is accessed
@@ -387,32 +376,36 @@ end
 -- CLUSTER UPDATE OPERATIONS: ADD/REMOVE MEMBER, ADD STORAGE CAPACITY, ETC.
 -------------------------------------------------------------------------------
 
----Updates total energy tax for a given cluster.
+local decentralization_loss_base = 0.0001
+
+---Updates decentralization loss for a given cluster.
 ---Also updates input energy buffer per_craft field.
 ---@param cluster ClusterData
-local function update_total_energy_tax(cluster)
-    local weight = cluster.total_weight
+local function update_decentralization_loss(cluster)
+    local weight = cluster.total_weight -- total weight of the cluster (assumed to be positive)
+    local sum_x = cluster.sum_x -- weighted sum of x-coordinates for all members
+    local sum_y = cluster.sum_y -- weighted sum of y-coordinates for all members
+    local sum_squares = cluster.sum_squares -- weighted sum of (x^2 + y^2) of all members
 
-    -- calculating weighted average of coordinates (center of cluster)
-    local center_x = cluster.sum_x / weight
-    local center_y = cluster.sum_y / weight
-
-    -- calculating total tax
-    local correction = weight * (center_x * center_x + center_y * center_y)
-    cluster.total_energy_tax = energy_tax_rate * (cluster.sum_squares - correction)
+    -- sum of weight*(dist(member_pos, cluster_center))^2 for all members
+    local total_distance_squared = sum_squares - (sum_x^2 + sum_y^2) / weight
+    total_distance_squared = math.max(0, total_distance_squared)
+    -- calculated value for decentralization loss
+    local loss = decentralization_loss_base * total_distance_squared / weight
+    cluster.decentralization_loss = loss
 
     -- correcting cluster energy consumption
     local base_cost = cluster.base_energy_per_craft
-    local energy_tax = cluster.total_energy_tax
-    cluster.input.electric_energy.per_craft = base_cost + energy_tax
+    cluster.input.electric_energy.per_craft = base_cost * (1 + loss)
 end
 
 ---Adds an entity to a cluster. Cluster_id is decided automatically
 ---based on template name and surface entity is located on.
 ---@param entity LuaEntity assumed to be valid
 ---@param template_name string unique template identifier
+---@param weight number weight of this entity in the cluster, must be positive 
 ---@return ClusterData|nil cluster cluster that this entity was assigned to
-function ClusterProcessor.add_to_cluster(entity, template_name)
+function ClusterProcessor.add_to_cluster(entity, template_name, weight)
     -- getting template and checking that it exists
     local template = TemplateCompiler.get_template(template_name)
     if not template then return end
@@ -420,7 +413,7 @@ function ClusterProcessor.add_to_cluster(entity, template_name)
     -- getting appropriate cluster for entity
     local cluster = get_or_create_cluster(template, template_name, entity)
 
-    -- avoiding duplicates: if entity is already in this cluster, return it
+    -- avoiding duplicates: if entity is already in this cluster, return cluster
     ---@type number assuming entity has a unit number
     local unit_number = entity.unit_number
     if cluster.members[unit_number] then return cluster end
@@ -429,7 +422,6 @@ function ClusterProcessor.add_to_cluster(entity, template_name)
     local position = entity.position
     local x, y = position.x, position.y
     local name = entity.name
-    local weight = entity_weights[name]
     cluster.sum_x = cluster.sum_x + x * weight
     cluster.sum_y = cluster.sum_y + y * weight
     cluster.sum_squares = cluster.sum_squares + weight * (x * x + y * y)
@@ -447,7 +439,7 @@ function ClusterProcessor.add_to_cluster(entity, template_name)
         weight = weight,
         key = key,
     }
-    update_total_energy_tax(cluster)
+    update_decentralization_loss(cluster)
     return cluster
 end
 
@@ -488,25 +480,18 @@ function ClusterProcessor.remove_storage_capacity(cluster, unit_number)
     member_data.buffer = nil
 end
 
----Enabled crafting power of a given entity in the cluster.
----In order for this function to work, entity should already be in provided cluster.
----@param entity LuaEntity
----@param cluster ClusterData|nil
-function ClusterProcessor.enable_crafting_power(entity, cluster)
-    if not cluster or not entity.valid then return end
-
-    -- checking that entity has crafting power and is a member of this cluster
-    ---@type ClusterMemberData
-    local member_data = cluster.members[entity.unit_number]
-    local crafting_power = entity_crafting_power[entity.name]
-    if not member_data or not crafting_power then return end
-
+---Adds crafting power associated with given unit number. For this function to work
+---entity with given unit number must be present in the cluster.
+---@param cluster ClusterData cluster for which crafting power is added
+---@param unit_number number unique entity identifier
+---@param amount number how much crafting power is added
+function ClusterProcessor.add_crafting_power(cluster, unit_number, amount)
+    local member_data = cluster.members[unit_number]
+    if not member_data then return end
     -- member is already providing crafting power
     if member_data.crafting_power then return end
-
-    -- adding crafting power to member data and cluster data
-    member_data.crafting_power = crafting_power
-    cluster.crafting_power = cluster.crafting_power + crafting_power
+    member_data.crafting_power = amount
+    cluster.crafting_power = cluster.crafting_power + amount
 end
 
 ---Removes an entity from cluster given its unit_number.
@@ -546,8 +531,8 @@ function ClusterProcessor.remove_from_cluster(cluster, unit_number)
     cluster.crafting_power = cluster.crafting_power - crafting_power
 
     cluster.members[unit_number] = nil
-    -- correcting decentralization energy tax
-    update_total_energy_tax(cluster)
+    -- correcting decentralization loss
+    update_decentralization_loss(cluster)
 end
 
 -------------------------------------------------------------------------------
@@ -580,7 +565,7 @@ local function get_output_crafts(cluster)
     return max_crafts
 end
 
----Saves item and fluid production statistics to cluster.
+---Saves item and fluid production statistics to cluster
 ---@param cluster ClusterData
 ---@return boolean status true if everything is ok
 local function cache_production_statistics(cluster)
@@ -677,7 +662,7 @@ end
 ---On-tick cluster processor
 ---@param event EventData.on_tick
 function ClusterProcessor.process_clusters(event)
-    local array = storage.vclusters.array
+    local array = storage.clusters.array
     local offset = (event.tick % 60) + 1
     for i = offset, #array, 60 do
         local cluster = array[i]

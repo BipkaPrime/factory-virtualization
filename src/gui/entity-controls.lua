@@ -1,11 +1,17 @@
+--[[
+
+
+--]]
+
+
 local EntityProcessor = require("src.world.entity-processor")
 local TemplateCompiler = require("src.simulation.template-compiler")
 local ClusterProcessor = require("src.simulation.cluster-processor")
 local CommonGui = require("src.gui.common")
 
 
-local EntityControls = {}
 local PREFIX = "FV-"
+local EntityControls = {}
 
 
 ---Standart check performed before handling any user inputs. Checks that 
@@ -29,23 +35,23 @@ end
 
 ---Configures choose input/output radiobuttons
 ---@param gui_data EntityGuiData
-local function configure_choose_io_buttons(gui_data)
+local function configure_io_mode_selection_widget(gui_data)
     local input_button = gui_data.elements.input_radiobutton
     local output_button = gui_data.elements.output_radiobutton
     ---@cast input_button LuaGuiElement
     ---@cast output_button LuaGuiElement
     if not input_button.valid or not output_button.valid then return end
-    local is_output = EntityProcessor.get_output_flag(gui_data.entity)
-    input_button.state = not is_output
-    output_button.state = not not is_output
+    local io_mode = EntityProcessor.get_io_mode(gui_data.entity)
+    input_button.state = (io_mode == "input")
+    output_button.state = (io_mode == "output")
 end
 
 ---Adds 2 radiobuttons to choose IO mode of operation.
 ---@param parent LuaGuiElement buttons will be added here
 ---@param gui_data EntityGuiData
-function EntityControls.create_choose_io_buttons(parent, gui_data)
+function EntityControls.create_io_mode_selection_widget(parent, gui_data)
     local main_flow = parent.add{type = "flow", direction = "vertical"}
-    main_flow.add{type = "label", caption = {"gui-label.operation-mode"}}
+    main_flow.add{type = "label", caption = {"gui-label.select-io-mode"}}
 
     -- input radiobutton
     local row1 = main_flow.add{type = "flow", direction = "horizontal"}
@@ -69,29 +75,29 @@ function EntityControls.create_choose_io_buttons(parent, gui_data)
     row2.add{type = "label", caption = {"gui-label.output"}}
     gui_data.elements.output_radiobutton = button2
 
-    configure_choose_io_buttons(gui_data)
+    configure_io_mode_selection_widget(gui_data)
 end
 
 ---Handles input/output radiobutton being pressed
----@param is_output boolean true if output button is pressed
-local function process_io_radiobutton_pressed(player_index, is_output)
+---@param io_mode "input"|"output" chosen io mode
+local function process_io_radiobutton_pressed(player_index, io_mode)
     local gui_data = storage.entity_gui[player_index]
     local status = EntityControls.assert_entity_validity(player_index, gui_data)
     if not status then return end
-    EntityProcessor.set_output_flag(gui_data.entity, is_output)
-    configure_choose_io_buttons(gui_data)
+    EntityProcessor.set_io_mode(gui_data.entity, io_mode)
+    configure_io_mode_selection_widget(gui_data)
 end
 
 ---Handles input radiobutton being pressed
 ---@param event EventData.on_gui_checked_state_changed
 function EntityControls.process_input_chosen(event)
-    process_io_radiobutton_pressed(event.player_index, false)
+    process_io_radiobutton_pressed(event.player_index, "input")
 end
 
 ---Handles output radiobutton being pressed
 ---@param event EventData.on_gui_checked_state_changed
 function EntityControls.process_output_chosen(event)
-    process_io_radiobutton_pressed(event.player_index, true)
+    process_io_radiobutton_pressed(event.player_index, "output")
 end
 
 -------------------------------------------------------------------------------
@@ -159,7 +165,11 @@ end
 ---Handles first template search query being changed
 ---@param event EventData.on_gui_text_changed
 function EntityControls.process_first_template_searchfield(event)
-    local gui_data = storage.entity_gui[event.player_index]
+    local player_index = event.player_index
+    local gui_data = storage.entity_gui[player_index]
+    local status = EntityControls.assert_entity_validity(player_index, gui_data)
+    if not status then return end
+
     gui_data.template_search_query = event.element.text
     configure_first_template_selector(gui_data)
 end
@@ -237,8 +247,11 @@ end
 ---Handles second template search query being changed
 ---@param event EventData.on_gui_text_changed
 function EntityControls.process_second_template_searchfield(event)
-    ---@type EntityGuiData
-    local gui_data = storage.entity_gui[event.player_index]
+    local player_index = event.player_index
+    local gui_data = storage.entity_gui[player_index]
+    local status = EntityControls.assert_entity_validity(player_index, gui_data)
+    if not status then return end
+
     gui_data.second_template_query = event.element.text
     configure_second_template_selector(gui_data)
 end
@@ -298,7 +311,7 @@ local function configure_choose_item_button(gui_data)
     -- checking if button should be enabled
     local entity_name = gui_data.entity_name
     if mode_sensitive_entities[entity_name] then
-        local mode = EntityProcessor.get_mode(entity)
+        local mode = EntityProcessor.get_operation_mode(entity)
         button.enabled = (mode == "item")
     end
 end
@@ -354,7 +367,7 @@ local function configure_choose_fluid_button(gui_data)
     -- checking if button should be enabled
     local entity_name = gui_data.entity_name
     if mode_sensitive_entities[entity_name] then
-        local mode = EntityProcessor.get_mode(entity)
+        local mode = EntityProcessor.get_operation_mode(entity)
         button.enabled = (mode == "fluid")
     end
 end
@@ -395,7 +408,7 @@ end
 
 ---Configures 3 radio buttons used for mode selection of an entity
 ---@param gui_data EntityGuiData
-local function configure_mode_selection_widget(gui_data)
+local function configure_operation_mode_selection_widget(gui_data)
     ---@type LuaGuiElement
     local item_button = gui_data.elements.item_mode_radiobutton
     ---@type LuaGuiElement
@@ -404,7 +417,7 @@ local function configure_mode_selection_widget(gui_data)
     local energy_button = gui_data.elements.energy_mode_radiobutton
     if not item_button.valid or not fluid_button.valid or not energy_button.valid then return end
 
-    local mode = EntityProcessor.get_mode(gui_data.entity)
+    local mode = EntityProcessor.get_operation_mode(gui_data.entity)
     item_button.state = (mode == "item")
     fluid_button.state = (mode == "fluid")
     energy_button.state = (mode == "energy")
@@ -413,9 +426,9 @@ end
 ---Adds 3 radio buttons used for mode selection of an entity
 ---@param parent LuaGuiElement widget will be added here
 ---@param gui_data EntityGuiData
-function EntityControls.create_mode_selection_widget(parent, gui_data)
+function EntityControls.create_operation_mode_selection_widget(parent, gui_data)
     local main_flow = parent.add{type = "flow", direction = "vertical"}
-    main_flow.add{type = "label", caption = {"gui-label.operation-mode"}}
+    main_flow.add{type = "label", caption = {"gui-label.select-operation-mode"}}
 
     -- item mode radiobutton
     local row1 = main_flow.add{type = "flow", direction = "horizontal"}
@@ -450,7 +463,7 @@ function EntityControls.create_mode_selection_widget(parent, gui_data)
     row3.add{type = "label", caption = {"gui-label.energy"}}
     gui_data.elements.energy_mode_radiobutton = button3
 
-    configure_mode_selection_widget(gui_data)
+    configure_operation_mode_selection_widget(gui_data)
 end
 
 ---Handles any of operation mode radiobuttons being pressed
@@ -461,8 +474,8 @@ local function process_operation_mode_radiobutton(player_index, mode)
     local status = EntityControls.assert_entity_validity(player_index, gui_data)
     if not status then return end
 
-    EntityProcessor.set_mode(gui_data.entity, mode)
-    configure_mode_selection_widget(gui_data)
+    EntityProcessor.set_operation_mode(gui_data.entity, mode)
+    configure_operation_mode_selection_widget(gui_data)
     configure_choose_fluid_button(gui_data)
     configure_choose_item_button(gui_data)
 end
