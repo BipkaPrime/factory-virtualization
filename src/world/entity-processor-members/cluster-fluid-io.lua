@@ -24,7 +24,6 @@ Properties that are assigned on initialization:
 
 Properties that can be assigned during on-tick processing:
 1. Ls flow. Can be used to track entity work.
-2. selected_fluid.amount. Used to make calls to factorio API
 --]]
 
 local ClusterProcessor = require("src.simulation.cluster-processor")
@@ -84,8 +83,7 @@ function ClusterFluidIO.attempt_entity_initialization(properties)
     if not cluster then return false end
     properties.first_cluster = cluster
     -- attempting to assign buffer entry to entity
-    local buffer_key = selected_fluid.name
-    local buffer_entry = ClusterProcessor.get_buffer_entry(cluster, buffer_key, io_mode)
+    local buffer_entry = ClusterProcessor.get_buffer_entry(cluster, selected_fluid, io_mode)
     if not buffer_entry then return false end
     properties.first_buffer_entry = buffer_entry
     -- assigning io mode flag to entity
@@ -101,7 +99,6 @@ end
 ---@param properties EntityProperties table from entity processor
 function ClusterFluidIO.on_processing_stopped(properties)
     properties.ls_flow = nil
-    properties.selected_fluid.amount = nil
     properties.flow_limit = nil
     properties.is_output = nil
     properties.first_buffer_entry = nil
@@ -117,23 +114,23 @@ end
 ---@param properties EntityProperties
 function ClusterFluidIO.process_entity(properties)
     properties.ls_flow = 0
+    ---@type number assuming flow limit was cached on initializatiojn
+    local flow_limit = properties.flow_limit
     if properties.is_output then
         -- current available amount in the cluster buffer entry
         local current_amount = ClusterProcessor.get_current_amount(
             properties.first_buffer_entry
         )
         local to_transfer = math.min(
-            properties.flow_limit,
+            flow_limit,
             current_amount
         )
         if to_transfer >= 1 then
-            ---@type FluidSelection assuming selected fluid is present
-            local selected_fluid = properties.selected_fluid
-            selected_fluid.amount = to_transfer
-
             -- moving fluid from cluster to physical inventory
-            ---@diagnostic disable-next-line: param-type-mismatch
-            local inserted_amount = properties.entity.insert_fluid(selected_fluid)
+            local inserted_amount = properties.entity.insert_fluid{
+                name = properties.selected_fluid,
+                amount = to_transfer
+            }
             ClusterProcessor.remove_from_buffer_entry(
                 properties.first_buffer_entry,
                 inserted_amount
@@ -145,17 +142,15 @@ function ClusterFluidIO.process_entity(properties)
             properties.first_buffer_entry
         )
         local to_transfer = math.min(
-            properties.flow_limit,
+            flow_limit,
             available_space
         )
         if to_transfer >= 1 then
-            ---@type FluidSelection assuming selected fluid is present
-            local selected_fluid = properties.selected_fluid
-            selected_fluid.amount = to_transfer
-
             -- moving fluid from physical inventory to cluster
-            ---@diagnostic disable-next-line: param-type-mismatch
-            local removed_amount = properties.entity.extract_fluid(selected_fluid)
+            local removed_amount = properties.entity.extract_fluid{
+                name = properties.selected_fluid,
+                amount = to_transfer
+            }
             ClusterProcessor.add_to_buffer_entry(
                 properties.first_buffer_entry,
                 removed_amount

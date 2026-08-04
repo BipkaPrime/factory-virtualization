@@ -14,7 +14,7 @@ II. Entity is located on a vsurface.
 -------------------------------------------------------------------------------
 Properties that are assigned on initialization:
 1. Is output. Used to determine entity operation
-2. selected_fluid.amount. Used to make calls to factorio API
+2. Flow limit. Used to make calls to factorio API.
 
 Properties that can be assigned during on-tick processing:
 1. Ls flow. Can be used to track entity work.
@@ -59,7 +59,7 @@ function TemplateFluidIO.attempt_entity_initialization(properties)
     -- assigning io mode flag to entity
     properties.is_output = (io_mode == "output")
     -- caching flow limit of the entity to selected fluid table
-    properties.selected_fluid.amount = flow_limits[properties.entity_name]
+    properties.flow_limit = flow_limits[properties.entity_name]
     return true
 end
 
@@ -69,27 +69,32 @@ end
 ---@param properties EntityProperties table from entity processor
 function TemplateFluidIO.on_processing_stopped(properties)
     properties.ls_flow = nil
-    properties.selected_fluid.amount = nil
     properties.is_output = nil
+    properties.flow_limit = nil
 end
 
 ---Used for on-tick processing of template fluid IOs.
 ---@param properties EntityProperties
 function TemplateFluidIO.process_entity(properties)
     local delta = 0
+    ---@type string assuming fluid name is chosen
+    local fluid_name = properties.selected_fluid
+    ---@type number assuming flow limit was cached on initialization
+    local flow_limit = properties.flow_limit
+
+    -- removing or inserting fluid
+    local call_arg = {name = fluid_name, amount = flow_limit}
     if properties.is_output then
-        ---@diagnostic disable-next-line: param-type-mismatch
-        delta = properties.entity.extract_fluid(properties.selected_fluid)
+        delta = properties.entity.extract_fluid(call_arg)
     else
-        ---@diagnostic disable-next-line: param-type-mismatch
-        delta = properties.entity.insert_fluid(properties.selected_fluid)
+        delta = properties.entity.insert_fluid(call_arg)
     end
     properties.ls_flow = delta
 
     ---Storing delta in venv if surface is compiling
     VEnvProcessor.add_io_count(
         properties.entity.surface_index,
-        properties.selected_fluid.name,
+        fluid_name,
         delta,
         properties.is_output
     )

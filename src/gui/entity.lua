@@ -125,7 +125,7 @@ local function create_cluster_energy_io_gui(player, entity)
     EntityControls.create_first_template_selection_widget(
         left_frame,
         gui_data,
-        {"gui-label.select-template"}
+        {"gui-label.select-cluster"}
     )
     EntityControls.create_io_mode_selection_widget(left_frame, gui_data)
 end
@@ -139,7 +139,7 @@ local function create_cluster_fluid_io_gui(player, entity)
     EntityControls.create_first_template_selection_widget(
         left_frame,
         gui_data,
-        {"gui-label.select-template"}
+        {"gui-label.select-cluster"}
     )
     EntityControls.create_io_mode_selection_widget(left_frame, gui_data)
     EntityControls.create_choose_fluid_button(left_frame, gui_data)
@@ -154,7 +154,7 @@ local function create_cluster_item_io_gui(player, entity)
     EntityControls.create_first_template_selection_widget(
         left_frame,
         gui_data,
-        {"gui-label.select-template"}
+        {"gui-label.select-cluster"}
     )
     EntityControls.create_io_mode_selection_widget(left_frame, gui_data)
     EntityControls.create_choose_item_button(left_frame, gui_data)
@@ -172,10 +172,10 @@ local function create_cluster_overflow_controller_gui(player, entity)
         {"gui-label.select-cluster"},
         100
     )
-    EntityControls.create_overflow_threshold_widget(left_frame, gui_data)
     EntityControls.create_operation_mode_selection_widget(left_frame, gui_data)
     EntityControls.create_choose_item_button(left_frame, gui_data)
     EntityControls.create_choose_fluid_button(left_frame, gui_data)
+    EntityControls.create_overflow_threshold_widget(left_frame, gui_data)
     EntityControls.create_capability_override_widget(
         left_frame,
         gui_data,
@@ -275,7 +275,7 @@ local function create_virtualization_mainframe_gui(player, entity)
     EntityControls.create_first_template_selection_widget(
         left_frame,
         gui_data,
-        {"gui-label.select-template"}
+        {"gui-label.select-cluster"}
     )
 end
 
@@ -351,17 +351,6 @@ end
 -- TIME-BESED ENTITY GUI UPDATES
 -------------------------------------------------------------------------------
 
----Used for time-based updates of template IO GUIs
----@param gui_data EntityGuiData
-local function update_template_io_gui(gui_data)
-    local entity = gui_data.entity
-    local datafield = gui_data.elements.datafield
-    datafield.clear()
-
-    EntityInfo.create_entity_status_display(datafield, entity)
-    EntityInfo.create_last_second_flow_display(datafield, entity)
-end
-
 ---Used for time-based updates of cluster IO GUIs
 ---@param gui_data EntityGuiData
 local function update_cluster_io_gui(gui_data)
@@ -372,6 +361,52 @@ local function update_cluster_io_gui(gui_data)
     EntityInfo.create_entity_status_display(datafield, entity)
     EntityInfo.create_last_second_flow_display(datafield, entity)
     EntityInfo.create_cluster_information_display(datafield, entity)
+end
+
+---Used for time-based updates of cluster overflow controller GUIs
+---@param gui_data EntityGuiData
+local function update_cluster_overflow_controller_gui(gui_data)
+    local entity = gui_data.entity
+    local datafield = gui_data.elements.datafield
+    datafield.clear()
+
+    EntityInfo.create_entity_status_display(datafield, entity)
+    EntityInfo.create_last_second_flow_display(datafield, entity)
+    EntityInfo.create_cluster_information_display(datafield, entity)
+end
+
+---Used for time-based updates of cluster storage unit GUIs
+---@param gui_data EntityGuiData
+local function update_cluster_storage_unit_gui(gui_data)
+    local entity = gui_data.entity
+    local datafield = gui_data.elements.datafield
+    datafield.clear()
+
+    EntityInfo.create_entity_status_display(datafield, entity)
+    EntityInfo.create_cluster_information_display(datafield, entity)
+end
+
+---Used for time-based updates of inter-cluster bridge GUIs
+---@param gui_data EntityGuiData
+local function update_inter_cluster_bridge_gui(gui_data)
+    local entity = gui_data.entity
+    local datafield = gui_data.elements.datafield
+    datafield.clear()
+
+    EntityInfo.create_entity_status_display(datafield, entity)
+    EntityInfo.create_last_second_flow_display(datafield, entity)
+    EntityInfo.create_icb_cluster_info_display(datafield, entity)
+end
+
+---Used for time-based updates of template IO GUIs
+---@param gui_data EntityGuiData
+local function update_template_io_gui(gui_data)
+    local entity = gui_data.entity
+    local datafield = gui_data.elements.datafield
+    datafield.clear()
+
+    EntityInfo.create_entity_status_display(datafield, entity)
+    EntityInfo.create_last_second_flow_display(datafield, entity)
 end
 
 ---Used for time-based updates of mainframe GUIs
@@ -387,62 +422,38 @@ local function update_virtualization_mainframe_gui(gui_data)
     EntityInfo.create_cluster_information_display(datafield, entity)
 end
 
----Used for time-based updates of inter-cluster bridge GUIs
----@param gui_data EntityGuiData
-local function update_inter_cluster_bridge_gui(gui_data)
-    local entity = gui_data.entity
-    local datafield = gui_data.elements.datafield
-    datafield.clear()
-
-    EntityInfo.create_entity_status_display(datafield, entity)
-    EntityInfo.create_last_second_flow_display(datafield, entity)
-    EntityInfo.create_inter_cluster_bridge_display(datafield, entity)
-end
-
----Used for time-based updates of cluster overflow controller GUIs
----@param gui_data EntityGuiData
-local function update_cluster_overflow_controller_gui(gui_data)
-
-end
-
----Used for time-based updates of cluster storage unit GUIs
----@param gui_data EntityGuiData
-local function update_cluster_storage_unit_gui(gui_data)
-
-end
-
 ---Maps entity names to functions used to update their GUIs
 local gui_update_router = {
-    [PREFIX .. "template-item-io-mk1"] = update_template_io_gui,
-    [PREFIX .. "template-item-io-mk2"] = update_template_io_gui,
-    [PREFIX .. "template-item-io-mk3"] = update_template_io_gui,
-    [PREFIX .. "template-fluid-io-mk1"] = update_template_io_gui,
-    [PREFIX .. "template-fluid-io-mk2"] = update_template_io_gui,
-    [PREFIX .. "template-fluid-io-mk3"] = update_template_io_gui,
-    [PREFIX .. "template-energy-io-mk1"] = update_template_io_gui,
-    [PREFIX .. "template-energy-io-mk2"] = update_template_io_gui,
-    [PREFIX .. "template-energy-io-mk3"] = update_template_io_gui,
-    [PREFIX .. "cluster-item-io-mk1"] = update_cluster_io_gui,
-    [PREFIX .. "cluster-item-io-mk2"] = update_cluster_io_gui,
-    [PREFIX .. "cluster-item-io-mk3"] = update_cluster_io_gui,
-    [PREFIX .. "cluster-fluid-io-mk1"] = update_cluster_io_gui,
-    [PREFIX .. "cluster-fluid-io-mk2"] = update_cluster_io_gui,
-    [PREFIX .. "cluster-fluid-io-mk3"] = update_cluster_io_gui,
     [PREFIX .. "cluster-energy-io-mk1"] = update_cluster_io_gui,
     [PREFIX .. "cluster-energy-io-mk2"] = update_cluster_io_gui,
     [PREFIX .. "cluster-energy-io-mk3"] = update_cluster_io_gui,
-    [PREFIX .. "virtualization-mainframe-mk1"] = update_virtualization_mainframe_gui,
-    [PREFIX .. "virtualization-mainframe-mk2"] = update_virtualization_mainframe_gui,
-    [PREFIX .. "virtualization-mainframe-mk3"] = update_virtualization_mainframe_gui,
-    [PREFIX .. "inter-cluster-bridge-mk1"] = update_inter_cluster_bridge_gui,
-    [PREFIX .. "inter-cluster-bridge-mk2"] = update_inter_cluster_bridge_gui,
-    [PREFIX .. "inter-cluster-bridge-mk3"] = update_inter_cluster_bridge_gui,
+    [PREFIX .. "cluster-fluid-io-mk1"] = update_cluster_io_gui,
+    [PREFIX .. "cluster-fluid-io-mk2"] = update_cluster_io_gui,
+    [PREFIX .. "cluster-fluid-io-mk3"] = update_cluster_io_gui,
+    [PREFIX .. "cluster-item-io-mk1"] = update_cluster_io_gui,
+    [PREFIX .. "cluster-item-io-mk2"] = update_cluster_io_gui,
+    [PREFIX .. "cluster-item-io-mk3"] = update_cluster_io_gui,
     [PREFIX .. "cluster-overflow-controller-mk1"] = update_cluster_overflow_controller_gui,
     [PREFIX .. "cluster-overflow-controller-mk2"] = update_cluster_overflow_controller_gui,
     [PREFIX .. "cluster-overflow-controller-mk3"] = update_cluster_overflow_controller_gui,
     [PREFIX .. "cluster-storage-unit-mk1"] = update_cluster_storage_unit_gui,
     [PREFIX .. "cluster-storage-unit-mk2"] = update_cluster_storage_unit_gui,
     [PREFIX .. "cluster-storage-unit-mk3"] = update_cluster_storage_unit_gui,
+    [PREFIX .. "inter-cluster-bridge-mk1"] = update_inter_cluster_bridge_gui,
+    [PREFIX .. "inter-cluster-bridge-mk2"] = update_inter_cluster_bridge_gui,
+    [PREFIX .. "inter-cluster-bridge-mk3"] = update_inter_cluster_bridge_gui,
+    [PREFIX .. "template-energy-io-mk1"] = update_template_io_gui,
+    [PREFIX .. "template-energy-io-mk2"] = update_template_io_gui,
+    [PREFIX .. "template-energy-io-mk3"] = update_template_io_gui,
+    [PREFIX .. "template-fluid-io-mk1"] = update_template_io_gui,
+    [PREFIX .. "template-fluid-io-mk2"] = update_template_io_gui,
+    [PREFIX .. "template-fluid-io-mk3"] = update_template_io_gui,
+    [PREFIX .. "template-item-io-mk1"] = update_template_io_gui,
+    [PREFIX .. "template-item-io-mk2"] = update_template_io_gui,
+    [PREFIX .. "template-item-io-mk3"] = update_template_io_gui,
+    [PREFIX .. "virtualization-mainframe-mk1"] = update_virtualization_mainframe_gui,
+    [PREFIX .. "virtualization-mainframe-mk2"] = update_virtualization_mainframe_gui,
+    [PREFIX .. "virtualization-mainframe-mk3"] = update_virtualization_mainframe_gui,
 }
 
 ---Time-based updater for entity GUI window

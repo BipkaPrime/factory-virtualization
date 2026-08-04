@@ -31,12 +31,12 @@ end
 -- used to convert large numbers to human-readable format
 local number_prefixes = {
     {suffix = "", value = 1},
-    {suffix = "k", value = 1e3},
-    {suffix = "M", value = 1e6},
-    {suffix = "G", value = 1e9},
-    {suffix = "T", value = 1e12},
-    {suffix = "P", value = 1e15},
-    {suffix = "E", value = 1e18},
+    {suffix = " k", value = 1e3},
+    {suffix = " M", value = 1e6},
+    {suffix = " G", value = 1e9},
+    {suffix = " T", value = 1e12},
+    {suffix = " P", value = 1e15},
+    {suffix = " E", value = 1e18},
 }
 ---Converts large number to human-readable format
 ---@param value number number to format
@@ -66,7 +66,7 @@ function CommonGui.format_number(value)
         value_str = string.format("%d", math.floor(scaled_value + 0.5))
     end
 
-    return value_str .. " " .. selected.suffix
+    return value_str .. selected.suffix
 end
 
 ---Filters an array of strings based on a search query

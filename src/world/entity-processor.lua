@@ -42,12 +42,6 @@ Third group is internal: these can only be assigned on initialization or during 
 ---@class ItemSelection
 ---@field name string prototype name of selected item
 ---@field quality string prototype name of selected quality
----@field count number|nil technical field (to use table as an arg in inventory.insert)
-
----Table describing selected fluid
----@class FluidSelection
----@field name string name of selected fluid
----@field amount number|nil technical field (to use table as an arg in entity.insert_fluid)
 
 ---Table describing entity properties in registry
 ---@class EntityProperties mandatory technical fields (assigned on registration)
@@ -60,7 +54,7 @@ Third group is internal: these can only be assigned on initialization or during 
 ---@class EntityProperties entity configuration fields (user-inputs)
 ---@field io_mode "input"|"output"|nil selected io mode
 ---@field selected_item ItemSelection|nil table describing selected item
----@field selected_fluid FluidSelection|nil user-input. Table describing selected fluid
+---@field selected_fluid string|nil user-input. Name of selected fluid
 ---@field first_template string|nil user-input. Name of first selected template
 ---@field second_template string|nil user-input. Name of second selected template
 ---@field operation_mode "item"|"fluid"|"energy"|nil user-input. Selected mode of operation
@@ -357,8 +351,7 @@ end
 ---@param entity LuaEntity
 ---@param fluid_name string|nil name of selected fluid
 function EntityProcessor.set_selected_fluid(entity, fluid_name)
-    local fluid_data = fluid_name and {name = fluid_name} or nil
-    set_entity_property(entity, "selected_fluid", fluid_data)
+    set_entity_property(entity, "selected_fluid", fluid_name)
 end
 
 ---Sets first template for given entity or entity-ghost
@@ -447,8 +440,8 @@ end
 ---@param entity LuaEntity entity for which data should be retrieved
 ---@return string|nil fluid_name
 function EntityProcessor.get_selected_fluid(entity)
-    local fluid = get_entity_property(entity, "selected_fluid")
-    return fluid and fluid.name
+    local fluid_name = get_entity_property(entity, "selected_fluid")
+    return fluid_name
 end
 
 ---Gets first template for given entity or ghost-entity

@@ -23,7 +23,7 @@ script.on_init(function()
     -- world/vsurface-manager
     storage.vsurfaces = {}
     -- simulation/cluster-processor
-    storage.vclusters = {array = {}, lookup = {}}
+    storage.clusters = {array = {}, lookup = {}}
     -- simulation/template-compiler
     storage.templates = {}
     -- simulation/venv-processor

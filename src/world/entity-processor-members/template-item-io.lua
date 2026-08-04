@@ -16,7 +16,7 @@ Properties that are assigned on initialization:
 1. Is output. Used to determine entity operation
 2. Buffer key. Used to make calls to venv processor
 3. Inventory. Used to make calls to factorio API
-4. selected_item.count. Used to make calls to factorio API
+4. Flow limit. Used to display it in gui.
 
 Properties that can be assigned during on-tick processing:
 1. Ls flow. Can be used to track entity work.
@@ -63,7 +63,7 @@ function TemplateItemIO.attempt_entity_initialization(properties)
     -- assigning buffer key to entity
     properties.buffer_key = selected_item.name .. "//" .. selected_item.quality
     -- caching flow limit of the entity to selected item table
-    properties.selected_item.count = flow_limits[properties.entity_name]
+    properties.flow_limit = flow_limits[properties.entity_name]
     -- caching LuaInventory of the entity
     properties.inventory = entity.get_inventory(defines.inventory.chest)
     return true
@@ -75,25 +75,31 @@ end
 ---@param properties EntityProperties table from entity processor
 function TemplateItemIO.on_processing_stopped(properties)
     properties.ls_flow = nil
-    properties.selected_item.count = nil
     properties.inventory = nil
     properties.buffer_key = nil
     properties.is_output = nil
+    properties.flow_limit = nil
 end
-
 
 ---Used for on-tick processing of template item IOs.
 ---@param properties EntityProperties
 function TemplateItemIO.process_entity(properties)
     local delta = 0
+
+    ---@type ItemSelection assuming item is selected
+    local selected_item = properties.selected_item
+    local call_arg = {
+        name = selected_item.name,
+        quality = selected_item.quality,
+        count = properties.flow_limit
+    }
     if properties.is_output then
-        ---@diagnostic disable-next-line: param-type-mismatch
-        delta = properties.inventory.remove(properties.selected_item)
+        delta = properties.inventory.remove(call_arg)
     else
-        ---@diagnostic disable-next-line: param-type-mismatch
-        delta = properties.inventory.insert(properties.selected_item)
+        delta = properties.inventory.insert(call_arg)
     end
     properties.ls_flow = delta
+
     ---Storing delta in venv if surface is compiling
     VEnvProcessor.add_io_count(
         properties.entity.surface_index,

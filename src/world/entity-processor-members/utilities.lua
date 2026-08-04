@@ -14,9 +14,7 @@ function Utilities.generate_multimode_buffer_key(properties)
         return item.name .. "//" .. item.quality
     end
     if operation_mode == "fluid" then
-        ---@type FluidSelection assuming fluid is selected
-        local fluid = properties.selected_fluid
-        return fluid.name
+        return properties.selected_fluid
     end
     return "electric_energy"
 end

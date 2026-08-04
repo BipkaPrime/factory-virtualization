@@ -25,7 +25,6 @@ Properties that are assigned on initialization:
 
 Properties that can be assigned during on-tick processing:
 1. Ls flow. Can be used to track entity work.
-2. selected_item.count. Used to make calls to factorio API
 --]]
 
 local ClusterProcessor = require("src.simulation.cluster-processor")
@@ -104,7 +103,6 @@ end
 ---@param properties EntityProperties table from entity processor
 function ClusterItemIO.on_processing_stopped(properties)
     properties.ls_flow = nil
-    properties.selected_item.count = nil
     properties.inventory = nil
     properties.flow_limit = nil
     properties.is_output = nil
@@ -133,9 +131,11 @@ function ClusterItemIO.process_entity(properties)
         if to_transfer >= 1 then
             ---@type ItemSelection assuming selected item is present
             local selected_item = properties.selected_item
-            selected_item.count = to_transfer
-            ---@diagnostic disable-next-line: param-type-mismatch
-            local inserted_count = properties.inventory.insert(selected_item)
+            local inserted_count = properties.inventory.insert{
+                name = selected_item.name,
+                quality = selected_item.quality,
+                count = to_transfer
+            }
             ClusterProcessor.remove_from_buffer_entry(
                 properties.first_buffer_entry,
                 inserted_count
@@ -153,9 +153,11 @@ function ClusterItemIO.process_entity(properties)
         if to_transfer >= 1 then
             ---@type ItemSelection assuming selected item is present
             local selected_item = properties.selected_item
-            selected_item.count = to_transfer
-            ---@diagnostic disable-next-line: param-type-mismatch
-            local removed_count = properties.inventory.remove(selected_item)
+            local removed_count = properties.inventory.remove{
+                name = selected_item.name,
+                quality = selected_item.quality,
+                count = to_transfer
+            }
             ClusterProcessor.add_to_buffer_entry(
                 properties.first_buffer_entry,
                 removed_count
