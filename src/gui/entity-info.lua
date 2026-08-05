@@ -98,7 +98,7 @@ local function get_cluster_item_io_status(properties)
         return {"entity-status.io-mode-not-selected"}
     end
     -- item is not selected
-    if not properties.selected_item then
+    if not properties.selected_item_name then
         return {"entity-status.item-not-selected"}
     end
     -- entity is not connected to cluster
@@ -132,7 +132,7 @@ local function get_cluster_overflow_controller_status(properties)
         return {"entity-status.operation-mode-not-selected"}
     end
     -- item is not selected in "item" operation mode
-    if operation_mode == "item" and not properties.selected_item then
+    if operation_mode == "item" and not properties.selected_item_name then
         return {"entity-status.item-not-selected"}
     end
     -- fluid is not selected in "fluid" operation mode
@@ -182,7 +182,7 @@ local function get_cluster_storage_unit_status(properties)
         return {"entity-status.operation-mode-not-selected"}
     end
     -- item is not selected in "item" operation mode
-    if operation_mode == "item" and not properties.selected_item then
+    if operation_mode == "item" and not properties.selected_item_name then
         return {"entity-status.item-not-selected"}
     end
     -- fluid is not selected in "fluid" operation mode
@@ -224,7 +224,7 @@ local function get_inter_cluster_bridge_status(properties)
         return {"entity-status.operation-mode-not-selected"}
     end
     -- item is not selected in "item" operation mode
-    if operation_mode == "item" and not properties.selected_item then
+    if operation_mode == "item" and not properties.selected_item_name then
         return {"entity-status.item-not-selected"}
     end
     -- fluid is not selected in "fluid" operation mode
@@ -303,7 +303,7 @@ local function get_template_item_io_status(properties)
         return {"entity-status.io-mode-not-selected"}
     end
     -- item is not selected
-    if not properties.selected_item then
+    if not properties.selected_item_name then
         return {"entity-status.item-not-selected"}
     end
 end

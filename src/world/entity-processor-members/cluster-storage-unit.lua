@@ -50,7 +50,8 @@ StorageUnit.copyable = {
     "first_template",
     "io_mode",
     "operation_mode",
-    "selected_item",
+    "selected_item_name",
+    "selected_item_quality",
     "selected_fluid",
     "capability_override",
 }
@@ -96,8 +97,9 @@ function StorageUnit.attempt_entity_initialization(properties)
     local operation_mode = properties.operation_mode
     if not operation_mode then return false end
     -- 4. Item is selected in "item" mode
-    local selected_item = properties.selected_item
-    if operation_mode == "item" and not selected_item then return false end
+    local item_name = properties.selected_item_name
+    local item_quality = properties.selected_item_quality
+    if operation_mode == "item" and (not item_name or not item_quality) then return false end
     -- 5. Fluid is selected in "fluid" mode
     local selected_fluid = properties.selected_fluid
     if operation_mode == "fluid" and not selected_fluid then return false end

@@ -9,9 +9,9 @@ local Utilities = {}
 function Utilities.generate_multimode_buffer_key(properties)
     local operation_mode = properties.operation_mode
     if operation_mode == "item" then
-        ---@type ItemSelection assuming item is selected
-        local item = properties.selected_item
-        return item.name .. "//" .. item.quality
+        local name = properties.selected_item_name
+        local quality = properties.selected_item_quality
+        return name .. "//" .. quality
     end
     if operation_mode == "fluid" then
         return properties.selected_fluid

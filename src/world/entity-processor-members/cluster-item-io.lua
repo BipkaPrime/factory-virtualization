@@ -22,6 +22,7 @@ Properties that are assigned on initialization:
 3. Is output. Used to determine entity operation
 4. Flow limit. Used to make calls to factorio API
 5. Inventory. Used to make calls to factorio API
+6. IO request. Used to make calls to factorio API
 
 Properties that can be assigned during on-tick processing:
 1. Ls flow. Can be used to track entity work.
@@ -38,7 +39,8 @@ local ClusterItemIO = {}
 ClusterItemIO.copyable = {
     "first_template",
     "io_mode",
-    "selected_item"
+    "selected_item_name",
+    "selected_item_quality",
 }
 
 ---Maps entity names to their flow limits
@@ -67,8 +69,9 @@ function ClusterItemIO.attempt_entity_initialization(properties)
     local io_mode = properties.io_mode
     if not io_mode then return false end
     -- 3. Item is selected
-    local selected_item = properties.selected_item
-    if not selected_item then return false end
+    local item_name = properties.selected_item_name
+    local item_quality = properties.selected_item_quality
+    if not item_name or not item_quality then return false end
     -- 4. Entity is not located on a vsurface
     local entity = properties.entity
     if VSurfaceManager.get_vsurface_data(entity.surface_index) then return false end
@@ -84,16 +87,14 @@ function ClusterItemIO.attempt_entity_initialization(properties)
     if not cluster then return false end
     properties.first_cluster = cluster
     -- attempting to assign buffer entry to entity
-    local buffer_key = selected_item.name .. "//" .. selected_item.quality
+    local buffer_key = item_name .. "//" .. item_quality
     local buffer_entry = ClusterProcessor.get_buffer_entry(cluster, buffer_key, io_mode)
     if not buffer_entry then return false end
     properties.first_buffer_entry = buffer_entry
-    -- assigning io mode flag to entity
     properties.is_output = (io_mode == "output")
-    -- caching flow limit of the entity
     properties.flow_limit = flow_limits[entity_name]
-    -- caching LuaInventory of the entity
     properties.inventory = entity.get_inventory(defines.inventory.chest)
+    properties.io_request = {name = item_name, quality = item_quality, count = 0}
     return true
 end
 
@@ -103,6 +104,7 @@ end
 ---@param properties EntityProperties table from entity processor
 function ClusterItemIO.on_processing_stopped(properties)
     properties.ls_flow = nil
+    properties.io_request = nil
     properties.inventory = nil
     properties.flow_limit = nil
     properties.is_output = nil
@@ -129,13 +131,10 @@ function ClusterItemIO.process_entity(properties)
             current_amount
         )
         if to_transfer >= 1 then
-            ---@type ItemSelection assuming selected item is present
-            local selected_item = properties.selected_item
-            local inserted_count = properties.inventory.insert{
-                name = selected_item.name,
-                quality = selected_item.quality,
-                count = to_transfer
-            }
+            local io_request = properties.io_request
+            ---@cast io_request ItemStackDefinition
+            io_request.count = to_transfer
+            local inserted_count = properties.inventory.insert(io_request)
             ClusterProcessor.remove_from_buffer_entry(
                 properties.first_buffer_entry,
                 inserted_count
@@ -151,13 +150,10 @@ function ClusterItemIO.process_entity(properties)
             available_space
         )
         if to_transfer >= 1 then
-            ---@type ItemSelection assuming selected item is present
-            local selected_item = properties.selected_item
-            local removed_count = properties.inventory.remove{
-                name = selected_item.name,
-                quality = selected_item.quality,
-                count = to_transfer
-            }
+            local io_request = properties.io_request
+            ---@cast io_request ItemStackDefinition
+            io_request.count = to_transfer
+            local removed_count = properties.inventory.remove(io_request)
             ClusterProcessor.add_to_buffer_entry(
                 properties.first_buffer_entry,
                 removed_count

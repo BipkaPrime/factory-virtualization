@@ -38,11 +38,6 @@ Third group is internal: these can only be assigned on initialization or during 
 ---@field quality string quality of this item
 ---@field name string name of this item
 
----Table describing selected item
----@class ItemSelection
----@field name string prototype name of selected item
----@field quality string prototype name of selected quality
-
 ---Table describing entity properties in registry
 ---@class EntityProperties mandatory technical fields (assigned on registration)
 ---@field unit_number number unique entity identifier: used as lookup key
@@ -53,7 +48,8 @@ Third group is internal: these can only be assigned on initialization or during 
 
 ---@class EntityProperties entity configuration fields (user-inputs)
 ---@field io_mode "input"|"output"|nil selected io mode
----@field selected_item ItemSelection|nil table describing selected item
+---@field selected_item_name string|nil name of selected item
+---@field selected_item_quality string|nil name of quality of selected item
 ---@field selected_fluid string|nil user-input. Name of selected fluid
 ---@field first_template string|nil user-input. Name of first selected template
 ---@field second_template string|nil user-input. Name of second selected template
@@ -76,6 +72,7 @@ Third group is internal: these can only be assigned on initialization or during 
 ---@field building_requests table<BufferKeyString, ItemBuffer>|nil building requests of this mainframe
 ---@field building_contents table<BufferKeyString, ItemBuffer>|nil building contents of this mainframe
 ---@field logistic_point LuaLogisticPoint|nil logistic point of this entity
+---@field io_request ItemStackDefinition|Fluid|nil cached table used to make calls to factorio API like "inventory.insert()"
 
 ---Defines a standard interface (handler module) for a specific building type.
 ---@class EntityProcessorMember
@@ -343,8 +340,8 @@ end
 ---@param name string|nil name of selected item
 ---@param quality string|nil quality of selected item
 function EntityProcessor.set_selected_item(entity, name, quality)
-    local item_data = (name and quality and {name = name, quality = quality}) or nil
-    set_entity_property(entity, "selected_item", item_data)
+    set_entity_property(entity, "selected_item_name", name)
+    set_entity_property(entity, "selected_item_quality", quality)
 end
 
 ---Sets selected fluid for given entity or entity-ghost
@@ -375,7 +372,8 @@ function EntityProcessor.set_operation_mode(entity, operation_mode)
     -- when changing mode we also want to cleanup unused information
     -- for instance, when item mode is chosen, selected fluid is cleared
     if operation_mode ~= "item" then
-        set_entity_property(entity, "selected_item", nil)
+        set_entity_property(entity, "selected_item_name", nil)
+        set_entity_property(entity, "selected_item_quality", nil)
     end
     if operation_mode ~= "fluid" then
         set_entity_property(entity, "selected_fluid", nil)
@@ -431,9 +429,9 @@ end
 ---@param entity LuaEntity entity for which data should be retrieved
 ---@return string|nil name, string|nil quality  
 function EntityProcessor.get_selected_item(entity)
-    local selected_item = get_entity_property(entity, "selected_item")
-    if not selected_item then return end
-    return selected_item.name, selected_item.quality
+    local name = get_entity_property(entity, "selected_item_name")
+    local quality = get_entity_property(entity, "selected_item_quality")
+    return name, quality
 end
 
 ---Gets selected fluid for given entity or ghost-entity
@@ -559,7 +557,6 @@ function EntityProcessor.process_entities(event)
             unregister_entity(properties)
         end
     end
-
     -- processing initialized section of registry
     local init = registry.initialized
     local start_idx, stop_idx = get_current_chunk(init, tick)

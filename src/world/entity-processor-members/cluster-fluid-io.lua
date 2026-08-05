@@ -21,6 +21,7 @@ Properties that are assigned on initialization:
 2. First buffer entry. Used to make calls to cluster processor
 3. Is output. Used to determine entity operation
 4. Flow limit. Used to make calls to factorio API
+5. IO request. Used to make calls to factorio API
 
 Properties that can be assigned during on-tick processing:
 1. Ls flow. Can be used to track entity work.
@@ -90,6 +91,7 @@ function ClusterFluidIO.attempt_entity_initialization(properties)
     properties.is_output = (io_mode == "output")
     -- caching flow limit of the entity
     properties.flow_limit = flow_limits[entity_name]
+    properties.io_request = {name = selected_fluid, amount = 0}
     return true
 end
 
@@ -99,6 +101,7 @@ end
 ---@param properties EntityProperties table from entity processor
 function ClusterFluidIO.on_processing_stopped(properties)
     properties.ls_flow = nil
+    properties.io_request = nil
     properties.flow_limit = nil
     properties.is_output = nil
     properties.first_buffer_entry = nil
@@ -127,10 +130,10 @@ function ClusterFluidIO.process_entity(properties)
         )
         if to_transfer >= 1 then
             -- moving fluid from cluster to physical inventory
-            local inserted_amount = properties.entity.insert_fluid{
-                name = properties.selected_fluid,
-                amount = to_transfer
-            }
+            local io_request = properties.io_request
+            ---@cast io_request Fluid
+            io_request.amount = to_transfer
+            local inserted_amount = properties.entity.insert_fluid(io_request)
             ClusterProcessor.remove_from_buffer_entry(
                 properties.first_buffer_entry,
                 inserted_amount
@@ -147,10 +150,10 @@ function ClusterFluidIO.process_entity(properties)
         )
         if to_transfer >= 1 then
             -- moving fluid from physical inventory to cluster
-            local removed_amount = properties.entity.extract_fluid{
-                name = properties.selected_fluid,
-                amount = to_transfer
-            }
+            local io_request = properties.io_request
+            io_request.amount = to_transfer
+            ---@diagnostic disable-next-line
+            local removed_amount = properties.entity.extract_fluid(io_request)
             ClusterProcessor.add_to_buffer_entry(
                 properties.first_buffer_entry,
                 removed_amount
