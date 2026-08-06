@@ -9,8 +9,8 @@ local cluster_item_io_mk1 = {
     type = "container",
     inventory_type = "with_custom_stack_size",
     inventory_properties = {
-        stack_size_min = 1e4,
-        stack_size_max = 1e4,
+        stack_size_min = 600,
+        stack_size_max = 600,
     },
     quality_affects_inventory_size = false,
     name = PREFIX .. "cluster-item-io-mk1",
@@ -37,8 +37,8 @@ local cluster_item_io_mk2 = {
     type = "container",
     inventory_type = "with_custom_stack_size",
     inventory_properties = {
-        stack_size_min = 1e5,
-        stack_size_max = 1e5,
+        stack_size_min = 6000,
+        stack_size_max = 6000,
     },
     quality_affects_inventory_size = false,
     name = PREFIX .. "cluster-item-io-mk2",
@@ -65,8 +65,8 @@ local cluster_item_io_mk3 = {
     type = "container",
     inventory_type = "with_custom_stack_size",
     inventory_properties = {
-        stack_size_min = 1e6,
-        stack_size_max = 1e6,
+        stack_size_min = 60000,
+        stack_size_max = 60000,
     },
     quality_affects_inventory_size = false,
     name = PREFIX .. "cluster-item-io-mk3",
@@ -103,7 +103,7 @@ local cluster_fluid_io_pipe_connections = {
 local cluster_fluid_io_mk1 = {
     type = "storage-tank",
     fluid_box = {
-        volume = 1e5,
+        volume = 2400,
         pipe_connections = cluster_fluid_io_pipe_connections,
     },
     window_bounding_box = {{-0.4, -0.4}, {0.4, 0.4}},
@@ -128,7 +128,7 @@ local cluster_fluid_io_mk1 = {
 local cluster_fluid_io_mk2 = {
     type = "storage-tank",
     fluid_box = {
-        volume = 1e6,
+        volume = 24000,
         pipe_connections = cluster_fluid_io_pipe_connections,
     },
     window_bounding_box = {{-0.4, -0.4}, {0.4, 0.4}},
@@ -153,7 +153,7 @@ local cluster_fluid_io_mk2 = {
 local cluster_fluid_io_mk3 = {
     type = "storage-tank",
     fluid_box = {
-        volume = 1e7,
+        volume = 240000,
         pipe_connections = cluster_fluid_io_pipe_connections,
     },
     window_bounding_box = {{-0.4, -0.4}, {0.4, 0.4}},
@@ -180,8 +180,8 @@ local cluster_energy_io_mk1 = {
     gui_mode = "all",
     energy_source = {
         type = "electric",
-        buffer_capacity = "10GJ",
-        usage_priority = "tertiary",
+        buffer_capacity = "1.2GJ",
+        usage_priority = "dynamic",
     },
     name = PREFIX .. "cluster-energy-io-mk1",
     icon = iconpath .. "cluster-energy-io-mk1.png",
@@ -207,8 +207,8 @@ local cluster_energy_io_mk2 = {
     gui_mode = "all",
     energy_source = {
         type = "electric",
-        buffer_capacity = "100GJ",
-        usage_priority = "tertiary",
+        buffer_capacity = "12GJ",
+        usage_priority = "dynamic",
     },
     name = PREFIX .. "cluster-energy-io-mk2",
     icon = iconpath .. "cluster-energy-io-mk2.png",
@@ -234,8 +234,8 @@ local cluster_energy_io_mk3 = {
     gui_mode = "all",
     energy_source = {
         type = "electric",
-        buffer_capacity = "1000GJ",
-        usage_priority = "tertiary",
+        buffer_capacity = "120GJ",
+        usage_priority = "dynamic",
     },
     name = PREFIX .. "cluster-energy-io-mk3",
     icon = iconpath .. "cluster-energy-io-mk3.png",
@@ -277,9 +277,10 @@ local inter_cluster_bridge_mk1 = {
     gui_mode = "all",
     energy_source = {
         type = "electric",
-        buffer_capacity = "10TJ",
+        buffer_capacity = "4.8GJ",
         usage_priority = "primary-input",
     },
+    energy_usage = "2.4GW",
     name = PREFIX .. "inter-cluster-bridge-mk1",
     icon = iconpath .. "inter-cluster-bridge-mk1.png",
     icon_size = 64,
@@ -304,9 +305,10 @@ local inter_cluster_bridge_mk2 = {
     gui_mode = "all",
     energy_source = {
         type = "electric",
-        buffer_capacity = "10TJ",
+        buffer_capacity = "48GJ",
         usage_priority = "primary-input",
     },
+    energy_usage = "24GW",
     name = PREFIX .. "inter-cluster-bridge-mk2",
     icon = iconpath .. "inter-cluster-bridge-mk2.png",
     icon_size = 64,
@@ -331,9 +333,10 @@ local inter_cluster_bridge_mk3 = {
     gui_mode = "all",
     energy_source = {
         type = "electric",
-        buffer_capacity = "10TJ",
+        buffer_capacity = "480GJ",
         usage_priority = "primary-input",
     },
+    energy_usage = "240GW",
     name = PREFIX .. "inter-cluster-bridge-mk3",
     icon = iconpath .. "inter-cluster-bridge-mk3.png",
     icon_size = 64,
@@ -358,10 +361,10 @@ local cluster_overflow_controller_mk1 = {
     gui_mode = "all",
     energy_source = {
         type = "electric",
-        buffer_capacity = "10GJ",
+        buffer_capacity = "4.8GJ",
         usage_priority = "primary-input",
-        drain = "100MW",
     },
+    energy_usage = "2.4GW",
     name = PREFIX .. "cluster-overflow-controller-mk1",
     icon = iconpath .. "cluster-overflow-controller-mk1.png",
     icon_size = 64,
@@ -386,10 +389,10 @@ local cluster_overflow_controller_mk2 = {
     gui_mode = "all",
     energy_source = {
         type = "electric",
-        buffer_capacity = "100GJ",
+        buffer_capacity = "48GJ",
         usage_priority = "primary-input",
-        drain = "1GW",
     },
+    energy_usage = "24GW",
     name = PREFIX .. "cluster-overflow-controller-mk2",
     icon = iconpath .. "cluster-overflow-controller-mk2.png",
     icon_size = 64,
@@ -414,10 +417,10 @@ local cluster_overflow_controller_mk3 = {
     gui_mode = "all",
     energy_source = {
         type = "electric",
-        buffer_capacity = "1TJ",
+        buffer_capacity = "480GJ",
         usage_priority = "primary-input",
-        drain = "10GW",
     },
+    energy_usage = "240GW",
     name = PREFIX .. "cluster-overflow-controller-mk3",
     icon = iconpath .. "cluster-overflow-controller-mk3.png",
     icon_size = 64,
@@ -461,8 +464,8 @@ local virtualization_mainframe_mk1 = {
     quality_affects_inventory_size = false,
     inventory_type = "with_custom_stack_size",
     inventory_properties = {
-        stack_size_min = 1e6,
-        stack_size_max = 1e6,
+        stack_size_min = 1e5,
+        stack_size_max = 1e5,
     },
     flags = {"placeable-neutral", "placeable-player", "player-creation"},
     minable = {mining_time = 1, result = PREFIX .. "virtualization-mainframe-mk1"},
@@ -493,8 +496,8 @@ local virtualization_mainframe_mk2 = {
     quality_affects_inventory_size = false,
     inventory_type = "with_custom_stack_size",
     inventory_properties = {
-        stack_size_min = 1e6,
-        stack_size_max = 1e6,
+        stack_size_min = 1e5,
+        stack_size_max = 1e5,
     },
     flags = {"placeable-neutral", "placeable-player", "player-creation"},
     minable = {mining_time = 1, result = PREFIX .. "virtualization-mainframe-mk2"},
@@ -525,8 +528,8 @@ local virtualization_mainframe_mk3 = {
     quality_affects_inventory_size = false,
     inventory_type = "with_custom_stack_size",
     inventory_properties = {
-        stack_size_min = 1e6,
-        stack_size_max = 1e6,
+        stack_size_min = 1e5,
+        stack_size_max = 1e5,
     },
     flags = {"placeable-neutral", "placeable-player", "player-creation"},
     minable = {mining_time = 1, result = PREFIX .. "virtualization-mainframe-mk3"},
@@ -551,10 +554,10 @@ local cluster_storage_unit_mk1 = {
     gui_mode = "all",
     energy_source = {
         type = "electric",
-        buffer_capacity = "10GJ",
+        buffer_capacity = "480MJ",
         usage_priority = "primary-input",
-        drain = "100MW",
     },
+    energy_usage = "240MW",
     name = PREFIX .. "cluster-storage-unit-mk1",
     icon = iconpath .. "cluster-storage-unit-mk1.png",
     icon_size = 64,
@@ -579,10 +582,10 @@ local cluster_storage_unit_mk2 = {
     gui_mode = "all",
     energy_source = {
         type = "electric",
-        buffer_capacity = "100GJ",
+        buffer_capacity = "4.8GJ",
         usage_priority = "primary-input",
-        drain = "1GW",
     },
+    energy_usage = "2.4GW",
     name = PREFIX .. "cluster-storage-unit-mk2",
     icon = iconpath .. "cluster-storage-unit-mk2.png",
     icon_size = 64,
@@ -607,10 +610,10 @@ local cluster_storage_unit_mk3 = {
     gui_mode = "all",
     energy_source = {
         type = "electric",
-        buffer_capacity = "1TJ",
+        buffer_capacity = "48GJ",
         usage_priority = "primary-input",
-        drain = "10GW",
     },
+    energy_usage = "24GW",
     name = PREFIX .. "cluster-storage-unit-mk3",
     icon = iconpath .. "cluster-storage-unit-mk3.png",
     icon_size = 64,
@@ -647,8 +650,8 @@ local template_item_io_mk1 = {
     type = "container",
     inventory_type = "with_custom_stack_size",
     inventory_properties = {
-        stack_size_min = 1e4,
-        stack_size_max = 1e4,
+        stack_size_min = 600,
+        stack_size_max = 600,
     },
     inventory_size = 1,
     quality_affects_inventory_size = false,
@@ -675,8 +678,8 @@ local template_item_io_mk2 = {
     type = "container",
     inventory_type = "with_custom_stack_size",
     inventory_properties = {
-        stack_size_min = 1e5,
-        stack_size_max = 1e5,
+        stack_size_min = 6000,
+        stack_size_max = 6000,
     },
     inventory_size = 1,
     quality_affects_inventory_size = false,
@@ -703,8 +706,8 @@ local template_item_io_mk3 = {
     type = "container",
     inventory_type = "with_custom_stack_size",
     inventory_properties = {
-        stack_size_min = 1e4,
-        stack_size_max = 1e4,
+        stack_size_min = 60000,
+        stack_size_max = 60000,
     },
     inventory_size = 1,
     quality_affects_inventory_size = false,
@@ -741,7 +744,7 @@ local template_fluid_io_connections = {
 local template_fluid_io_mk1 = {
     type = "storage-tank",
     fluid_box = {
-        volume = 1e5,
+        volume = 2400,
         pipe_connections = template_fluid_io_connections,
     },
     window_bounding_box = {{-0.4, -0.4}, {0.4, 0.4}},
@@ -766,7 +769,7 @@ local template_fluid_io_mk1 = {
 local template_fluid_io_mk2 = {
     type = "storage-tank",
     fluid_box = {
-        volume = 1e6,
+        volume = 24000,
         pipe_connections = template_fluid_io_connections,
     },
     window_bounding_box = {{-0.4, -0.4}, {0.4, 0.4}},
@@ -791,7 +794,7 @@ local template_fluid_io_mk2 = {
 local template_fluid_io_mk3 = {
     type = "storage-tank",
     fluid_box = {
-        volume = 1e5,
+        volume = 240000,
         pipe_connections = template_fluid_io_connections,
     },
     window_bounding_box = {{-0.4, -0.4}, {0.4, 0.4}},
@@ -818,8 +821,8 @@ local template_energy_io_mk1 = {
     gui_mode = "all",
     energy_source = {
         type = "electric",
-        buffer_capacity = "10GJ",
-        usage_priority = "tertiary",
+        buffer_capacity = "1.2GJ",
+        usage_priority = "dynamic",
     },
     name = PREFIX .. "template-energy-io-mk1",
     icon = iconpath .. "template-energy-io-mk1.png",
@@ -845,8 +848,8 @@ local template_energy_io_mk2 = {
     gui_mode = "all",
     energy_source = {
         type = "electric",
-        buffer_capacity = "100GJ",
-        usage_priority = "tertiary",
+        buffer_capacity = "12GJ",
+        usage_priority = "dynamic",
     },
     name = PREFIX .. "template-energy-io-mk2",
     icon = iconpath .. "template-energy-io-mk2.png",
@@ -872,8 +875,8 @@ local template_energy_io_mk3 = {
     gui_mode = "all",
     energy_source = {
         type = "electric",
-        buffer_capacity = "100GJ",
-        usage_priority = "tertiary",
+       buffer_capacity = "120GJ",
+        usage_priority = "dynamic",
     },
     name = PREFIX .. "template-energy-io-mk3",
     icon = iconpath .. "template-energy-io-mk3.png",
@@ -904,4 +907,272 @@ data.extend{
 	template_energy_io_mk1,
 	template_energy_io_mk2,
 	template_energy_io_mk3,
+}
+
+-------------------------------------------------------------------------------
+-- TEMPLATE SUBGROUP
+-------------------------------------------------------------------------------
+
+local template_computation_array_mk1 = {
+    type = "electric-energy-interface",
+    gui_mode = "all",
+    energy_source = {
+        type = "electric",
+        buffer_capacity = "960MJ",
+        usage_priority = "primary-input",
+    },
+    energy_usage = "48MW",
+    name = PREFIX .. "template-computation-array-mk1",
+    icon = iconpath .. "template-computation-array-mk1.png",
+    icon_size = 64,
+    flags = {"placeable-neutral", "placeable-player", "player-creation"},
+    minable = {mining_time = 1, result = PREFIX .. "template-computation-array-mk1"},
+    collision_box = {{-3.7, -3.7}, {3.7, 3.7}},
+    selection_box = {{-4, -4}, {4, 4}},
+    picture = {
+        layers = {
+            {
+                filename = entitypath .. "template-computation-array-mk1.png",
+                width = 512,
+                height = 512,
+                scale = 0.5,
+            }
+        },
+    }
+}
+
+local template_computation_array_mk2 = {
+    type = "electric-energy-interface",
+    gui_mode = "all",
+    energy_source = {
+        type = "electric",
+        buffer_capacity = "9.6GJ",
+        usage_priority = "primary-input",
+    },
+    energy_usage = "480MW",
+    name = PREFIX .. "template-computation-array-mk2",
+    icon = iconpath .. "template-computation-array-mk2.png",
+    icon_size = 64,
+    flags = {"placeable-neutral", "placeable-player", "player-creation"},
+    minable = {mining_time = 1, result = PREFIX .. "template-computation-array-mk2"},
+    collision_box = {{-3.7, -3.7}, {3.7, 3.7}},
+    selection_box = {{-4, -4}, {4, 4}},
+    picture = {
+        layers = {
+            {
+                filename = entitypath .. "template-computation-array-mk2.png",
+                width = 512,
+                height = 512,
+                scale = 0.5,
+            }
+        },
+    }
+}
+
+local template_computation_array_mk3 = {
+    type = "electric-energy-interface",
+    gui_mode = "all",
+    energy_source = {
+        type = "electric",
+        buffer_capacity = "96GJ",
+        usage_priority = "primary-input",
+    },
+    energy_usage = "4.8GW",
+    name = PREFIX .. "template-computation-array-mk3",
+    icon = iconpath .. "template-computation-array-mk3.png",
+    icon_size = 64,
+    flags = {"placeable-neutral", "placeable-player", "player-creation"},
+    minable = {mining_time = 1, result = PREFIX .. "template-computation-array-mk3"},
+    collision_box = {{-3.7, -3.7}, {3.7, 3.7}},
+    selection_box = {{-4, -4}, {4, 4}},
+    picture = {
+        layers = {
+            {
+                filename = entitypath .. "template-computation-array-mk3.png",
+                width = 512,
+                height = 512,
+                scale = 0.5,
+            }
+        },
+    }
+}
+
+local template_control_center_mk1 = {
+    type = "electric-energy-interface",
+    gui_mode = "all",
+    energy_source = {
+        type = "electric",
+        buffer_capacity = "9.6GJ",
+        usage_priority = "primary-input",
+    },
+    energy_usage = "4.8GW",
+    name = PREFIX .. "template-control-center-mk1",
+    icon = iconpath .. "template-control-center-mk1.png",
+    icon_size = 64,
+    flags = {"placeable-neutral", "placeable-player", "player-creation"},
+    minable = {mining_time = 1, result = PREFIX .. "template-control-center-mk1"},
+    collision_box = {{-7.7, -7.7}, {7.7, 7.7}},
+    selection_box = {{-8, -8}, {8, 8}},
+    picture = {
+        layers = {
+            {
+                filename = entitypath .. "template-control-center-mk1.png",
+                width = 1024,
+                height = 1024,
+                scale = 0.5,
+            }
+        },
+    }
+}
+
+local template_control_center_mk2 = {
+    type = "electric-energy-interface",
+    gui_mode = "all",
+    energy_source = {
+        type = "electric",
+        buffer_capacity = "96GJ",
+        usage_priority = "primary-input",
+    },
+    energy_usage = "48GW",
+    name = PREFIX .. "template-control-center-mk2",
+    icon = iconpath .. "template-control-center-mk2.png",
+    icon_size = 64,
+    flags = {"placeable-neutral", "placeable-player", "player-creation"},
+    minable = {mining_time = 1, result = PREFIX .. "template-control-center-mk2"},
+    collision_box = {{-7.7, -7.7}, {7.7, 7.7}},
+    selection_box = {{-8, -8}, {8, 8}},
+    picture = {
+        layers = {
+            {
+                filename = entitypath .. "template-control-center-mk2.png",
+                width = 1024,
+                height = 1024,
+                scale = 0.5,
+            }
+        },
+    }
+}
+
+local template_control_center_mk3 = {
+    type = "electric-energy-interface",
+    gui_mode = "all",
+    energy_source = {
+        type = "electric",
+        buffer_capacity = "960GJ",
+        usage_priority = "primary-input",
+    },
+    energy_usage = "480GW",
+    name = PREFIX .. "template-control-center-mk3",
+    icon = iconpath .. "template-control-center-mk3.png",
+    icon_size = 64,
+    flags = {"placeable-neutral", "placeable-player", "player-creation"},
+    minable = {mining_time = 1, result = PREFIX .. "template-control-center-mk3"},
+    collision_box = {{-7.7, -7.7}, {7.7, 7.7}},
+    selection_box = {{-8, -8}, {8, 8}},
+    picture = {
+        layers = {
+            {
+                filename = entitypath .. "template-control-center-mk3.png",
+                width = 1024,
+                height = 1024,
+                scale = 0.5,
+            }
+        },
+    }
+}
+
+local template_access_interface_mk1 = {
+    type = "electric-energy-interface",
+    gui_mode = "all",
+    energy_source = {
+        type = "electric",
+        buffer_capacity = "2.4GJ",
+        usage_priority = "primary-input",
+    },
+    energy_usage = "1.2GW",
+    name = PREFIX .. "template-access-interface-mk1",
+    icon = iconpath .. "template-access-interface-mk1.png",
+    icon_size = 64,
+    flags = {"placeable-neutral", "placeable-player", "player-creation"},
+    minable = {mining_time = 1, result = PREFIX .. "template-access-interface-mk1"},
+    collision_box = {{-5.7, -5.7}, {5.7, 5.7}},
+    selection_box = {{-6, -6}, {6, 6}},
+    picture = {
+        layers = {
+            {
+                filename = entitypath .. "template-access-interface-mk1.png",
+                width = 800,
+                height = 800,
+                scale = 0.5,
+            }
+        },
+    }
+}
+
+local template_access_interface_mk2 = {
+    type = "electric-energy-interface",
+    gui_mode = "all",
+    energy_source = {
+        type = "electric",
+        buffer_capacity = "24GJ",
+        usage_priority = "primary-input",
+    },
+    energy_usage = "12GW",
+    name = PREFIX .. "template-access-interface-mk2",
+    icon = iconpath .. "template-access-interface-mk2.png",
+    icon_size = 64,
+    flags = {"placeable-neutral", "placeable-player", "player-creation"},
+    minable = {mining_time = 1, result = PREFIX .. "template-access-interface-mk2"},
+    collision_box = {{-5.7, -5.7}, {5.7, 5.7}},
+    selection_box = {{-6, -6}, {6, 6}},
+    picture = {
+        layers = {
+            {
+                filename = entitypath .. "template-access-interface-mk2.png",
+                width = 800,
+                height = 800,
+                scale = 0.5,
+            }
+        },
+    }
+}
+
+local template_access_interface_mk3 = {
+    type = "electric-energy-interface",
+    gui_mode = "all",
+    energy_source = {
+        type = "electric",
+        buffer_capacity = "240GJ",
+        usage_priority = "primary-input",
+    },
+    energy_usage = "120GW",
+    name = PREFIX .. "template-access-interface-mk3",
+    icon = iconpath .. "template-access-interface-mk3.png",
+    icon_size = 64,
+    flags = {"placeable-neutral", "placeable-player", "player-creation"},
+    minable = {mining_time = 1, result = PREFIX .. "template-access-interface-mk3"},
+    collision_box = {{-5.7, -5.7}, {5.7, 5.7}},
+    selection_box = {{-6, -6}, {6, 6}},
+    picture = {
+        layers = {
+            {
+                filename = entitypath .. "template-access-interface-mk3.png",
+                width = 800,
+                height = 800,
+                scale = 0.5,
+            }
+        },
+    }
+}
+
+data.extend{
+    template_computation_array_mk1,
+    template_computation_array_mk2,
+    template_computation_array_mk3,
+    template_control_center_mk1,
+    template_control_center_mk2,
+    template_control_center_mk3,
+    template_access_interface_mk1,
+    template_access_interface_mk2,
+    template_access_interface_mk3,
 }

@@ -39,9 +39,9 @@ TemplateItemIO.copyable = {
 
 ---Maps entity names to their flow limits
 local flow_limits = {
-    [PREFIX .. "template-item-io-mk1"] = 100,
-    [PREFIX .. "template-item-io-mk2"] = 1000,
-    [PREFIX .. "template-item-io-mk3"] = 10000,
+    [PREFIX .. "template-item-io-mk1"] = 120,
+    [PREFIX .. "template-item-io-mk2"] = 1200,
+    [PREFIX .. "template-item-io-mk3"] = 12000,
 }
 
 ---Checks that all requirements for operation of template item IO are met.

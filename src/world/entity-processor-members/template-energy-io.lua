@@ -34,9 +34,9 @@ TemplateEnergyIO.copyable = {
 
 ---Maps entity names to their flow limits
 local flow_limits = {
-    [PREFIX .. "template-energy-io-mk1"] = 1e8,
-    [PREFIX .. "template-energy-io-mk2"] = 1e9,
-    [PREFIX .. "template-energy-io-mk3"] = 1e10,
+    [PREFIX .. "template-energy-io-mk1"] = 2.4e8,
+    [PREFIX .. "template-energy-io-mk2"] = 2.4e9,
+    [PREFIX .. "template-energy-io-mk3"] = 2.4e10,
 }
 
 ---Checks that all requirements for operation of template energy IO are met.

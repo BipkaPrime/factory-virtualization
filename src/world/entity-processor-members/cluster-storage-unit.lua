@@ -175,12 +175,12 @@ end
 ---@param properties EntityProperties
 function StorageUnit.process_entity(properties)
     local entity = properties.entity
-    ---@type number assuming storage unit has energy drain
-    local energy_drain = entity.electric_drain
+    ---@type number assuming storage unit is electric energy interface
+    local power_usage = entity.power_usage
     local current_energy = entity.energy
 
     -- enabling/disabling storage unit based on energy level
-    if current_energy < energy_drain then
+    if current_energy < power_usage then
         disable_storage_capacity(properties)
     elseif not properties.operational then
         enable_storage_capacity(properties)

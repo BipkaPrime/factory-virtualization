@@ -43,9 +43,9 @@ ClusterFluidIO.copyable = {
 
 ---Maps entity names to their flow limits
 local flow_limits = {
-    [PREFIX .. "cluster-fluid-io-mk1"] = 500,
-    [PREFIX .. "cluster-fluid-io-mk2"] = 5000,
-    [PREFIX .. "cluster-fluid-io-mk3"] = 50000,
+    [PREFIX .. "cluster-fluid-io-mk1"] = 1200,
+    [PREFIX .. "cluster-fluid-io-mk2"] = 12000,
+    [PREFIX .. "cluster-fluid-io-mk3"] = 120000,
 }
 
 ---Maps entity names to their weights inside clusters

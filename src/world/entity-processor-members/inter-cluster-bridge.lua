@@ -115,16 +115,16 @@ function ClusterBridge.attempt_entity_initialization(properties)
         first_template,
         entity_weight
     )
-    if not source_cluster then return false end
     properties.first_cluster = source_cluster
+    if not source_cluster then return false end
     -- attempting to connect entity to destination cluster
     local destination_cluster = ClusterProcessor.add_to_cluster(
         entity,
         second_template,
         entity_weight
     )
-    if not destination_cluster then return false end
     properties.second_cluster = destination_cluster
+    if not destination_cluster then return false end
     -- attempting to assign source buffer entry to entity
     local buffer_key = Utilities.generate_multimode_buffer_key(properties)
     local source_entry = ClusterProcessor.get_buffer_entry(
@@ -132,16 +132,16 @@ function ClusterBridge.attempt_entity_initialization(properties)
         buffer_key,
         "output"
     )
-    if not source_entry then return false end
     properties.first_buffer_entry = source_entry
+    if not source_entry then return false end
     -- attempting to assign destination buffer entry to entity
     local destination_entry = ClusterProcessor.get_buffer_entry(
         destination_cluster,
         buffer_key,
         "input"
     )
-    if not destination_entry then return false end
     properties.second_buffer_entry = destination_entry
+    if not destination_entry then return false end
     -- caching flow limit considering base limit and capability override
     local override = (properties.capability_override or 1)
     local base_limit = flow_limits[entity_name][operation_mode]
@@ -174,11 +174,11 @@ end
 ---@param properties EntityProperties
 function ClusterBridge.process_entity(properties)
     local entity = properties.entity
-    ---@type number assuming overflow controller has energy drain
-    local energy_drain = entity.electric_drain
+    ---@type number assuming overflow controller is electric energy interface
+    local power_usage = entity.power_usage
     local current_energy = entity.energy
 
-    if current_energy > energy_drain then
+    if current_energy > power_usage then
         local source_limit = ClusterProcessor.get_current_amount(
             properties.first_buffer_entry
         )

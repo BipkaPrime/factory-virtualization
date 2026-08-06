@@ -45,9 +45,9 @@ ClusterItemIO.copyable = {
 
 ---Maps entity names to their flow limits
 local flow_limits = {
-    [PREFIX .. "cluster-item-io-mk1"] = 100,
-    [PREFIX .. "cluster-item-io-mk2"] = 1000,
-    [PREFIX .. "cluster-item-io-mk3"] = 10000,
+    [PREFIX .. "cluster-item-io-mk1"] = 120,
+    [PREFIX .. "cluster-item-io-mk2"] = 1200,
+    [PREFIX .. "cluster-item-io-mk3"] = 12000,
 }
 
 ---Maps entity names to their weights inside clusters

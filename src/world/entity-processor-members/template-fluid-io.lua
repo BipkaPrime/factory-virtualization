@@ -36,9 +36,9 @@ TemplateFluidIO.copyable = {
 
 ---Maps entity names to their flow limits
 local flow_limits = {
-    [PREFIX .. "template-fluid-io-mk1"] = 500,
-    [PREFIX .. "template-fluid-io-mk2"] = 5000,
-    [PREFIX .. "template-fluid-io-mk3"] = 50000,
+    [PREFIX .. "template-fluid-io-mk1"] = 1200,
+    [PREFIX .. "template-fluid-io-mk2"] = 12000,
+    [PREFIX .. "template-fluid-io-mk3"] = 120000,
 }
 
 ---Checks that all requirements for operation of template fluid IO are met.

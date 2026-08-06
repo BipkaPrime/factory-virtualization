@@ -144,11 +144,11 @@ end
 ---@param properties EntityProperties
 function OverflowController.process_entity(properties)
     local entity = properties.entity
-    ---@type number assuming overflow controller has energy drain
-    local energy_drain = entity.electric_drain
+    ---@type number assuming overflow controller is electric energy interface
+    local power_usage = entity.power_usage
     local current_energy = entity.energy
 
-    if current_energy > energy_drain then
+    if current_energy > power_usage then
         properties.ls_flow = ClusterProcessor.void_overflow(
             properties.first_buffer_entry,
             properties.flow_limit,
