@@ -53,6 +53,14 @@ local template_io_subgroup = {
     order = "e"
 }
 
+---Subgroup for buidlings that are used for template creation/management
+local template_subgroup = {
+	type = "item-subgroup",
+    name = PREFIX .. "template",
+    group = PREFIX .. "inventory-tab",
+    order = "f"
+}
+
 data.extend{
 	virtualization_group,
 	intermediates_subgroup,
@@ -60,6 +68,7 @@ data.extend{
 	advanced_cluster_io_subgroup,
 	cluster_members_subgroup,
 	template_io_subgroup,
+	template_subgroup,
 }
 
 -------------------------------------------------------------------------------
@@ -522,3 +531,104 @@ data.extend{
 -- TEMPLATE SUBGROUP
 -------------------------------------------------------------------------------
 
+local template_computation_array_mk1 = {
+	type = "item",
+	name = PREFIX .. "template-computation-array-mk1",
+	subgroup = PREFIX .. "template",
+	icon = iconpath .. "template-computation-array-mk1.png",
+	icon_size = 64,
+	place_result = PREFIX .. "template-computation-array-mk1",
+	stack_size = 20,
+}
+
+local template_computation_array_mk2 = {
+	type = "item",
+	name = PREFIX .. "template-computation-array-mk2",
+	subgroup = PREFIX .. "template",
+	icon = iconpath .. "template-computation-array-mk2.png",
+	icon_size = 64,
+	place_result = PREFIX .. "template-computation-array-mk2",
+	stack_size = 20,
+}
+
+local template_computation_array_mk3 = {
+	type = "item",
+	name = PREFIX .. "template-computation-array-mk3",
+	subgroup = PREFIX .. "template",
+	icon = iconpath .. "template-computation-array-mk3.png",
+	icon_size = 64,
+	place_result = PREFIX .. "template-computation-array-mk3",
+	stack_size = 20,
+}
+
+local template_control_center_mk1 = {
+	type = "item",
+	name = PREFIX .. "template-control-center-mk1",
+	subgroup = PREFIX .. "template",
+	icon = iconpath .. "template-control-center-mk1.png",
+	icon_size = 64,
+	place_result = PREFIX .. "template-control-center-mk1",
+	stack_size = 20,
+}
+
+local template_control_center_mk2 = {
+	type = "item",
+	name = PREFIX .. "template-control-center-mk2",
+	subgroup = PREFIX .. "template",
+	icon = iconpath .. "template-control-center-mk2.png",
+	icon_size = 64,
+	place_result = PREFIX .. "template-control-center-mk2",
+	stack_size = 20,
+}
+
+local template_control_center_mk3 = {
+	type = "item",
+	name = PREFIX .. "template-control-center-mk3",
+	subgroup = PREFIX .. "template",
+	icon = iconpath .. "template-control-center-mk3.png",
+	icon_size = 64,
+	place_result = PREFIX .. "template-control-center-mk3",
+	stack_size = 20,
+}
+
+local template_access_interface_mk1 = {
+	type = "item",
+	name = PREFIX .. "template-access-interface-mk1",
+	subgroup = PREFIX .. "template",
+	icon = iconpath .. "template-access-interface-mk1.png",
+	icon_size = 64,
+	place_result = PREFIX .. "template-access-interface-mk1",
+	stack_size = 20,
+}
+
+local template_access_interface_mk2 = {
+	type = "item",
+	name = PREFIX .. "template-access-interface-mk2",
+	subgroup = PREFIX .. "template",
+	icon = iconpath .. "template-access-interface-mk2.png",
+	icon_size = 64,
+	place_result = PREFIX .. "template-access-interface-mk2",
+	stack_size = 20,
+}
+
+local template_access_interface_mk3 = {
+	type = "item",
+	name = PREFIX .. "template-access-interface-mk3",
+	subgroup = PREFIX .. "template",
+	icon = iconpath .. "template-access-interface-mk3.png",
+	icon_size = 64,
+	place_result = PREFIX .. "template-access-interface-mk3",
+	stack_size = 20,
+}
+
+data.extend{
+	template_computation_array_mk1,
+	template_computation_array_mk2,
+	template_computation_array_mk3,
+	template_control_center_mk1,
+	template_control_center_mk2,
+	template_control_center_mk3,
+	template_access_interface_mk1,
+	template_access_interface_mk2,
+	template_access_interface_mk3,
+}

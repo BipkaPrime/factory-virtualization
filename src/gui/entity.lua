@@ -237,6 +237,11 @@ local function create_inter_cluster_bridge_gui(player, entity)
     )
 end
 
+
+local function create_template_computation_array_gui(player, entity)
+
+end
+
 ---Creates template energy IO interface
 ---@param player LuaPlayer assumed to be valid
 ---@param entity LuaEntity assumed to be valid

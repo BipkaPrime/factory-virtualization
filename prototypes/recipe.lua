@@ -688,3 +688,163 @@ data.extend{
 	template_energy_io_mk2,
 	template_energy_io_mk3,
 }
+
+-------------------------------------------------------------------------------
+-- TEMPLATE SUBGROUP
+-------------------------------------------------------------------------------
+
+local template_computation_array_mk1 = {
+	type = "recipe",
+	name = PREFIX .. "template-computation-array-mk1",
+	enabled = true,
+	ingredients =
+	{
+		{type = "item", name = "refined-concrete", amount = 1000},
+		{type = "item", name = "tungsten-plate", amount = 1000},
+		{type = "item", name = PREFIX .. "transmission-core-mk1", amount = 10},
+		{type = "item", name = PREFIX .. "storage-core-mk1", amount = 10},
+		{type = "item", name = PREFIX .. "computation-core-mk1", amount = 100},
+	},
+	energy_required = 30,
+	results = {{type = "item", name = PREFIX .. "template-computation-array-mk1", amount = 1}},
+}
+
+local template_computation_array_mk2 = {
+	type = "recipe",
+	name = PREFIX .. "template-computation-array-mk2",
+	enabled = true,
+	ingredients =
+	{
+		{type = "item", name = "refined-concrete", amount = 1000},
+		{type = "item", name = "tungsten-plate", amount = 1000},
+		{type = "item", name = PREFIX .. "transmission-core-mk2", amount = 10},
+		{type = "item", name = PREFIX .. "storage-core-mk2", amount = 10},
+		{type = "item", name = PREFIX .. "computation-core-mk2", amount = 100},
+	},
+	energy_required = 30,
+	results = {{type = "item", name = PREFIX .. "template-computation-array-mk2", amount = 1}},
+}
+
+local template_computation_array_mk3 = {
+	type = "recipe",
+	name = PREFIX .. "template-computation-array-mk3",
+	enabled = true,
+	ingredients =
+	{
+		{type = "item", name = "refined-concrete", amount = 1000},
+		{type = "item", name = "tungsten-plate", amount = 1000},
+		{type = "item", name = PREFIX .. "transmission-core-mk3", amount = 10},
+		{type = "item", name = PREFIX .. "storage-core-mk3", amount = 10},
+		{type = "item", name = PREFIX .. "computation-core-mk3", amount = 100},
+	},
+	energy_required = 30,
+	results = {{type = "item", name = PREFIX .. "template-computation-array-mk3", amount = 1}},
+}
+
+local template_control_center_mk1 = {
+	type = "recipe",
+	name = PREFIX .. "template-control-center-mk1",
+	enabled = true,
+	ingredients =
+	{
+		{type = "item", name = "refined-concrete", amount = 10000},
+		{type = "item", name = "tungsten-plate", amount = 10000},
+		{type = "item", name = PREFIX .. "transmission-core-mk1", amount = 1000},
+		{type = "item", name = PREFIX .. "storage-core-mk1", amount = 1000},
+		{type = "item", name = PREFIX .. "computation-core-mk1", amount = 1000},
+	},
+	energy_required = 30,
+	results = {{type = "item", name = PREFIX .. "template-control-center-mk1", amount = 1}},
+}
+
+local template_control_center_mk2 = {
+	type = "recipe",
+	name = PREFIX .. "template-control-center-mk2",
+	enabled = true,
+	ingredients =
+	{
+		{type = "item", name = "refined-concrete", amount = 10000},
+		{type = "item", name = "tungsten-plate", amount = 10000},
+		{type = "item", name = PREFIX .. "transmission-core-mk2", amount = 1000},
+		{type = "item", name = PREFIX .. "storage-core-mk2", amount = 1000},
+		{type = "item", name = PREFIX .. "computation-core-mk2", amount = 1000},
+	},
+	energy_required = 30,
+	results = {{type = "item", name = PREFIX .. "template-control-center-mk2", amount = 1}},
+}
+
+local template_control_center_mk3 = {
+	type = "recipe",
+	name = PREFIX .. "template-control-center-mk3",
+	enabled = true,
+	ingredients =
+	{
+		{type = "item", name = "refined-concrete", amount = 10000},
+		{type = "item", name = "tungsten-plate", amount = 10000},
+		{type = "item", name = PREFIX .. "transmission-core-mk3", amount = 1000},
+		{type = "item", name = PREFIX .. "storage-core-mk3", amount = 1000},
+		{type = "item", name = PREFIX .. "computation-core-mk3", amount = 1000},
+	},
+	energy_required = 30,
+	results = {{type = "item", name = PREFIX .. "template-control-center-mk3", amount = 1}},
+}
+
+local template_access_interface_mk1 = {
+	type = "recipe",
+	name = PREFIX .. "template-access-interface-mk1",
+	enabled = true,
+	ingredients =
+	{
+		{type = "item", name = "refined-concrete", amount = 2000},
+		{type = "item", name = "tungsten-plate", amount = 2000},
+		{type = "item", name = PREFIX .. "transmission-core-mk1", amount = 500},
+		{type = "item", name = PREFIX .. "storage-core-mk1", amount = 50},
+		{type = "item", name = PREFIX .. "computation-core-mk1", amount = 10},
+	},
+	energy_required = 30,
+	results = {{type = "item", name = PREFIX .. "template-access-interface-mk1", amount = 1}},
+}
+
+local template_access_interface_mk2 = {
+	type = "recipe",
+	name = PREFIX .. "template-access-interface-mk2",
+	enabled = true,
+	ingredients =
+	{
+		{type = "item", name = "refined-concrete", amount = 2000},
+		{type = "item", name = "tungsten-plate", amount = 2000},
+		{type = "item", name = PREFIX .. "transmission-core-mk2", amount = 500},
+		{type = "item", name = PREFIX .. "storage-core-mk2", amount = 50},
+		{type = "item", name = PREFIX .. "computation-core-mk2", amount = 10},
+	},
+	energy_required = 30,
+	results = {{type = "item", name = PREFIX .. "template-access-interface-mk2", amount = 1}},
+}
+
+local template_access_interface_mk3 = {
+	type = "recipe",
+	name = PREFIX .. "template-access-interface-mk3",
+	enabled = true,
+	ingredients =
+	{
+		{type = "item", name = "refined-concrete", amount = 2000},
+		{type = "item", name = "tungsten-plate", amount = 2000},
+		{type = "item", name = PREFIX .. "transmission-core-mk3", amount = 500},
+		{type = "item", name = PREFIX .. "storage-core-mk3", amount = 50},
+		{type = "item", name = PREFIX .. "computation-core-mk3", amount = 10},
+	},
+	energy_required = 30,
+	results = {{type = "item", name = PREFIX .. "template-access-interface-mk3", amount = 1}},
+}
+
+data.extend{
+	template_computation_array_mk1,
+	template_computation_array_mk2,
+	template_computation_array_mk3,
+	template_control_center_mk1,
+	template_control_center_mk2,
+	template_control_center_mk3,
+	template_access_interface_mk1,
+	template_access_interface_mk2,
+	template_access_interface_mk3,
+}

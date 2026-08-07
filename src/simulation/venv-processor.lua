@@ -24,6 +24,47 @@ local VEnvProcessor = {}
 
 local base_compilation_time = 200
 
+-------------------------------------------------------------------------------
+-- TEMPLATE COMPUTATION ARRAY REQUESTS
+-------------------------------------------------------------------------------
+
+---Adds provided amount of computation to maximum available amount.
+---@param amount number amount of computation to add
+function VEnvProcessor.add_computation_potential(amount)
+    local computation = storage.computation
+    computation.maximum_available = computation.maximum_available + amount
+end
+
+local function ensure_sufficient_computation()
+    -- TODO: 
+    -- if insufficient reduces computation consumption
+    -- until there is enough. First, turns off compilations one by one,
+    -- then starts deleting virtualization surfaces
+end
+
+---Removed provided amount of computation from maximum available amount.
+---@param amount number amount of computation to remove
+function VEnvProcessor.remove_computation_potential(amount)
+    local computation = storage.computation
+    computation.maximum_available = computation.maximum_available - amount
+end
+
+---Gets current computation demand. The number returned is in the range from 0 to 1,
+---and represents the fraction of computation power currently required.
+---@return number
+function VEnvProcessor.get_computation_demand()
+    local computation = storage.computation
+    local maximum = computation.maximum_available
+    if maximum <= 0 then return 0 end
+    return math.min(computation.required / maximum, 1)
+end
+
+-------------------------------------------------------------------------------
+-- 
+-------------------------------------------------------------------------------
+
+
+
 ---Adds given item/fluid/energy count to input/output.
 ---@param surface_index integer unique surface identifier
 ---@param key BufferKeyString item/fluid/energy identifier "steel-plate//normal", "water", "electric_energy"

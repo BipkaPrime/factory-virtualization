@@ -28,6 +28,7 @@ script.on_init(function()
     storage.templates = {}
     -- simulation/venv-processor
     storage.venvs = {}
+    storage.computation = {maximum_available = 0, required = 0}
     -- gui/template-dashboard
     storage.template_dashboard = {}
     -- gui/vsurface-manager
@@ -195,4 +196,10 @@ script.on_event(PREFIX .. "td-hotkey", TemplateDashboard.process_dashboard_hotke
 commands.add_command("save_template_data", "Saves all compiled template data to json", function()
     helpers.write_file("compiled_templates.json", serpent.block(storage.templates), false)
     game.print("Template data saved to compiled_templates.json")
+end)
+
+commands.add_command("set_computation_demand", "", function(event)
+    local d = tonumber(event.parameter) or 0
+    storage.computation.required = storage.computation.maximum_available * d
+    game.print("Demand set to " .. d .. " (Required: " .. storage.computation.required .. ")")
 end)

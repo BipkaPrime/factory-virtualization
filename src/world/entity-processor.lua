@@ -73,6 +73,9 @@ Third group is internal: these can only be assigned on initialization or during 
 ---@field building_contents table<BufferKeyString, ItemBuffer>|nil building contents of this mainframe
 ---@field logistic_point LuaLogisticPoint|nil logistic point of this entity
 ---@field io_request ItemStackDefinition|Fluid|nil cached table used to make calls to factorio API like "inventory.insert()"
+---@field computation_limit number|nil maximum amount of computation this template computation array can provide
+---@field computation_cost number|nil energy cost for one unit of computation provided by this entity
+---@field startup_energy number|nil amount of energy required to "turn on" this entity
 
 ---Defines a standard interface (handler module) for a specific building type.
 ---@class EntityProcessorMember
@@ -88,6 +91,7 @@ local ClusterItemIO = require("src.world.entity-processor-members.cluster-item-i
 local OverflowController = require("src.world.entity-processor-members.cluster-overflow-controller")
 local StorageUnit = require("src.world.entity-processor-members.cluster-storage-unit")
 local ClusterBridge = require("src.world.entity-processor-members.inter-cluster-bridge")
+local ComputationArray = require("src.world.entity-processor-members.template-computation-array")
 local TemplateEnergyIO = require("src.world.entity-processor-members.template-energy-io")
 local TemplateFluidIO = require("src.world.entity-processor-members.template-fluid-io")
 local TemplateItemIO = require("src.world.entity-processor-members.template-item-io")
@@ -122,6 +126,9 @@ local module_router = {
     [PREFIX .. "inter-cluster-bridge-mk1"] = ClusterBridge,
     [PREFIX .. "inter-cluster-bridge-mk2"] = ClusterBridge,
     [PREFIX .. "inter-cluster-bridge-mk3"] = ClusterBridge,
+    [PREFIX .. "template-computation-array-mk1"] = ComputationArray,
+    [PREFIX .. "template-computation-array-mk2"] = ComputationArray,
+    [PREFIX .. "template-computation-array-mk3"] = ComputationArray,
     [PREFIX .. "template-energy-io-mk1"] = TemplateEnergyIO,
     [PREFIX .. "template-energy-io-mk2"] = TemplateEnergyIO,
     [PREFIX .. "template-energy-io-mk3"] = TemplateEnergyIO,
