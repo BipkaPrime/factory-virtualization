@@ -1,48 +1,39 @@
 --[[
-This mod allows players to create special "virtualization surfaces".
-Vsurface is basically a sandbox where player can build anything for free.
-Vsurface is created as a sterile environment generated with lab tiles.
+This mod allows players to create "virtualization surfaces". They are basically
+sandboxes where player can build anything for free. They are used in creation
+of templates. To create a template player has to build a factory on a vsurface
+and then start compilation of that surface. When compilation finishes successfully,
+template is created.
 
-To compile a template player has to build a factory on a vsurface and then
-start compilation of that surface. Once compilation is done, template will be created.
+Computation is required to sustain existance of a virtualiation surface. If there 
+is a computation deficit, vsurfaces are deleted one by one until there is no deficit.
 
-To know which surfaces are "vsurfaces" and which are not, on creation they are stored at
-storage.vsurfaces with all needed data. For that table key is surface_index and value is
-a table with vsurface information.
+Upon creation, vsurface data is stored at storage.vsurfaces and consists of 2 parts:
+storage.vsurfaces = {
+    array VSurfaceData[] order of elements is used for vsurface deletion in computation deficit
+    lookup table<integer, VSurfaceData> key is surface index
+}
 
-This vsurface manager handles create/delete/lookup requests. It also handles various
-requests of venv processor and template compiler.
+Vsurface manager handles create/delete vsurface requests. It is also used to access
+vsurface information. It's also used to for some other vsurface requests, for example
+calculating building cost of a given vsurface.
 --]]
 
----Table describing virtualization surface
 ---@class VSurfaceData
----@field surface_index number unique surface identifier
+---@field surface_index integer unique surface identifier
+---@field compiling boolean true if surface is currently compiling (needed for gui filtering)
+---@field computation_cost number amount of computation required to sustain this surface
 ---@field width number width of the surface
 ---@field height number height if the surface
 
----@alias ExtendedSurfaceID string|number|LuaSurface
-
 
 local ChunkProcessor = require("src.world.vsurface-chunk-processor")
+local ComputationManager = require("src.simulation.computation-manager")
 
 local VSurfaceManager = {}
 
-
----@param surface_id ExtendedSurfaceID|nil
----@return LuaSurface|nil
-function VSurfaceManager.get_surface(surface_id)
-    if not surface_id then return end
-    local surface
-    if type(surface_id) == "number" or type(surface_id) == "string" then
-        surface = game.get_surface(surface_id)
-    else
-        surface = surface_id
-    end
-    return surface
-end
-
 -------------------------------------------------------------------------------
--- VSURFACE CREATION/DELETION/LOOKUP
+-- VSURFACE CREATION
 -------------------------------------------------------------------------------
 
 ---Gets all vsurface generation options to choose from
@@ -180,57 +171,136 @@ function VSurfaceManager.create_vsurface(player, name, width, height, generate_a
     return true
 end
 
----Gets vsurface data from storage
----@param surface_id ExtendedSurfaceID|nil
----@return VSurfaceData|nil data
-function VSurfaceManager.get_vsurface_data(surface_id)
-    if not surface_id then return end
+-------------------------------------------------------------------------------
+-- VSURFACE DELETION
+-------------------------------------------------------------------------------
 
-    -- if index is passed we can retrieve data easily
-    if type(surface_id) == "number" then
-        return storage.vsurfaces[surface_id]
-    end
-
-    -- getting LuaSurface object
-    ---@cast surface_id LuaSurface|string
-    local surface
-    if type(surface_id) == "string" then
-        surface = game.get_surface(surface_id)
-    else
-        surface = surface_id
-    end
-
-    -- checking that surface is found and valid
+---Gets gets vsurface data by surface name
+---@param surface_name string|nil
+---@return VSurfaceData|nil
+local function get_vsurface_data_by_name(surface_name)
+    if not surface_name then return end
+    local surface = game.get_surface(surface_name)
     if not surface or not surface.valid then return end
-    return storage.vsurfaces[surface.index]
+    return storage.vsurfaces.lookup[surface.index]
 end
 
----Collects names of all existing valid vsurfaces
+---Deletes vsurface provided its name
+---@param surface_name string|nil name of the surface
+function VSurfaceManager.delete_vsurface(surface_name)
+    local data = get_vsurface_data_by_name(surface_name)
+    if not data then return end
+
+    -- attempting to delete the surface
+    local surface_index = data.surface_index
+    local status = game.delete_surface(surface_index)
+    if not status then return end
+
+    -- removing vsurface data from both tables
+    local vsurfaces = storage.vsurfaces
+    ---@type VSurfaceData[]
+    local array = vsurfaces.array
+    ---@type table<integer, VSurfaceData>
+    local lookup = vsurfaces.lookup
+    lookup[surface_index] = nil
+    for i = 1, #array do
+        local item = array[i]
+        if item.surface_index == surface_index then
+            table.remove(array, i)
+            break
+        end
+    end
+
+    -- removing computation demand of deleted surface
+    ComputationManager.decrease_demand(data.computation_cost)
+end
+
+---Finds and deletes the most recently created vsurface
+---Assumes there is at least one existing vsurface
+local function delete_last_vsurface()
+    local vsurfaces = storage.vsurfaces
+    ---@type VSurfaceData[]
+    local array = vsurfaces.array
+    ---@type table<integer, VSurfaceData>
+    local lookup = vsurfaces.lookup
+
+    -- deleting the last element from array and lookup
+    local data = array[#array]
+    table.remove(array)
+    lookup[data.surface_index] = nil
+
+    -- removing computation demand of deleted surface
+    ComputationManager.decrease_demand(data.computation_cost)
+end
+
+-------------------------------------------------------------------------------
+-- VSURFACE INFO GETTERS/SETTERS
+-------------------------------------------------------------------------------
+
+---Checks if surface with provided name is a vsurface
+---@param surface_name string|nil name of the surface
+---@return boolean status true if vsurface data is found
+function VSurfaceManager.is_vsurface(surface_name)
+    return not not get_vsurface_data_by_name(surface_name)
+end
+
+---Checks if given surface is a vsurface and currently compiling
+---@param surface_name string|nil name of the surface
+---@return boolean status true if surface is found and compiling
+function VSurfaceManager.is_compiling(surface_name)
+    local data = get_vsurface_data_by_name(surface_name)
+    if not data then return false end
+    return (data.compiling == true)
+end
+
+---Checks if given surface is a vsurface and currently idle
+---@param surface_name string|nil name of the surface
+---@return boolean status true if surface is found and idle
+function VSurfaceManager.is_idle(surface_name)
+    local data = get_vsurface_data_by_name(surface_name)
+    if not data then return false end
+    return (data.compiling == false)
+end
+
+---Sets compilation flag for given vsurface
+---@param surface_index integer unique surface identifier
+---@param is_compiling boolean value of compilation flag to set
+function VSurfaceManager.set_compilation_flag(surface_index, is_compiling)
+    local data = storage.vsurfaces.lookup[surface_index]
+    if not data then return end
+    data.compiling = is_compiling
+end
+
+---Gets names of all vsurfaces in order they were created filtered by compiling flag
+---@param is_compiling boolean target value of compiling flag
 ---@return string[]
-function VSurfaceManager.get_all_vsurface_names()
+local function get_vsurfaces_by_compiling_flag(is_compiling)
+    ---@type VSurfaceData[]
+    local array = storage.vsurfaces.array
+    local surfaces = game.surfaces
+    ---@type string[]
     local result = {}
-    for surface_index, _ in pairs(storage.vsurfaces) do
-        local surface = game.get_surface(surface_index)
-        if surface and surface.valid then
-            table.insert(result, surface.name)
+    for _, data in ipairs(array) do
+        if data.compiling == is_compiling then
+            local surface = surfaces[data.surface_index]
+            if surface and surface.valid then
+                table.insert(result, surface.name)
+            end
         end
     end
     return result
 end
 
----Deletes given vsurface
----@param surface_id ExtendedSurfaceID|nil
-function VSurfaceManager.delete_vsurface(surface_id)
-    -- getting LuaSurface object
-    local surface = VSurfaceManager.get_surface(surface_id)
-    if not surface or not surface.valid then return end
+---Gets names of all idle vsurfaces in order of their creation 
+---@return string[]
+function VSurfaceManager.get_idle_vsurfaces()
+    return get_vsurfaces_by_compiling_flag(false)
+end
 
-    -- checking if provided surface is a vsurface
-    local surface_index = surface.index
-    if not storage.vsurfaces[surface_index] then return end
-
-    local status = game.delete_surface(surface_index)
-    if status then storage.vsurfaces[surface_index] = nil end
+---Gets names of all compiling vsurfaces in order of their creation 
+---@return string[]
+function VSurfaceManager.get_compiling_vsurfaces()
+    return get_vsurfaces_by_compiling_flag(true)
 end
 
 -------------------------------------------------------------------------------

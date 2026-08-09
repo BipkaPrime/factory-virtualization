@@ -108,8 +108,10 @@ local function create_entity_gui_base(player, entity)
         style = "inside_shallow_frame",
         direction = "vertical"
     }
-
-    local datafield = right_frame.add{type = "scroll-pane"}
+    local datafield = right_frame.add{
+        type = "scroll-pane",
+        vertical_scroll_policy = "always",
+    }
     datafield.style.vertically_stretchable = true
     gui_data.elements.datafield = datafield
     GuiUpdater.register_gui("entity", gui_data, player_index)
@@ -235,11 +237,6 @@ local function create_inter_cluster_bridge_gui(player, entity)
         {"gui-label.enable-flow-limit-override"},
         {"gui-label.set-flow-limit-to"}
     )
-end
-
-
-local function create_template_computation_array_gui(player, entity)
-
 end
 
 ---Creates template energy IO interface

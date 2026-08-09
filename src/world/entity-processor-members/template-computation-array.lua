@@ -17,7 +17,7 @@ Properties that can be assigned during on-tick processing:
 2. Ls flow. Used to track how much computation this entity is currently producing.
 --]]
 
-local VEnvProcessor = require("src.simulation.venv-processor")
+local ComputationManager = require("src.simulation.computation-manager")
 
 
 local PREFIX = "FV-"
@@ -69,7 +69,7 @@ end
 function ComputationArray.on_processing_stopped(properties)
     properties.ls_flow = nil
     if properties.operational then
-        VEnvProcessor.remove_computation_potential(
+        ComputationManager.decrease_potential(
             properties.computation_limit
         )
     end
@@ -89,7 +89,7 @@ function ComputationArray.process_entity(properties)
     if not properties.operational then
         local startup_power = properties.startup_energy
         if current_energy >= startup_power then
-            VEnvProcessor.add_computation_potential(
+            ComputationManager.increase_potential(
                 properties.computation_limit
             )
             properties.operational = true
@@ -101,7 +101,7 @@ function ComputationArray.process_entity(properties)
     -- handling entity being turned on
     if properties.operational then
         -- getting amount of computation expected from this entity
-        local demand = VEnvProcessor.get_computation_demand()
+        local demand = ComputationManager.get_demand_ratio()
         local requested = properties.computation_limit * demand
         properties.ls_flow = requested
 
@@ -113,7 +113,7 @@ function ComputationArray.process_entity(properties)
         if current_energy > required_power then
             entity.power_usage = required_power
         else
-            VEnvProcessor.remove_computation_potential(
+            ComputationManager.decrease_potential(
                 properties.computation_limit
             )
             properties.operational = false

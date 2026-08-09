@@ -40,9 +40,7 @@ storage.opened_guis = {
 
 ---Union of all classes that inherit from GuiDataBase
 ---@alias GuiData
----|DashboardData
 ---|EntityGuiData
----|SurfaceManagerData
 
 ---Entry in the storage.opened_guis.array
 ---@class GuiUpdaterEntry

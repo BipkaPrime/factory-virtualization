@@ -1,34 +1,19 @@
 local iconpath = "__factory-virtualization__/graphics/icons/"
 
 
-local td_hotkey = {
+local control_center_hotkey = {
     type = "custom-input",
-    name = PREFIX .. "td-hotkey",
+    name = PREFIX .. "control-center-hotkey",
     key_sequence = "CONTROL + SPACE",
 }
 
-local td_shortcut = {
+local control_center_shortcut = {
     type = "shortcut",
-    name = PREFIX .. "td-shortcut",
+    name = PREFIX .. "control-center-shortcut",
     action = "lua",
-    icon = iconpath .. "template-dashboard.png",
-    small_icon = iconpath .. "template-dashboard.png",
-    associated_control_input = PREFIX .. "td-hotkey",
+    icon = iconpath .. "control-center-shortcut.png",
+    small_icon = iconpath .. "control-center-shortcut.png",
+    associated_control_input = PREFIX .. "control-center-hotkey",
 }
 
-local sm_hotkey = {
-    type = "custom-input",
-    name = PREFIX .. "sm-hotkey",
-    key_sequence = "ALT + V",
-}
-
-local sm_shortcut = {
-    type = "shortcut",
-    name = PREFIX .. "sm-shortcut",
-    action = "lua",
-    icon = iconpath .. "surface-manager.png",
-    small_icon = iconpath .. "surface-manager.png",
-    associated_control_input = PREFIX .. "sm-hotkey",
-}
-
-data.extend({td_hotkey, td_shortcut, sm_hotkey, sm_shortcut})
+data.extend({control_center_hotkey, control_center_shortcut})

@@ -5,8 +5,7 @@ local VEnvProcessor = require("src.simulation.venv-processor")
 local CommonGui = require("src.gui.common")
 local EntityGui = require("src.gui.entity")
 local EntityControls = require("src.gui.entity-controls")
-local SurfaceManagerGui = require("src.gui.vsurface-manager")
-local TemplateDashboard = require("src.gui.template-dashboard")
+local ControlCenter = require("src.gui.control-center")
 local GuiUpdater = require("src.gui.updater")
 
 local PREFIX = "FV-"
@@ -21,18 +20,17 @@ script.on_init(function()
     -- world/vsurface-chunk-processor
     storage.vsurface_chunks = {}
     -- world/vsurface-manager
-    storage.vsurfaces = {}
+    storage.vsurfaces = {array = {}, lookup = {}}
     -- simulation/cluster-processor
     storage.clusters = {array = {}, lookup = {}}
+    -- simulation/computation-manager
+    storage.computation = {maximum_available = 0, required = 0}
     -- simulation/template-compiler
     storage.templates = {}
     -- simulation/venv-processor
     storage.venvs = {}
-    storage.computation = {maximum_available = 0, required = 0}
-    -- gui/template-dashboard
-    storage.template_dashboard = {}
-    -- gui/vsurface-manager
-    storage.surface_manager = {}
+    -- gui/control-center
+    storage.control_center = {}
     -- gui/entity-gui
     storage.entity_gui = {}
     -- gui/updater
@@ -95,8 +93,7 @@ script.on_event(defines.events.on_gui_opened, function(event)
 end)
 
 local on_lua_shortcut_router = {
-    [PREFIX .. "sm-shortcut"] = SurfaceManagerGui.process_surface_manager_shortcut,
-    [PREFIX .. "td-shortcut"] = TemplateDashboard.process_dashboard_shortcut,
+    [PREFIX .. "control-center-shortcut"] = ControlCenter.handle_shortcut,
 }
 script.on_event(defines.events.on_lua_shortcut, function(event)
     local handler = on_lua_shortcut_router[event.prototype_name]
@@ -119,32 +116,20 @@ end
 
 local on_gui_click_router = {
     [PREFIX .. "close-button"] = CommonGui.process_close_button,
-    [PREFIX .. "sm-new-surface-btn"] = SurfaceManagerGui.process_create_new_surface_btn,
-    [PREFIX .. "sm-delete-surface-btn"] = SurfaceManagerGui.process_delete_surface_btn,
-    [PREFIX .. "sm-new-surface-confirm"] = SurfaceManagerGui.process_new_surface_confirm_btn,
-    [PREFIX .. "sm-start-compilation-btn"] = SurfaceManagerGui.process_start_compilation_btn,
 }
 script.on_event(defines.events.on_gui_click, function(event)
     element_name_router(event, on_gui_click_router)
 end)
 
 local on_gui_closed_router = {
-    [PREFIX .. "sm-window"] = SurfaceManagerGui.process_surface_manager_gui_closed,
-    [PREFIX .. "td-window"] = TemplateDashboard.process_template_dashboard_gui_closed,
     [PREFIX .. "entity-window"] = EntityGui.process_entity_gui_closed,
+    [PREFIX .. "control-center-window"] = ControlCenter.handle_window_closed,
 }
 script.on_event(defines.events.on_gui_closed, function(event)
     element_name_router(event, on_gui_closed_router)
 end)
 
 local on_gui_text_changed_router = {
-    [PREFIX .. "sm-vsurface-search"] = SurfaceManagerGui.process_vsurface_selection_search,
-    [PREFIX .. "sm-new-surface-name"] = SurfaceManagerGui.process_new_surface_name_changed,
-    [PREFIX .. "sm-new-surface-width"] = SurfaceManagerGui.process_new_surface_width_changed,
-    [PREFIX .. "sm-new-surface-height"] = SurfaceManagerGui.process_new_surface_height_changed,
-    [PREFIX .. "sm-template-name"] = SurfaceManagerGui.process_template_name_changed,
-    [PREFIX .. "td-template-search"] = TemplateDashboard.process_template_search,
-    [PREFIX .. "td-surface-search"] = TemplateDashboard.process_surface_search,
     [PREFIX .. "first-template-search"] = EntityControls.process_first_template_searchfield,
     [PREFIX .. "second-template-search"] = EntityControls.process_second_template_searchfield,
     [PREFIX .. "capability-override-textfield"] = EntityControls.process_capability_override_textfield,
@@ -155,10 +140,6 @@ script.on_event(defines.events.on_gui_text_changed, function(event)
 end)
 
 local on_gui_selection_state_changed_router = {
-    [PREFIX .. "sm-vsurface-selector"] = SurfaceManagerGui.process_vsurface_selection_changed,
-    [PREFIX .. "sm-planet-selector"] = SurfaceManagerGui.process_planet_selector,
-    [PREFIX .. "td-template-selector"] = TemplateDashboard.process_template_selector,
-    [PREFIX .. "td-surface-selector"] = TemplateDashboard.process_surface_selector,
     [PREFIX .. "first-template-selector"] = EntityControls.process_first_template_selector,
     [PREFIX .. "second-template-selector"] = EntityControls.process_second_template_selector,
 }
@@ -186,8 +167,7 @@ script.on_event(defines.events.on_gui_checked_state_changed, function(event)
     element_name_router(event, on_gui_checked_state_changed_router)
 end)
 
-script.on_event(PREFIX .. "sm-hotkey", SurfaceManagerGui.process_surface_manager_hotkey)
-script.on_event(PREFIX .. "td-hotkey", TemplateDashboard.process_dashboard_hotkey)
+script.on_event(PREFIX .. "control-center-hotkey", ControlCenter.handle_hotkey)
 
 -------------------------------------------------------------------------------
 -- DEBUG COMMANDS
