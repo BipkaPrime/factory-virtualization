@@ -52,13 +52,18 @@ local idle_power_consumption = {
 ---@param properties EntityProperties table from entity processor
 ---@return boolean status true if initialization was successful
 function ComputationArray.attempt_entity_initialization(properties)
+    -- TODO: add vsurface check
+
     local entity_name = properties.entity_name
     local computation_limit = computation_limits[entity_name]
     properties.computation_limit = computation_limit
     local computation_cost = computation_costs[entity_name]
     properties.computation_cost = computation_cost
     local idle_power = idle_power_consumption[entity_name]
-    properties.startup_energy = computation_limit * computation_cost + idle_power
+    -- energy required for one second of operation at maximum load
+    properties.startup_energy = 60 * (computation_limit * computation_cost + idle_power)
+    -- when pasting computation array from blueprint, energy usage is pasted as well
+    properties.entity.power_usage = idle_power
     return true
 end
 
@@ -98,7 +103,7 @@ function ComputationArray.process_entity(properties)
         end
     end
 
-    -- handling entity being turned on
+    -- handling entity being operational
     if properties.operational then
         -- getting amount of computation expected from this entity
         local demand = ComputationManager.get_demand_ratio()
@@ -107,7 +112,7 @@ function ComputationArray.process_entity(properties)
 
         -- changing power consumption according to requested computation
         local idle_power = idle_power_consumption[properties.entity_name]
-        local required_power = (requested * properties.computation_cost) + idle_power
+        local required_power = requested * properties.computation_cost + idle_power
 
         -- if energy is insufficient, entity is turned off
         if current_energy > required_power then

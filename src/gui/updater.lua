@@ -32,8 +32,7 @@ storage.opened_guis = {
 ---@class GuiElementsBase
 ---@field main_window LuaGuiElement main window that should be destroyed when closing the gui
 
----Base class for table containing gui data. All tables with gui data
----should inherit from this one
+---Base class for table containing gui data. All tables with gui data must contain these fields
 ---@class GuiDataBase
 ---@field opened boolean|nil true if window is opened
 ---@field elements GuiElementsBase|nil
@@ -41,6 +40,7 @@ storage.opened_guis = {
 ---Union of all classes that inherit from GuiDataBase
 ---@alias GuiData
 ---|EntityGuiData
+---|ControlCenterData
 
 ---Entry in the storage.opened_guis.array
 ---@class GuiUpdaterEntry
@@ -56,7 +56,7 @@ GuiUpdater.router = {}
 
 ---Adds update schema to update router
 ---@param name string
----@param updater function
+---@param updater fun(gui_data: GuiData)
 function GuiUpdater.add_schema(name, updater)
     GuiUpdater.router[name] = updater
 end

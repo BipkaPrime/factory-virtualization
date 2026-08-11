@@ -6,6 +6,7 @@ local CommonGui = require("src.gui.common")
 local EntityGui = require("src.gui.entity")
 local EntityControls = require("src.gui.entity-controls")
 local ControlCenter = require("src.gui.control-center")
+local CCSurfaces = require("src.gui.cc-modules.surfaces")
 local GuiUpdater = require("src.gui.updater")
 
 local PREFIX = "FV-"
@@ -116,6 +117,15 @@ end
 
 local on_gui_click_router = {
     [PREFIX .. "close-button"] = CommonGui.process_close_button,
+    [PREFIX .. "cc-surface-mode"] = ControlCenter.handle_surface_mode_button,
+    [PREFIX .. "cc-template-mode"] = ControlCenter.handle_template_mode_button,
+    [PREFIX .. "cc-cluster-mode"] = ControlCenter.handle_cluster_mode_button,
+    [PREFIX .. "cc-new-surface-btn"] = CCSurfaces.handle_new_surface_button,
+    [PREFIX .. "cc-delete-surface-btn"] = CCSurfaces.handle_surface_delete_button,
+    [PREFIX .. "cc-start-compilation-btn"] = CCSurfaces.handle_compilation_start_button,
+    [PREFIX .. "cc-stop-compilation-btn"] = CCSurfaces.handle_compilation_stop_button,
+    [PREFIX .. "cc-new-vsurface-confirm"] = CCSurfaces.handle_new_vsurface_confirm_button,
+    [PREFIX .. "cc-confirm-vsurface-delete"] = CCSurfaces.handle_confirm_surface_deletion_btn,
 }
 script.on_event(defines.events.on_gui_click, function(event)
     element_name_router(event, on_gui_click_router)
@@ -134,6 +144,12 @@ local on_gui_text_changed_router = {
     [PREFIX .. "second-template-search"] = EntityControls.process_second_template_searchfield,
     [PREFIX .. "capability-override-textfield"] = EntityControls.process_capability_override_textfield,
     [PREFIX .. "overflow-threshold-textfield"] = EntityControls.process_overflow_threshold_textfield,
+    [PREFIX .. "cc-idle-surface-search"] = CCSurfaces.handle_idle_surface_search,
+    [PREFIX .. "cc-compiling-surface-search"] = CCSurfaces.handle_compiling_surface_search,
+    [PREFIX .. "cc-new-vsurface-name"] = CCSurfaces.handle_new_vsurface_name_textfield,
+    [PREFIX .. "cc-new-vsurface-width"] = CCSurfaces.handle_new_vsurface_width_changed,
+    [PREFIX .. "cc-new-vsurface-height"] = CCSurfaces.handle_new_vsurface_height_changed,
+
 }
 script.on_event(defines.events.on_gui_text_changed, function(event)
     element_name_router(event, on_gui_text_changed_router)
@@ -142,6 +158,9 @@ end)
 local on_gui_selection_state_changed_router = {
     [PREFIX .. "first-template-selector"] = EntityControls.process_first_template_selector,
     [PREFIX .. "second-template-selector"] = EntityControls.process_second_template_selector,
+    [PREFIX .. "cc-idle-surface-selector"] = CCSurfaces.handle_idle_surface_selector,
+    [PREFIX .. "cc-compiling-surface-selector"] = CCSurfaces.handle_compiling_surface_selector,
+    [PREFIX .. "cc-generate-as-selector"] = CCSurfaces.handle_new_vsurface_generate_as_selector,
 }
 script.on_event(defines.events.on_gui_selection_state_changed, function(event)
     element_name_router(event, on_gui_selection_state_changed_router)
