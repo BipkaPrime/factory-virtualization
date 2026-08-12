@@ -7,39 +7,56 @@ template is created.
 
 Computation is required to sustain existance of a virtualiation surface. If there 
 is a computation deficit, vsurfaces are deleted one by one until there is no deficit.
+The same goes for compilation of vsurfaces, which require significantly more computation.
 
 Upon creation, vsurface data is stored at storage.vsurfaces and consists of 2 parts:
 storage.vsurfaces = {
-    array VSurfaceData[] order of elements is used for vsurface deletion in computation deficit
-    lookup table<integer, VSurfaceData> key is surface index
+    array VSurfaceData[]: order of elements is used for vsurface deletion in computation deficit
+    lookup table<integer, VSurfaceData>: key is surface index
+    compilation_queue integer[]: contains surface indexes of compiling vsurfaces
+        in chronological order. Older compilations first.
+    next_compilation integer: index of compilation that should be processed next tick
 }
 
-Vsurface manager handles create/delete vsurface requests. It is also used to access
-vsurface information. It's also used to for some other vsurface requests, for example
-calculating building cost of a given vsurface.
+Vsurface manager handles creation and deletion of vsurfaces as well as vsurface data lookups.
+It also orchestrates vsurface compilation and handles start/stop compilation requests.
 --]]
 
----@class VSurfaceConfig contains necessery information for vsurface creation
+---Table containing user inputs necessery for creation of vsurface
+---@class VSurfaceConfig
 ---@field name string|nil name of new vsurface
 ---@field width number|nil width of new vsurface
 ---@field height number|nil height of new vsurface
 ---@field generate_as string|nil name of planet which magpen should be used
 
+---Table containing additional vsurface information used for compilation
+---@class CompilationVEnv
+---@field template_name string|nil name of compiling template (unique template identifier)
+---@field compilation_start integer|nil tick at which compilation was started
+---@field compilation_stop integer|nil tick at which compilation should end
+---@field last_update integer|nil tick at which this environment was last updated
+---@field input table<BufferKeyString, number> accumulated compilation inputs
+---@field output table<BufferKeyString, number> accumulated compilation outputs
+
 ---@class VSurfaceData
 ---@field surface_index integer unique surface identifier
----@field surface_name string name of given surface
+---@field name string name of given surface
+---@field width number width of the surface
+---@field height number height if the surface
 ---@field compiling boolean true if surface is currently compiling (needed for gui filtering)
 ---@field idle_demand number amount of computation required for this surface when idle
 ---@field compiling_demand number amount of computation required for this surface when compiling
 ---@field energy_drain number template energy drain
----@field width number width of the surface
----@field height number height if the surface
-
+---@field compilation_venv CompilationVEnv
 
 local ChunkProcessor = require("src.world.vsurface-chunk-processor")
 local ComputationManager = require("src.simulation.computation-manager")
+local TemplateStorage = require("src.simulation.template-storage")
 
 local VSurfaceManager = {}
+
+--TODO: add listeners to events like delete surface/rename surface, etc to keep data in storage accurate
+--TODO: move create_vsurface/delete_surface/etc errors to returned value instead of game.print ?
 
 -------------------------------------------------------------------------------
 ------------------------------ VSURFACE CREATION ------------------------------
@@ -193,7 +210,9 @@ function VSurfaceManager.create_vsurface(vsurface_config)
     end
 
     -- creating surface with specified properties
-    local surface = game.create_surface(vsurface_config.name, mgs)
+    ---@type string assuming name was verified earlier
+    local surface_name = vsurface_config.name
+    local surface = game.create_surface(surface_name, mgs)
     -- making sure sufrace was created
     if not surface then
         -- TODO: log config?
@@ -217,13 +236,14 @@ function VSurfaceManager.create_vsurface(vsurface_config)
     ---@type VSurfaceData
     local vsurface_data = {
         surface_index = surface_index,
-        surface_name = vsurface_config.name,
+        name = surface_name,
+        width = width,
+        height = height,
         compiling = false,
         idle_demand = VSurfaceManager.get_idle_computation_demand(vsurface_config),
         compiling_demand = VSurfaceManager.get_compiling_computation_demand(vsurface_config),
         energy_drain = VSurfaceManager.get_vsurface_energy_drain(vsurface_config),
-        width = width,
-        height = height,
+        compilation_venv = {input = {}, output = {}}
     }
     local vsurfaces = storage.vsurfaces
     table.insert(vsurfaces.array, vsurface_data)
@@ -240,76 +260,99 @@ end
 ------------------------------ VSURFACE DELETION ------------------------------
 -------------------------------------------------------------------------------
 
----Attempts to delete a vsurface provided its name
----@param surface_name string|nil name of the surface
----@return boolean status true if surface was successfully deleted
-function VSurfaceManager.delete_vsurface_by_name(surface_name)
-    if not surface_name then
-        game.print("[Vsurface Manager] [color=red]Error:[/color] deletion failed, missing surface name")
-        return false
-    end
-    local surface = game.get_surface(surface_name)
-    if not surface or not surface.valid then
-        game.print("[Vsurface Manager] [color=red]Error:[/color] deletion failed, surface doesn't exist")
-        return false
-    end
-    local surface_index = surface.index
-    ---@type VSurfaceData
-    local data = storage.vsurfaces.lookup[surface_index]
-    if not data then
-        game.print("[Vsurface Manager] [color=red]Error:[/color] deletion failed, vsurface data not found")
-        return false
-    end
-    if data.compiling then
-        game.print("[Vsurface Manager] [color=red]Error:[/color] deletion failed, can't delete compiling vsurface")
-        return false
-    end
-    -- attempting to delete the surface
-    if not game.delete_surface(surface_index) then
-        game.print("[Vsurface Manager] [color=red]Error:[/color] deletion failed, surface protected by game engine")
-        return false
-    end
-
-    -- removing vsurface data from both tables
-    ---@type VSurfaceData[]
-    local array = storage.vsurfaces.array
-    ---@type table<integer, VSurfaceData>
-    local lookup = storage.vsurfaces.lookup
-    lookup[surface_index] = nil
-    for i = 1, #array do
-        local item = array[i]
-        if item.surface_index == surface_index then
-            table.remove(array, i)
-            break
-        end
-    end
-
-    -- removing computation demand of deleted surface
-    ComputationManager.decrease_demand(data.idle_demand)
-    return true
-end
-
----Finds and deletes the most recently created vsurface
----TODO: add compiling check, add actual surface deletion
-local function delete_last_vsurface()
+---Deletes vsurface data from storage and decreases computation demand.
+---COMPILING VSURFACE SHOULD NEVER BE DELETED.
+---@param data_index integer position of vsurface data in the array
+local function delete_vsurface_data(data_index)
     local vsurfaces = storage.vsurfaces
     ---@type VSurfaceData[]
     local array = vsurfaces.array
-    if #array == 0 then return end
     ---@type table<integer, VSurfaceData>
     local lookup = vsurfaces.lookup
+    local data = array[data_index]
+    local surface_index = data.surface_index
+    lookup[surface_index] = nil
+    table.remove(array, data_index)
 
-    -- deleting the last element from array and lookup
-    local data = array[#array]
-    table.remove(array)
-    lookup[data.surface_index] = nil
-
-    -- removing computation demand of deleted surface
+    -- removing computation demand of deleted vsurface
     ComputationManager.decrease_demand(data.idle_demand)
 end
 
+---Attempts to delete a vsurface provided its name
+---@param surface_name string|nil name of the surface
+---@return boolean status, LocalisedString|nil reason
+function VSurfaceManager.delete_vsurface_by_name(surface_name)
+    -- checking that surface name was provided
+    if not surface_name then
+        return false, "Deletion failed, missing surface name"
+    end
+    -- looking through all vsurfaces to find its data
+    local vsurfaces = storage.vsurfaces
+    ---@type VSurfaceData[]
+    local array = vsurfaces.array
+    ---This approach is chosen to allow for deletion when surface 
+    ---for some reason no longer exists in the game engine 
+    local data_index
+    for i, data in ipairs(array) do
+        if data.name == surface_name then
+            data_index = i
+            break
+        end
+    end
+    -- checking that vsurface data was found
+    if not data_index then
+        return false, "Deletion failed, vsurface data was not found"
+    end
+    local data = array[data_index]
+    -- checking that surface is not currently compiling
+    if data.compiling then
+        return false, "Deletion failed, can't delete compiling vsurface"
+    end
+    -- attempting to delete the surface from the game engine
+    local surface_index = data.surface_index
+    if game.get_surface(surface_index) and not game.delete_surface(surface_index) then
+        -- surface exists in game but for some reason can't be deleted
+        return false, "Deletion failed, surface protected by game engine"
+    end
+    delete_vsurface_data(data_index)
+    return true
+end
+
+---Deletes the most recently created vsurface. Intended to be used
+---in computation deficit situation.
+---@return boolean status true if vsurface was deleted
+local function delete_newest_vsurface()
+    local vsurfaces = storage.vsurfaces
+    ---@type VSurfaceData[]
+    local array = vsurfaces.array
+
+    -- can't delete anything if array is empty
+    local last_index = #array
+    if last_index == 0 then return false end
+
+    -- don't want to delete a surface if it's compiling
+    -- it should be stopped elsewhere before deletion
+    local data = array[last_index]
+    if data.compiling then return false end
+
+    -- attempting to delete the surface
+    local surface_index = data.surface_index
+    if not game.delete_surface(surface_index) then return false end
+    -- removing vsurface data from storage
+    delete_vsurface_data(last_index)
+
+    -- vsurface deletion chat warning
+    -- TODO: change to localised string
+    local name = "[" .. data.name .. "]"
+    game.print(
+        "[VSurface manager] [color=red]Critical issue:[/color] vsurface " ..
+        name .. " was deleted due to insufficient computation."
+    )
+    return true
+end
+
 -------------------------------------------------------------------------------
--- VSURFACE INFO GETTERS/SETTERS
+---------------------------- VSURFACE INFO GETTERS ----------------------------
 -------------------------------------------------------------------------------
 
 ---Gets gets vsurface data by surface name
@@ -317,17 +360,16 @@ end
 ---@return VSurfaceData|nil
 local function get_vsurface_data_by_name(surface_name)
     if not surface_name then return end
-    local surface = game.get_surface(surface_name)
-    if not surface or not surface.valid then return end
-    return storage.vsurfaces.lookup[surface.index]
+    -- there should not be many existing vsurfaces at the same
+    -- probably faster than game.get_surface() anyway and does not generate trash
+    for _, data in ipairs(storage.vsurfaces.array) do
+        if data.name == surface_name then
+            return data
+        end
+    end
 end
 
----Checks if surface with provided name is a vsurface
----@param surface_name string|nil name of the surface
----@return boolean status true if vsurface data is found
-function VSurfaceManager.is_vsurface(surface_name)
-    return not not get_vsurface_data_by_name(surface_name)
-end
+------------------------------- BY SURFACE NAME -------------------------------
 
 ---Checks if given surface is a vsurface and currently compiling
 ---@param surface_name string|nil name of the surface
@@ -335,7 +377,7 @@ end
 function VSurfaceManager.is_compiling(surface_name)
     local data = get_vsurface_data_by_name(surface_name)
     if not data then return false end
-    return (data.compiling == true)
+    return data.compiling
 end
 
 ---Checks if given surface is a vsurface and currently idle
@@ -344,62 +386,277 @@ end
 function VSurfaceManager.is_idle(surface_name)
     local data = get_vsurface_data_by_name(surface_name)
     if not data then return false end
-    return (data.compiling == false)
+    return not data.compiling
 end
 
----Sets compilation flag for given vsurface
----@param surface_index integer unique surface identifier
----@param is_compiling boolean value of compilation flag to set
-function VSurfaceManager.set_compilation_flag(surface_index, is_compiling)
-    local data = storage.vsurfaces.lookup[surface_index]
-    if not data then return end
-    data.compiling = is_compiling
+------------------------------ BY SURFACE INDEX -------------------------------
+
+---Checks if surface with provided index is a vsurface
+---@param surface_index number unique surface identifier
+---@return boolean status true if vsurface data is found
+function VSurfaceManager.is_vsurface(surface_index)
+    return not not storage.vsurfaces.lookup[surface_index]
 end
 
----Gets names of all vsurfaces in order they were created filtered by compiling flag
----@param is_compiling boolean target value of compiling flag
+---------------------------- GENERAL GUI REQUESTS -----------------------------
+
+---Gathers names of all idle vsurfaces in order of their creation 
 ---@return string[]
-local function get_vsurfaces_by_compiling_flag(is_compiling)
+function VSurfaceManager.get_idle_vsurfaces()
     ---@type VSurfaceData[]
     local array = storage.vsurfaces.array
-    local surfaces = game.surfaces
-    ---@type string[]
     local result = {}
     for _, data in ipairs(array) do
-        if data.compiling == is_compiling then
-            local surface = surfaces[data.surface_index]
-            if surface and surface.valid then
-                table.insert(result, surface.name)
-            end
+        if not data.compiling then
+            table.insert(result, data.name)
         end
     end
     return result
 end
 
----Gets names of all idle vsurfaces in order of their creation 
----@return string[]
-function VSurfaceManager.get_idle_vsurfaces()
-    return get_vsurfaces_by_compiling_flag(false)
-end
-
----Gets names of all compiling vsurfaces in order of their creation 
+---Gathers names of all compiling vsurfaces in chronological order.
+---Older compilations first.
 ---@return string[]
 function VSurfaceManager.get_compiling_vsurfaces()
-    return get_vsurfaces_by_compiling_flag(true)
+    local vsurfaces = storage.vsurfaces
+    ---@type integer[] surface_indexes
+    local queue = vsurfaces.compilation_queue
+    ---@type table<integer, VSurfaceData>
+    local lookup = vsurfaces.lookup
+
+    local result = {}
+    for _, surface_index in ipairs(queue) do
+        local data = lookup[surface_index]
+        if data then
+            table.insert(result, data.name)
+        end
+    end
+    return result
 end
 
 -------------------------------------------------------------------------------
--- VENV-PROCESSOR/TEMPLATE-COMPILER REQUESTS
+--------------------------- COMPILATION START/STOP ----------------------------
 -------------------------------------------------------------------------------
 
----@param surface_id ExtendedSurfaceID|nil
----@return boolean is_valid true if surface is valid
-function VSurfaceManager.check_surface_validity(surface_id)
-    local surface = VSurfaceManager.get_surface(surface_id)
-    return (surface and surface.valid) and true or false
+---Base vsurface compilation time in ticks (10 minutes)
+local BASE_COMPILATION_TIME = 36000
+
+---Checks if template with provided name is currently compiling
+---@param template_name string
+---@return boolean status true if template with provided name is compiling
+local function is_template_name_compiling(template_name)
+    local vsurfaces = storage.vsurfaces
+    ---@type integer[] surface_indexes
+    local queue = vsurfaces.compilation_queue
+    ---@type table<integer, VSurfaceData>
+    local lookup = vsurfaces.lookup
+
+    -- looking through compilation queue
+    for _, surface_index in ipairs(queue) do
+        local data = lookup[surface_index]
+        if data.compilation_venv.template_name == template_name then
+            return true
+        end
+    end
+    return false
 end
 
----Helps in calculating surface building cost. Adds item to total cost.
+---Checks if compilation of a given surface can be started
+---@param surface_name string|nil
+---@param template_name string|nil unique template identifier
+---@return boolean status true if compilation can be started
+---@return LocalisedString|nil reason why compilation can not be started if any
+function VSurfaceManager.can_start_compilation(surface_name, template_name)
+    -- checking that surface name is provided
+    if not surface_name or not string.find(surface_name, "%S", 1, false) then
+        return false, "Surface name is missing"
+    end
+    -- checking that template name is provided
+    if not template_name or not string.find(template_name, "%S", 1, false) then
+        return false, "Template name is missing"
+    end
+    -- checking that template name is not occupied in template storage
+    if not TemplateStorage.is_name_available(template_name) then
+        return false, "Template with provided name already exists"
+    end
+    -- checking that template with provided name is not currently compiling
+    if is_template_name_compiling(template_name) then
+        return false, "Template with provided name is already compiling"
+    end
+    -- checking that vsurface data exists in storage
+    local vsurface_data = get_vsurface_data_by_name(surface_name)
+    if not vsurface_data then
+        return false, "Vsurface data not found"
+    end
+    -- checking that vsurface is not already compiling
+    if vsurface_data.compiling then
+        return false, "Vsurface is already compiling"
+    end
+    return true
+end
+
+---Attempts to starts a compilation of a given vsurface
+---@param surface_name string|nil name of vsurface to compile
+---@param template_name string|nil unique template identifier
+---@return boolean status, LocalisedString|nil reason
+function VSurfaceManager.start_compilation(surface_name, template_name)
+    local status, reason = VSurfaceManager.can_start_compilation(surface_name, template_name)
+    if not status then return false, reason end
+
+    local vsurface_data = get_vsurface_data_by_name(surface_name)
+    ---Vsurface data exists, template name valid (checked above)
+    ---@cast vsurface_data VSurfaceData
+    ---@cast template_name string
+
+    -- configuring vsurface data
+    local current_tick = game.tick
+    vsurface_data.compilation_venv = {
+        template_name = template_name,
+        compilation_start = current_tick,
+        compilation_stop = current_tick + BASE_COMPILATION_TIME,
+        last_update = current_tick,
+        input = {},
+        output = {},
+    }
+    vsurface_data.compiling = true
+    -- adding vsurface to compilation queue
+    local surface_index = vsurface_data.surface_index
+    local queue = storage.vsurfaces.compilation_queue
+    table.insert(queue, surface_index)
+
+    -- increasing compuatation demand of the surface
+    local computation_delta = vsurface_data.compiling_demand - vsurface_data.idle_demand
+    ComputationManager.increase_demand(computation_delta)
+
+    -- switching vsurface state in chunk registry
+    ChunkProcessor.set_compiling_flag(surface_index, true)
+
+    return true
+end
+
+---Used when compilation for a given surface needs to end for any reason.
+---@param surface_index integer unique surface identifier
+local function terminate_compilation(surface_index)
+    local vsurfaces = storage.vsurfaces
+    -- removing the surface from compilation queue
+    local queue = vsurfaces.compilation_queue
+    for i = 1, #queue do
+        if queue[i] == surface_index then
+            table.remove(queue, i)
+            break
+        end
+    end
+    ---Assuming data exists because otherwise, computation counts will
+    ---get incorrect. In general, vsurface data MUST NOT be deleted
+    ---if surface is compiling.
+    ---@type VSurfaceData
+    local data = vsurfaces.lookup[surface_index]
+    data.compiling = false
+    data.compilation_venv = {input = {}, output = {}}
+
+    -- decreasing computation demand of this surface
+    local computation_delta = data.compiling_demand - data.idle_demand
+    ComputationManager.decrease_demand(computation_delta)
+
+    -- switching vsurface state in chunk registry
+    ChunkProcessor.set_compiling_flag(surface_index, false)
+end
+
+---Attempts to stop compilation of a given vsurface (player request)
+---@param surface_name string|nil name of vsurface
+---@return boolean status, LocalisedString|nil reason why compilation was not stopped
+function VSurfaceManager.stop_compilation(surface_name)
+    local data = get_vsurface_data_by_name(surface_name)
+    -- checking that vsurface data is found
+    if not data then
+        return false, "[VSurface compiler] Error: vsurface data not found"
+    end
+    terminate_compilation(data.surface_index)
+    return true
+end
+
+---Stops last compilation in queue (computation deficit)
+---@return boolean status true if compilation was terminated
+local function stop_newest_compilation()
+    local vsurfaces = storage.vsurfaces
+    local queue = vsurfaces.compilation_queue
+    local queue_length = #queue
+    if queue_length == 0 then return false end
+    local surface_index = queue[queue_length]
+    terminate_compilation(surface_index)
+
+    ---@type VSurfaceData
+    local data = vsurfaces.lookup[surface_index]
+
+    -- compilation terminated chat warning
+    local name = "[" .. data.name .. "]"
+    game.print(
+        "[VSurface manager] [color=red]Critical issue:[/color] compilation of vsurface " ..
+        name .. " was terminated due to insufficient computation."
+    )
+    return true
+end
+
+-------------------------------------------------------------------------------
+------------------------ VSURFACE ENVIRONMENT REQUESTS ------------------------
+-------------------------------------------------------------------------------
+
+------------------------------ BACKEND REQUESTS -------------------------------
+
+---Adds given count to provided entry of vsurface environment input.
+---@param surface_index integer unique surface identifier
+---@param key BufferKeyString "steel-plate//normal", "water", "electric_energy"
+---@param count number count to add
+function VSurfaceManager.add_to_venv_input(surface_index, key, count)
+    ---@type VSurfaceData
+    local data = storage.vsurfaces.lookup[surface_index]
+    if not data then return end
+    local input = data.compilation_venv.input
+    -- creating input entry if it does not exist
+    if not input[key] then
+        input[key] = 0
+    end
+    input[key] = input[key] + count
+end
+
+---Adds given count to provided entry of vsurface environment output.
+---@param surface_index integer unique surface identifier
+---@param key BufferKeyString "steel-plate//normal", "water", "electric_energy"
+---@param count number count to add
+function VSurfaceManager.add_to_venv_output(surface_index, key, count)
+    ---@type VSurfaceData
+    local data = storage.vsurfaces.lookup[surface_index]
+    if not data then return end
+    local output = data.compilation_venv.output
+    -- creating output entry if it does not exist
+    if not output[key] then
+        output[key] = 0
+    end
+    output[key] = output[key] + count
+end
+
+--------------------------------- GUI REQUESTS ---------------------------------
+
+---Gets compilation progress of given vsurface. If vsurface data is not
+---found or compilation is not in progress, returns zeroes.
+---@return number elapsed_time, number total_time
+function VSurfaceManager.get_compilation_progress(surface_name)
+    local data = get_vsurface_data_by_name(surface_name)
+    if not data then return 0, 0 end
+    local env = data.compilation_venv
+    local start_time = env.compilation_start or 0
+    local end_time = env.compilation_stop or 0
+    local last_update = env.last_update or 0
+    local elapsed_time = last_update - start_time
+    local total_time = end_time - start_time
+    return elapsed_time, total_time
+end
+
+-------------------------------------------------------------------------------
+------------------------------ TEMPLATE CREATION ------------------------------
+-------------------------------------------------------------------------------
+
+---Helps in vsurface building cost calculation. Adds item to total cost.
 ---@param total_cost table<BufferKeyString, number> building cost
 ---@param name string name of an item
 ---@param quality string quality of an item
@@ -409,10 +666,10 @@ local function add_to_cost(total_cost, name, quality, count)
     total_cost[key] = (total_cost[key] or 0) + count
 end
 
----Collects building cost of a vsurface.
+---Calculates total building cost of a vsurface.
 ---@param surface_index number unique surface identifier
 ---@return table<BufferKeyString, number> building_cost
-function VSurfaceManager.get_vsurface_building_cost(surface_index)
+local function get_vsurface_building_cost(surface_index)
     local surface = game.get_surface(surface_index)
     if not surface or not surface.valid then return {} end
 
@@ -421,7 +678,7 @@ function VSurfaceManager.get_vsurface_building_cost(surface_index)
     -- getting array[LuaEntity] containing all entities on given surface
     local entities = surface.find_entities_filtered({force = "player"})
     for _, entity in ipairs(entities) do
-        -- counting only valid entities excluding ghosts
+        -- counting only valid entities
         if entity and entity.valid then
             -- getting array[ItemToPlace] or nil if entity can't be built
             local build_cost = entity.prototype.items_to_place_this
@@ -454,8 +711,99 @@ function VSurfaceManager.get_vsurface_building_cost(surface_index)
             end
         end
     end
-
     return total_cost
+end
+
+---Helps in template creation. Calculates flow per second.
+---@param counts table<BufferKeyString, number> total counts over a period of time
+---@param time number total time in seconds (must be greater then 0)
+---@return table<BufferKeyString, number> flow counts divided by time
+local function calculate_flow(counts, time)
+    local result = {}
+    for key, count in pairs(counts) do
+        result[key] = count/time
+    end
+    return result
+end
+
+---Creates a compiled template from vsurface environment data and saves it to storage.
+---@param vsurface_data VSurfaceData
+local function create_template(vsurface_data)
+    local surface_index = vsurface_data.surface_index
+    local venv = vsurface_data.compilation_venv
+    -- calculating compilation time in seconds
+    local compilation_time = (venv.compilation_stop - venv.compilation_start) / 60
+    ---@type TemplateData
+    local template = {
+        input = calculate_flow(venv.input, compilation_time),
+        output = calculate_flow(venv.output, compilation_time),
+        building_cost = get_vsurface_building_cost(surface_index),
+        energy_drain = vsurface_data.energy_drain,
+    }
+    TemplateStorage.save_template(template, venv.template_name)
+end
+
+-------------------------------------------------------------------------------
+---------------------------- TIME-BASED PROCESSES -----------------------------
+-------------------------------------------------------------------------------
+
+---Checks for deficit in computation. It there is, takes action.
+local function enforce_computation_limits()
+    if not ComputationManager.has_computation_deficit() then return end
+    -- stopping newest vsurface compilation (1 per tick)
+    local compilation_stopped = stop_newest_compilation()
+    if compilation_stopped then return end
+    -- deleting newest vsurface (1 per tick)
+    delete_newest_vsurface()
+end
+
+---Does time-based compilation processing (1 compilation per tick)
+local function process_compilations()
+    local vsurfaces = storage.vsurfaces
+    -- if compilation queue is empty, return
+    local queue = vsurfaces.compilation_queue
+    if #queue == 0 then return end
+
+    -- getting index of the surface we want to update this tick
+    local index = vsurfaces.next_compilation
+    if not queue[index] then index = 1 end
+    vsurfaces.next_compilation = index + 1
+    local surface_index = queue[index]
+
+    ---@type table<integer, VSurfaceData>
+    local lookup = vsurfaces.lookup
+    local data = lookup[surface_index]
+    -- checking that data is present
+    if not data then
+        -- vsurface data was deleted, removing this compilation
+        table.remove(queue, index)
+        return
+    end
+
+    -- checking that surface still exists in game and is valid
+    -- compilation can't be finished without valid surface
+    local surface = game.get_surface(surface_index)
+    if not surface or not surface.valid then
+        -- surface was deleted, terminating compilation
+        terminate_compilation(surface_index)
+        return
+    end
+
+    -- everything is ok: normal compilation process
+    local tick = game.tick
+    local venv = data.compilation_venv
+    if tick > venv.compilation_stop then
+        -- compilation has finished, creating template
+        create_template(data)
+        terminate_compilation(surface_index)
+        return
+    end
+    venv.last_update = tick
+end
+
+function VSurfaceManager.on_tick_updater()
+    enforce_computation_limits()
+    process_compilations()
 end
 
 return VSurfaceManager

@@ -1,7 +1,7 @@
 local EntityProcessor = require("src.world.entity-processor")
 local ChunkProcessor = require("src.world.vsurface-chunk-processor")
 local ClusterProcessor = require("src.simulation.cluster-processor")
-local VEnvProcessor = require("src.simulation.venv-processor")
+local VSurfaceManager = require("src.world.vsurface-manager")
 local CommonGui = require("src.gui.common")
 local EntityGui = require("src.gui.entity")
 local EntityControls = require("src.gui.entity-controls")
@@ -21,7 +21,7 @@ script.on_init(function()
     -- world/vsurface-chunk-processor
     storage.vsurface_chunks = {}
     -- world/vsurface-manager
-    storage.vsurfaces = {array = {}, lookup = {}}
+    storage.vsurfaces = {array = {}, lookup = {}, compilation_queue = {}, next_index = 1}
     -- simulation/cluster-processor
     storage.clusters = {array = {}, lookup = {}}
     -- simulation/computation-manager
@@ -50,11 +50,8 @@ script.on_event(defines.events.on_tick, function(event)
     ClusterProcessor.process_clusters(event)
     EntityProcessor.process_entities(event)
     ChunkProcessor.process_chunks(event)
+    VSurfaceManager.on_tick_updater()
     GuiUpdater.update()
-end)
-
-script.on_nth_tick(60, function()
-    VEnvProcessor.process_compiling_surfaces()
 end)
 
 -------------------------------------------------------------------------------

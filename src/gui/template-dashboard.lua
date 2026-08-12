@@ -30,7 +30,7 @@ dashboard data.
 ---@field elements DashboardElements|nil
 
 
-local TemplateCompiler = require("src.simulation.template-compiler")
+local TemplateCompiler = require("src.simulation.template-storage")
 local ClusterProcessor = require("src.simulation.cluster-processor")
 local ClusterInfo = require("src.gui.cluster-info")
 local CommonGui = require("src.gui.common")

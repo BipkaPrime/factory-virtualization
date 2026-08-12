@@ -21,7 +21,7 @@ Properties that can be assigned during on-tick processing:
 1. Ls flow. Can be used to track entity work.
 --]]
 
-local VEnvProcessor = require("src.simulation.venv-processor")
+
 local VSurfaceManager = require("src.world.vsurface-manager")
 
 
@@ -54,7 +54,7 @@ function TemplateFluidIO.attempt_entity_initialization(properties)
     if not selected_fluid then return false end
     -- 3. Entity is located on a vsurface
     local entity = properties.entity
-    if not VSurfaceManager.get_vsurface_data(entity.surface_index) then return false end
+    if not VSurfaceManager.is_vsurface(entity.surface_index) then return false end
 
     ---All requirements are met. Preparing properties for on-tick processing
     -- assigning io mode flag to entity
@@ -85,19 +85,25 @@ function TemplateFluidIO.process_entity(properties)
     if properties.is_output then
         ---@diagnostic disable-next-line
         delta = properties.entity.extract_fluid(properties.io_request)
+        if delta > 0 then
+            VSurfaceManager.add_to_venv_output(
+                properties.entity.surface_index,
+                properties.selected_fluid,
+                delta
+            )
+        end
     else
         ---@diagnostic disable-next-line
         delta = properties.entity.insert_fluid(properties.io_request)
+        if delta > 0 then
+            VSurfaceManager.add_to_venv_input(
+                properties.entity.surface_index,
+                properties.selected_fluid,
+                delta
+            )
+        end
     end
     properties.ls_flow = delta
-
-    ---Storing delta in venv if surface is compiling
-    VEnvProcessor.add_io_count(
-        properties.entity.surface_index,
-        properties.selected_fluid,
-        delta,
-        properties.is_output
-    )
 end
 
 return TemplateFluidIO

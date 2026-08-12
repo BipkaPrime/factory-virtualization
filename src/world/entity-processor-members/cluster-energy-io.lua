@@ -64,7 +64,7 @@ function ClusterEnergyIO.attempt_entity_initialization(properties)
     if not io_mode then return false end
     -- 3. Entity is not located on a vsurface
     local entity = properties.entity
-    if VSurfaceManager.get_vsurface_data(entity.surface_index) then return false end
+    if VSurfaceManager.is_vsurface(entity.surface_index) then return false end
 
     ---All requirements are met. Preparing properties for on-tick processing
     -- attempting to connect entity to cluster

@@ -91,7 +91,7 @@ Lookup maps cluster identifier (string) with corresponding ClusterData.
 ---@field item_statistics LuaFlowStatistics|nil for player force and cluster surface (will be cached when crafting)
 ---@field fluid_statistics LuaFlowStatistics|nil for player force and cluster surface (will be cached when crafting)
 
-local TemplateCompiler = require("src.simulation.template-compiler")
+local TemplateStorage = require("src.simulation.template-storage")
 
 
 local ClusterProcessor = {}
@@ -407,7 +407,7 @@ end
 ---@return ClusterData|nil cluster cluster that this entity was assigned to
 function ClusterProcessor.add_to_cluster(entity, template_name, weight)
     -- getting template and checking that it exists
-    local template = TemplateCompiler.get_template(template_name)
+    local template = TemplateStorage.get_template(template_name)
     if not template then return end
 
     -- getting appropriate cluster for entity

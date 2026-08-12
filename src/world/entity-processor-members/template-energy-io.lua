@@ -20,7 +20,6 @@ Properties that can be assigned during on-tick processing:
 1. Ls flow. Can be used to track entity work.
 --]]
 
-local VEnvProcessor = require("src.simulation.venv-processor")
 local VSurfaceManager = require("src.world.vsurface-manager")
 
 
@@ -49,7 +48,7 @@ function TemplateEnergyIO.attempt_entity_initialization(properties)
     if not io_mode then return false end
     -- 2. Entity is located on a vsurface
     local entity = properties.entity
-    if not VSurfaceManager.get_vsurface_data(entity.surface_index) then return false end
+    if not VSurfaceManager.is_vsurface(entity.surface_index) then return false end
 
     ---All requirements are met. Preparing properties for on-tick processing
     properties.buffer_key = "electric_energy"
@@ -78,23 +77,29 @@ function TemplateEnergyIO.process_entity(properties)
     local flow_limit = properties.flow_limit
     if properties.is_output then
         delta = math.min(current_energy, flow_limit)
-        entity.energy = current_energy - delta
+        if delta > 0 then
+            entity.energy = current_energy - delta
+            VSurfaceManager.add_to_venv_output(
+                entity.surface_index,
+                properties.buffer_key,
+                delta
+            )
+        end
     else
         delta = math.min(
             entity.electric_buffer_size - current_energy,
             flow_limit
         )
-        entity.energy = current_energy + delta
+        if delta > 0 then
+            entity.energy = current_energy + delta
+            VSurfaceManager.add_to_venv_input(
+                entity.surface_index,
+                properties.buffer_key,
+                delta
+            )
+        end
     end
     properties.ls_flow = delta
-
-    ---Storing delta in venv if surface is compiling
-    VEnvProcessor.add_io_count(
-        properties.entity.surface_index,
-        properties.buffer_key,
-        delta,
-        properties.is_output
-    )
 end
 
 return TemplateEnergyIO

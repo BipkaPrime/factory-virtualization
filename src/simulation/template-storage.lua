@@ -1,10 +1,11 @@
 --[[
-Main purpose of this file is to take "venv" data and transform it into compiled template.
-It also handles requests like get_template, get_all_templates, etc.
+Templates are essentially black-box mathematical models of a production line
+with defined inputs, outputs, construction costs, etc.
 
-When venv processor successfully finished compilation process of a vsurface,
-it orders template compiler to create a template from data in the venv.
-All compiled template are located at storage.templates. For this table key is 
+All compiled template are located at storage.templates: table<string, TemplateData>
+Templates are identifier by their names, which must be unique
+
+For this table key is 
 template name (string), value is template data (table). Template names are their
 unique identifiers.
 --]]
@@ -14,16 +15,40 @@ unique identifiers.
 ---@field input table<BufferKeyString, number> input per second
 ---@field output table<BufferKeyString, number> output per second
 ---@field building_cost table<BufferKeyString, number> items needed for construction of this template
----@field energy_drain number energy drain of this template (due to surface area)
+---@field energy_drain number energy drain of this template
 
-
-local VSurfaceManager = require("src.world.vsurface-manager")
-
-local TemplateCompiler = {}
+local TemplateStorage = {}
 
 -------------------------------------------------------------------------------
 -- INFORMATION REQUEST HANDLERS
 -------------------------------------------------------------------------------
+
+---Checks if provided template name is available
+---@param template_name string unique template identifier
+---@return boolean status true if name is available
+function TemplateStorage.is_name_available(template_name)
+    return not not storage.templates[template_name]
+end
+
+---Saves provided template data to storage
+---@param template TemplateData
+---@param template_name string unique template identifier
+function TemplateStorage.save_template(template, template_name)
+    storage.templates[template_name] = template
+end
+
+---Gets building cost of a given template
+---@param template_name string|nil unique template identifier
+---@return table<BufferKeyString, number> items key is "name//quality"
+function TemplateStorage.get_building_cost(template_name)
+    if not template_name then return {} end
+    local template = storage.templates[template_name]
+    if not template then return {} end
+    return template.building_cost
+end
+
+
+--[[
 
 ---Retrieves a compiled template data from storage
 ---@param template_name string unique template identifier
@@ -62,15 +87,7 @@ function TemplateCompiler.get_outputs(template_name)
     return template.output
 end
 
----Gets building cost of a given template
----@param template_name string|nil unique template identifier
----@return table<BufferKeyString, number> items key is "name//quality"
-function TemplateCompiler.get_building_cost(template_name)
-    if not template_name then return {} end
-    local template = storage.templates[template_name]
-    if not template then return {} end
-    return template.building_cost
-end
+
 
 ---Gets energy consumption and energy drain of a given template
 ---@param template_name string|nil unique template identifier
@@ -98,31 +115,9 @@ end
 -- TEMPLATE CREATION FUNCTIONS
 -------------------------------------------------------------------------------
 
----Helps in template creation. Calculates flow per second.
----@param counts table<string, number> total counts over a period of time
----@param time number total time
----@return table<string, number> flow counts divided by time
-local function calculate_flow(counts, time)
-    -- protection against zero division
-    local safe_time = (time <= 0) and 1 or time
 
-    local result = {}
-    for key, count in pairs(counts) do
-        result[key] = count/safe_time
-    end
-    return result
-end
 
----Creates template from virtual environment data.
----@param venv CompilationVEnv virtual environment data
----@param surface_index integer unique surface identifier
-function TemplateCompiler.create_template(venv, surface_index)
-    local template = {}
-    template.input = calculate_flow(venv.input, venv.compilation_time)
-    template.output = calculate_flow(venv.output, venv.compilation_time)
-    template.building_cost = VSurfaceManager.get_vsurface_building_cost(surface_index)
-    template.energy_drain = VSurfaceManager.get_vsurface_energy_drain(surface_index)
-    storage.templates[venv.template_name] = template
-end
 
-return TemplateCompiler
+--]]
+
+return TemplateStorage

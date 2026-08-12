@@ -5,6 +5,11 @@ computation can not be stored and is provided as long as the building is
 powered and running. If energy stored in the entity is not sufficient,
 it stops working until enough energy is provided.
 -------------------------------------------------------------------------------
+-- ENTITY CONFIGURATION
+-------------------------------------------------------------------------------
+For this building to function following conditions must be met:
+I. Entity is not located on a vsurface.
+-------------------------------------------------------------------------------
 -- ON-TICK PROCESSING
 -------------------------------------------------------------------------------
 Properties that are assigned on initialization:
@@ -18,6 +23,7 @@ Properties that can be assigned during on-tick processing:
 --]]
 
 local ComputationManager = require("src.simulation.computation-manager")
+local VSurfaceManager = require("src.world.vsurface-manager")
 
 
 local PREFIX = "FV-"
@@ -48,11 +54,11 @@ local idle_power_consumption = {
 }
 
 ---Checks that all requirements for operation of template computation array are met.
----Currently there are no requirements, initialization will always be successful.
 ---@param properties EntityProperties table from entity processor
 ---@return boolean status true if initialization was successful
 function ComputationArray.attempt_entity_initialization(properties)
-    -- TODO: add vsurface check
+    local entity = properties.entity
+    if VSurfaceManager.is_vsurface(entity.surface_index) then return false end
 
     local entity_name = properties.entity_name
     local computation_limit = computation_limits[entity_name]

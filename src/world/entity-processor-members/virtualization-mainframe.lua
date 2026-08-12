@@ -25,7 +25,7 @@ Properties that can be assigned during on-tick processing:
 --]]
 
 local ClusterProcessor = require("src.simulation.cluster-processor")
-local TemplateCompiler = require("src.simulation.template-compiler")
+local TemplateStorage = require("src.simulation.template-storage")
 local VSurfaceManager = require("src.world.vsurface-manager")
 
 
@@ -63,7 +63,7 @@ local weights = {
 ---@param properties EntityProperties
 local function prepare_template_construction(properties)
     local template_name = properties.first_template
-    local build_cost = TemplateCompiler.get_building_cost(template_name)
+    local build_cost = TemplateStorage.get_building_cost(template_name)
     local entity_name = properties.entity_name
     local multiplier = building_cost_multiplier[entity_name]
 
@@ -99,7 +99,7 @@ function VMainframe.attempt_entity_initialization(properties)
     if not first_template then return false end
     -- 2. Entity is not located on a vsurface
     local entity = properties.entity
-    if VSurfaceManager.get_vsurface_data(entity.surface_index) then return false end
+    if VSurfaceManager.is_vsurface(entity.surface_index) then return false end
 
     ---All requirements are met. Preparing properties for on-tick processing
     -- attempting to connect entity to cluster
