@@ -123,6 +123,8 @@ local on_gui_click_router = {
     [PREFIX .. "cc-stop-compilation-btn"] = CCSurfaces.handle_compilation_stop_button,
     [PREFIX .. "cc-new-vsurface-confirm"] = CCSurfaces.handle_new_vsurface_confirm_button,
     [PREFIX .. "cc-confirm-vsurface-delete"] = CCSurfaces.handle_confirm_surface_deletion_btn,
+    [PREFIX .. "cc-confirm-compile"] = CCSurfaces.handle_confirm_compilation_button,
+    [PREFIX .. "cc-confirm-compile-stop"] = CCSurfaces.handle_confirm_compilation_stop_button,
 }
 script.on_event(defines.events.on_gui_click, function(event)
     element_name_router(event, on_gui_click_router)
@@ -146,7 +148,7 @@ local on_gui_text_changed_router = {
     [PREFIX .. "cc-new-vsurface-name"] = CCSurfaces.handle_new_vsurface_name_textfield,
     [PREFIX .. "cc-new-vsurface-width"] = CCSurfaces.handle_new_vsurface_width_changed,
     [PREFIX .. "cc-new-vsurface-height"] = CCSurfaces.handle_new_vsurface_height_changed,
-
+    [PREFIX .. "cc-new-template-name"] = CCSurfaces.handle_new_template_name_textfield,
 }
 script.on_event(defines.events.on_gui_text_changed, function(event)
     element_name_router(event, on_gui_text_changed_router)

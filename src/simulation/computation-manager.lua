@@ -12,6 +12,8 @@ storage.computation = {
 
 local ComputationManager = {}
 
+local EPSILON = 0.001
+
 ---Gets maximum available amount of computation
 ---@return number maximum_available
 function ComputationManager.get_max_potential()
@@ -39,7 +41,7 @@ end
 ---@return boolean status true if is a deficit (required > maximum_available)
 function ComputationManager.has_computation_deficit()
     local computation = storage.computation
-    return (computation.required > computation.maximum_available)
+    return (computation.required > computation.maximum_available + EPSILON)
 end
 
 ---Gets current computation demand ratio: fraction of computation
@@ -63,10 +65,9 @@ end
 ---@param amount number amount of computation to remove (must be positive)
 function ComputationManager.decrease_potential(amount)
     local computation = storage.computation
-    computation.maximum_available = math.max(
-        computation.maximum_available - amount,
-        0
-    )
+    local result = computation.maximum_available - amount
+    if result < EPSILON then result = 0 end
+    computation.maximum_available = result
 end
 
 ---Adds provided amount to computation demand
@@ -80,10 +81,9 @@ end
 ---@param amount number amount of computation to remove (must be positive)
 function ComputationManager.decrease_demand(amount)
     local computation = storage.computation
-    computation.required = math.max(
-        computation.required - amount,
-        0
-    )
+    local result = computation.required - amount
+    if result < EPSILON then result = 0 end
+    computation.required = result
 end
 
 return ComputationManager

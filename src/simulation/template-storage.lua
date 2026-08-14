@@ -27,7 +27,7 @@ local TemplateStorage = {}
 ---@param template_name string unique template identifier
 ---@return boolean status true if name is available
 function TemplateStorage.is_name_available(template_name)
-    return not not storage.templates[template_name]
+    return not storage.templates[template_name]
 end
 
 ---Saves provided template data to storage

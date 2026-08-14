@@ -56,7 +56,6 @@ local TemplateStorage = require("src.simulation.template-storage")
 local VSurfaceManager = {}
 
 --TODO: add listeners to events like delete surface/rename surface, etc to keep data in storage accurate
---TODO: move create_vsurface/delete_surface/etc errors to returned value instead of game.print ?
 
 -------------------------------------------------------------------------------
 ------------------------------ VSURFACE CREATION ------------------------------
@@ -108,7 +107,6 @@ function VSurfaceManager.get_vsurface_energy_drain(vsurface_config)
     if vsurface_config.generate_as then
         drain = drain * 2
     end
-
     return drain
 end
 
@@ -125,31 +123,35 @@ end
 
 ---Checks if a vsurface with specified parameters can be created
 ---@param vsurface_config VSurfaceConfig
----@return boolean status true if surface can be created
----@return LocalisedString|nil reason why surface cannot be created if any
+---@return boolean status, LocalisedString|nil reason
 function VSurfaceManager.can_create_vsurface(vsurface_config)
     local name = vsurface_config.name
     -- checking that name is not empty
     if not name or not string.find(name, "%S", 1, false) then
-        return false, "Surface name is missing"
+        return false, {"vsurface-manager.surface-name-missing"}
     end
     -- checking that no surface or planet is associated with provided name
     if game.get_surface(name) ~= nil or game.planets[name] ~= nil then
-        return false, "Surface name is not available"
+        return false, {"vsurface-manager.surface-name-unavailable"}
     end
     -- validating surface width
     local width = vsurface_config.width
     if not width or type(width) ~= "number" or width < 1 or width > 1024 then
-        return false, "Surface width must be an integer in the range [1, 1024]"
+        return false, {"vsurface-manager.surface-width-incorrect"}
     end
     -- validating surface height
     local height = vsurface_config.height
     if not height or type(height) ~= "number" or height < 1 or height > 1024 then
-        return false, "Surface height must be an integer in the range [1, 1024]"
+        return false, {"vsurface-manager.surface-height-incorrect"}
+    end
+    -- checking that computation amount is sufficient
+    local computation_demand = VSurfaceManager.get_idle_computation_demand(vsurface_config)
+    local available_computation = ComputationManager.get_available_computation()
+    if computation_demand > available_computation then
+        return false, {"vsurface-manager.not-enough-computation"}
     end
 
     -- TODO: check surface tier
-    -- TODO: check computation limits
     -- TODO: control center entity is ok?
     return true
 end
@@ -188,11 +190,11 @@ end
 
 ---Attempts to create a new virtualization surface
 ---@param vsurface_config VSurfaceConfig required data for vsurface creation
----@return boolean status true if surface was successfully created
+---@return boolean status, LocalisedString|nil reason
 function VSurfaceManager.create_vsurface(vsurface_config)
     -- checking that surface can be created
-    local status = VSurfaceManager.can_create_vsurface(vsurface_config)
-    if not status then return status end
+    local status, reason = VSurfaceManager.can_create_vsurface(vsurface_config)
+    if not status then return status, reason end
 
     ---@type number checked earlier
     local width = vsurface_config.width
@@ -216,8 +218,7 @@ function VSurfaceManager.create_vsurface(vsurface_config)
     -- making sure sufrace was created
     if not surface then
         -- TODO: log config?
-        game.print("[VSurface manager] Error: could not create vsurface with specified config")
-        return false
+        return false, {"vsurface-manager.creation-error"}
     end
 
     -- modifying surface attributes
@@ -284,7 +285,7 @@ end
 function VSurfaceManager.delete_vsurface_by_name(surface_name)
     -- checking that surface name was provided
     if not surface_name then
-        return false, "Deletion failed, missing surface name"
+        return false, {"vsurface-manager.deletion-error-no-name"}
     end
     -- looking through all vsurfaces to find its data
     local vsurfaces = storage.vsurfaces
@@ -301,18 +302,18 @@ function VSurfaceManager.delete_vsurface_by_name(surface_name)
     end
     -- checking that vsurface data was found
     if not data_index then
-        return false, "Deletion failed, vsurface data was not found"
+        return false, {"vsurface-manager.deletion-error-no-data"}
     end
     local data = array[data_index]
     -- checking that surface is not currently compiling
     if data.compiling then
-        return false, "Deletion failed, can't delete compiling vsurface"
+        return false, {"vsurface-manager.deletion-error-compiling"}
     end
     -- attempting to delete the surface from the game engine
     local surface_index = data.surface_index
     if game.get_surface(surface_index) and not game.delete_surface(surface_index) then
         -- surface exists in game but for some reason can't be deleted
-        return false, "Deletion failed, surface protected by game engine"
+        return false, {"vsurface-manager.deletion-error-protected"}
     end
     delete_vsurface_data(data_index)
     return true
@@ -342,12 +343,8 @@ local function delete_newest_vsurface()
     delete_vsurface_data(last_index)
 
     -- vsurface deletion chat warning
-    -- TODO: change to localised string
-    local name = "[" .. data.name .. "]"
-    game.print(
-        "[VSurface manager] [color=red]Critical issue:[/color] vsurface " ..
-        name .. " was deleted due to insufficient computation."
-    )
+    ---@diagnostic disable-next-line
+    game.print({"vsurface-manager.critical-warn-vsurface-deleted", data.name})
     return true
 end
 
@@ -387,6 +384,15 @@ function VSurfaceManager.is_idle(surface_name)
     local data = get_vsurface_data_by_name(surface_name)
     if not data then return false end
     return not data.compiling
+end
+
+---Gets the amount of additional computation required for surface compilation
+---@param surface_name string|nil name of the surface
+---@return number
+function VSurfaceManager.get_compiling_computation_increase(surface_name)
+    local data = get_vsurface_data_by_name(surface_name)
+    if not data then return 0 end
+    return data.compiling_demand - data.idle_demand
 end
 
 ------------------------------ BY SURFACE INDEX -------------------------------
@@ -464,33 +470,38 @@ end
 ---Checks if compilation of a given surface can be started
 ---@param surface_name string|nil
 ---@param template_name string|nil unique template identifier
----@return boolean status true if compilation can be started
----@return LocalisedString|nil reason why compilation can not be started if any
+---@return boolean status, LocalisedString|nil reason
 function VSurfaceManager.can_start_compilation(surface_name, template_name)
     -- checking that surface name is provided
     if not surface_name or not string.find(surface_name, "%S", 1, false) then
-        return false, "Surface name is missing"
+        return false, {"vsurface-manager.surface-name-missing"}
     end
     -- checking that template name is provided
     if not template_name or not string.find(template_name, "%S", 1, false) then
-        return false, "Template name is missing"
+        return false, {"vsurface-manager.template-name-missing"}
     end
     -- checking that template name is not occupied in template storage
     if not TemplateStorage.is_name_available(template_name) then
-        return false, "Template with provided name already exists"
+        return false, {"vsurface-manager.template-name-exists"}
     end
     -- checking that template with provided name is not currently compiling
     if is_template_name_compiling(template_name) then
-        return false, "Template with provided name is already compiling"
+        return false, {"vsurface-manager.template-name-compiling"}
     end
     -- checking that vsurface data exists in storage
     local vsurface_data = get_vsurface_data_by_name(surface_name)
     if not vsurface_data then
-        return false, "Vsurface data not found"
+        return false, {"vsurface-manager.vsurface-no-data"}
     end
     -- checking that vsurface is not already compiling
     if vsurface_data.compiling then
-        return false, "Vsurface is already compiling"
+        return false, {"vsurface-manager.vsurface-compiling"}
+    end
+    -- checking that computation is sufficient
+    local computation_delta = vsurface_data.compiling_demand - vsurface_data.idle_demand
+    local available_computation = ComputationManager.get_available_computation()
+    if computation_delta > available_computation then
+        return false, {"vsurface-manager.not-enough-computation"}
     end
     return true
 end
@@ -569,7 +580,7 @@ function VSurfaceManager.stop_compilation(surface_name)
     local data = get_vsurface_data_by_name(surface_name)
     -- checking that vsurface data is found
     if not data then
-        return false, "[VSurface compiler] Error: vsurface data not found"
+        return false, {"vsurface-manager.termination-error"}
     end
     terminate_compilation(data.surface_index)
     return true
@@ -589,11 +600,8 @@ local function stop_newest_compilation()
     local data = vsurfaces.lookup[surface_index]
 
     -- compilation terminated chat warning
-    local name = "[" .. data.name .. "]"
-    game.print(
-        "[VSurface manager] [color=red]Critical issue:[/color] compilation of vsurface " ..
-        name .. " was terminated due to insufficient computation."
-    )
+    ---@diagnostic disable-next-line
+    game.print({"vsurface-manager.critical-warn-compilation-stopped", data.name})
     return true
 end
 
