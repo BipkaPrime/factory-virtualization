@@ -106,6 +106,8 @@ local function chart_chunk(surface, chunk_area, force)
     force.chart(surface, chunk_area)
 end
 
+
+--TODO: HANDLE TILES!
 ---Handles entities marked for deconstruction
 ---@param surface LuaSurface surface being processed
 ---@param chunk_area BoundingBox area that is processed

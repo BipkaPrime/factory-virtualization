@@ -12,7 +12,7 @@ The same goes for compilation of vsurfaces, which require significantly more com
 Upon creation, vsurface data is stored at storage.vsurfaces and consists of 2 parts:
 storage.vsurfaces = {
     array VSurfaceData[]: order of elements is used for vsurface deletion in computation deficit
-    lookup table<integer, VSurfaceData>: key is surface index
+    lookup table<integer|string, VSurfaceData>: key is surface name and surface index.
     compilation_queue integer[]: contains surface indexes of compiling vsurfaces
         in chronological order. Older compilations first.
     next_compilation integer: index of compilation that should be processed next tick
@@ -248,7 +248,9 @@ function VSurfaceManager.create_vsurface(vsurface_config)
     }
     local vsurfaces = storage.vsurfaces
     table.insert(vsurfaces.array, vsurface_data)
-    vsurfaces.lookup[surface_index] = vsurface_data
+    local lookup = vsurfaces.lookup
+    lookup[surface_index] = vsurface_data
+    lookup[surface_name] = vsurface_data
 
     -- adding surface to chunk registry for chunk processing
     ChunkProcessor.register_surface(surface)
@@ -271,8 +273,8 @@ local function delete_vsurface_data(data_index)
     ---@type table<integer, VSurfaceData>
     local lookup = vsurfaces.lookup
     local data = array[data_index]
-    local surface_index = data.surface_index
-    lookup[surface_index] = nil
+    lookup[data.surface_index] = nil
+    lookup[data.name] = nil
     table.remove(array, data_index)
 
     -- removing computation demand of deleted vsurface
@@ -357,13 +359,7 @@ end
 ---@return VSurfaceData|nil
 local function get_vsurface_data_by_name(surface_name)
     if not surface_name then return end
-    -- there should not be many existing vsurfaces at the same
-    -- probably faster than game.get_surface() anyway and does not generate trash
-    for _, data in ipairs(storage.vsurfaces.array) do
-        if data.name == surface_name then
-            return data
-        end
-    end
+    return storage.vsurfaces.lookup[surface_name]
 end
 
 ------------------------------- BY SURFACE NAME -------------------------------
@@ -386,13 +382,51 @@ function VSurfaceManager.is_idle(surface_name)
     return not data.compiling
 end
 
----Gets the amount of additional computation required for surface compilation
----@param surface_name string|nil name of the surface
----@return number
-function VSurfaceManager.get_compiling_computation_increase(surface_name)
+---Gets width and height of a given vsurface
+---@param surface_name string|nil
+---@return integer width, integer height
+function VSurfaceManager.get_vsurface_dimensions_by_name(surface_name)
+    local data = get_vsurface_data_by_name(surface_name)
+    if not data then return 0, 0 end
+    return data.width, data.height
+end
+
+---Gets status of a given vsurface
+---@param surface_name string|nil
+---@return LocalisedString status
+function VSurfaceManager.get_vsurface_status_by_name(surface_name)
+    local data = get_vsurface_data_by_name(surface_name)
+    if not data then return {"vsurface-manager.status-not-found"} end
+    if data.compiling then return {"vsurface-manager.status-compiling"} end
+    return {"vsurface-manager.status-idle"}
+end
+
+---Gets idle and compiling computation demands of given vsurface
+---@param surface_name string|nil
+---@return number idle_demand, number compiling_demand
+function VSurfaceManager.get_computation_demands_by_name(surface_name)
+    local data = get_vsurface_data_by_name(surface_name)
+    if not data then return 0, 0 end
+    return data.idle_demand, data.compiling_demand
+end
+
+---Gets current computation demand of given vsurface
+---@param surface_name string|nil
+---@return number demand
+function VSurfaceManager.get_current_computation_demand(surface_name)
     local data = get_vsurface_data_by_name(surface_name)
     if not data then return 0 end
-    return data.compiling_demand - data.idle_demand
+    local compiling = data.compiling
+    return compiling and data.compiling_demand or data.idle_demand
+end
+
+---Gets template energy drain of given vsurface
+---@param surface_name string|nil
+---@return number energy_drain
+function VSurfaceManager.get_energy_drain_by_name(surface_name)
+    local data = get_vsurface_data_by_name(surface_name)
+    if not data then return 0 end
+    return data.energy_drain
 end
 
 ------------------------------ BY SURFACE INDEX -------------------------------
@@ -580,7 +614,10 @@ function VSurfaceManager.stop_compilation(surface_name)
     local data = get_vsurface_data_by_name(surface_name)
     -- checking that vsurface data is found
     if not data then
-        return false, {"vsurface-manager.termination-error"}
+        return false, {"vsurface-manager.termination-error-no-data"}
+    end
+    if not data.compiling then
+        return false, {"vsurface-manager.termination-error-not-compiling"}
     end
     terminate_compilation(data.surface_index)
     return true
@@ -645,8 +682,19 @@ end
 
 --------------------------------- GUI REQUESTS ---------------------------------
 
+---Gets template name from vsurface compilation venv
+---@param surface_name string|nil
+---@return string
+function VSurfaceManager.get_template_name(surface_name)
+    local data = get_vsurface_data_by_name(surface_name)
+    if not data then return "None" end
+    local env = data.compilation_venv
+    return env.template_name or "None"
+end
+
 ---Gets compilation progress of given vsurface. If vsurface data is not
 ---found or compilation is not in progress, returns zeroes.
+---@param surface_name string|nil
 ---@return number elapsed_time, number total_time
 function VSurfaceManager.get_compilation_progress(surface_name)
     local data = get_vsurface_data_by_name(surface_name)

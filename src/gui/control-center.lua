@@ -40,19 +40,19 @@ local top_panel_buttons = {
     {
         mode = "surfaces",
         name = PREFIX .. "cc-surface-mode",
-        caption = {"control-center.surfaces"},
+        caption = {"cc-general.surfaces"},
         elem_name = "surface_mode_btn",
     },
     {
         mode = "templates",
         name = PREFIX .. "cc-template-mode",
-        caption = {"control-center.templates"},
+        caption = {"cc-general.templates"},
         elem_name = "template_mode_btn",
     },
     {
         mode = "clusters",
         name = PREFIX .. "cc-cluster-mode",
-        caption = {"control-center.clusters"},
+        caption = {"cc-general.clusters"},
         elem_name = "cluster_mode_btn",
     },
 }
@@ -96,7 +96,7 @@ local function create_control_center_base(player)
     local main_window = CommonGui.create_base_window(
         player,
         PREFIX .. "control-center-window",
-        {"gui-label.control-center"}
+        {"cc-general.title"}
     )
     player.opened = main_window
 

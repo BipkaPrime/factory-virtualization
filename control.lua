@@ -125,6 +125,7 @@ local on_gui_click_router = {
     [PREFIX .. "cc-confirm-vsurface-delete"] = CCSurfaces.handle_confirm_surface_deletion_btn,
     [PREFIX .. "cc-confirm-compile"] = CCSurfaces.handle_confirm_compilation_button,
     [PREFIX .. "cc-confirm-compile-stop"] = CCSurfaces.handle_confirm_compilation_stop_button,
+    [PREFIX .. "cc-view-surface-btn"] = CCSurfaces.handle_view_vsurface_btn,
 }
 script.on_event(defines.events.on_gui_click, function(event)
     element_name_router(event, on_gui_click_router)
