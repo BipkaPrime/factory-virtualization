@@ -1,6 +1,14 @@
 --[[
 Templates are essentially black-box mathematical models of a production line
-with defined inputs, outputs, construction costs, etc.
+with defined inputs, outputs, construction costs, etc. Templates are identified
+by their names which must be unique. Templates are used by virtualization clusters
+to "craft" template outputs from template inputs.
+
+Another important thing to keep in mind is that templates must be accesible in order
+to be used. According to mod's lore templates are stored in template control center
+and are automatically accessible 
+
+
 
 All compiled template are located at storage.templates: table<string, TemplateData>
 Templates are identifier by their names, which must be unique
@@ -10,12 +18,7 @@ template name (string), value is template data (table). Template names are their
 unique identifiers.
 --]]
 
----Table containing compiled template data
----@class TemplateData
----@field input table<BufferKeyString, number> input per second
----@field output table<BufferKeyString, number> output per second
----@field building_cost table<BufferKeyString, number> items needed for construction of this template
----@field energy_drain number energy drain of this template
+
 
 local TemplateStorage = {}
 

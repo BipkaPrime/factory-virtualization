@@ -1,6 +1,12 @@
 local iconpath = "__factory-virtualization__/graphics/icons/"
 local entitypath = "__factory-virtualization__/graphics/entity/"
 
+
+--TODO: set input flow limit of energy consumers to something reasonable (not maxdouble)
+--TODO: set output flow limit of energy consumers to 0
+--TODO: make use of dynamic energy consumption of energy IOs. (scripts)
+--TODO: improve graphics: recolor buildings of different tiers, get better graphics somehow
+
 -------------------------------------------------------------------------------
 -- SIMPLE CLUSTER IO SUBGROUP
 -------------------------------------------------------------------------------
