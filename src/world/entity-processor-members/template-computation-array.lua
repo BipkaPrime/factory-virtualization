@@ -22,7 +22,7 @@ Properties that can be assigned during on-tick processing:
 2. Ls flow. Used to track how much computation this entity is currently producing.
 --]]
 
-local ComputationManager = require("src.simulation.computation-manager")
+local TCCManager = require("src.simulation.tcc-manager")
 local VSurfaceManager = require("src.world.vsurface-manager")
 
 
@@ -80,7 +80,7 @@ end
 function ComputationArray.on_processing_stopped(properties)
     properties.ls_flow = nil
     if properties.operational then
-        ComputationManager.decrease_potential(
+        TCCManager.decrease_computation_max_available(
             properties.computation_limit
         )
     end
@@ -100,7 +100,7 @@ function ComputationArray.process_entity(properties)
     if not properties.operational then
         local startup_power = properties.startup_energy
         if current_energy >= startup_power then
-            ComputationManager.increase_potential(
+            TCCManager.increase_computation_max_available(
                 properties.computation_limit
             )
             properties.operational = true
@@ -112,8 +112,8 @@ function ComputationArray.process_entity(properties)
     -- handling entity being operational
     if properties.operational then
         -- getting amount of computation expected from this entity
-        local demand = ComputationManager.get_demand_ratio()
-        local requested = properties.computation_limit * demand
+        local demand_ratio = TCCManager.get_computation_demand_ratio()
+        local requested = properties.computation_limit * demand_ratio
         properties.ls_flow = requested
 
         -- changing power consumption according to requested computation
@@ -124,7 +124,7 @@ function ComputationArray.process_entity(properties)
         if current_energy > required_power then
             entity.power_usage = required_power
         else
-            ComputationManager.decrease_potential(
+            TCCManager.decrease_computation_max_available(
                 properties.computation_limit
             )
             properties.operational = false

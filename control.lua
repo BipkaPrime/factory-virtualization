@@ -7,6 +7,7 @@ local EntityGui = require("src.gui.entity")
 local EntityControls = require("src.gui.entity-controls")
 local ControlCenter = require("src.gui.control-center")
 local CCSurfaces = require("src.gui.cc-modules.surfaces")
+local CCTemplates = require("src.gui.cc-modules.templates")
 local GuiUpdater = require("src.gui.updater")
 
 local PREFIX = "FV-"
@@ -24,10 +25,18 @@ script.on_init(function()
     storage.vsurfaces = {array = {}, lookup = {}, compilation_queue = {}, next_index = 1}
     -- simulation/cluster-processor
     storage.clusters = {array = {}, lookup = {}}
-    -- simulation/computation-manager
-    storage.computation = {maximum_available = 0, required = 0}
-    -- simulation/template-compiler
-    storage.templates = {}
+    -- simulation/tcc-manager
+    storage.tcc = {}
+    storage.computation = {max_available = 0, curr_demand = 0}
+    storage.templates = {
+        template_lookup = {},
+        name_to_uuid = {},
+        uuid_to_name = {},
+        transmit = {},
+        transmit_inv = {},
+        receive = {},
+        receive_inv = {},
+    }
     -- simulation/venv-processor
     storage.venvs = {}
     -- gui/control-center
@@ -126,6 +135,8 @@ local on_gui_click_router = {
     [PREFIX .. "cc-confirm-compile"] = CCSurfaces.handle_confirm_compilation_button,
     [PREFIX .. "cc-confirm-compile-stop"] = CCSurfaces.handle_confirm_compilation_stop_button,
     [PREFIX .. "cc-view-surface-btn"] = CCSurfaces.handle_view_vsurface_btn,
+    [PREFIX .. "cc-rename-template"] = CCTemplates.handle_rename_template_button,
+    [PREFIX .. "cc-delete-template"] = CCTemplates.handle_delete_template_button,
 }
 script.on_event(defines.events.on_gui_click, function(event)
     element_name_router(event, on_gui_click_router)
@@ -150,6 +161,8 @@ local on_gui_text_changed_router = {
     [PREFIX .. "cc-new-vsurface-width"] = CCSurfaces.handle_new_vsurface_width_changed,
     [PREFIX .. "cc-new-vsurface-height"] = CCSurfaces.handle_new_vsurface_height_changed,
     [PREFIX .. "cc-new-template-name"] = CCSurfaces.handle_new_template_name_textfield,
+    [PREFIX .. "cc-inactive-template-search"] = CCTemplates.handle_inactive_template_search,
+    [PREFIX .. "cc-active-template-search"] = CCTemplates.handle_active_template_search,
 }
 script.on_event(defines.events.on_gui_text_changed, function(event)
     element_name_router(event, on_gui_text_changed_router)
@@ -161,6 +174,8 @@ local on_gui_selection_state_changed_router = {
     [PREFIX .. "cc-idle-surface-selector"] = CCSurfaces.handle_idle_surface_selector,
     [PREFIX .. "cc-compiling-surface-selector"] = CCSurfaces.handle_compiling_surface_selector,
     [PREFIX .. "cc-generate-as-selector"] = CCSurfaces.handle_new_vsurface_generate_as_selector,
+    [PREFIX .. "cc-inactive-template-selector"] = CCTemplates.handle_inactive_template_selector,
+    [PREFIX .. "cc-active-template-selector"] = CCTemplates.handle_active_template_selector,
 }
 script.on_event(defines.events.on_gui_selection_state_changed, function(event)
     element_name_router(event, on_gui_selection_state_changed_router)

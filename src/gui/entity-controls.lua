@@ -5,7 +5,7 @@
 
 
 local EntityProcessor = require("src.world.entity-processor")
-local TemplateStorage = require("src.simulation.template-storage")
+-- local TemplateStorage = require("src.simulation.template-storage")
 local ClusterProcessor = require("src.simulation.cluster-processor")
 local CommonGui = require("src.gui.common")
 
@@ -126,7 +126,7 @@ local function configure_first_template_selector(gui_data)
         local surface_index = entity.surface_index
         options = ClusterProcessor.get_surface_clusters(surface_index)
     else
-        options = TemplateStorage.get_all_template_names()
+        options = {} -- TemplateStorage.get_all_template_names()
     end
     local query = gui_data.first_template_query
     local selected = EntityProcessor.get_first_template(entity)

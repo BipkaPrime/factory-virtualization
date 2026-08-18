@@ -18,6 +18,7 @@
 
 
 local CCSurfaces = require("src.gui.cc-modules.surfaces")
+local CCTemplates = require("src.gui.cc-modules.templates")
 local CommonGui = require("src.gui.common")
 local GuiUpdater = require("src.gui.updater")
 
@@ -177,7 +178,12 @@ local function populate_control_center_base(gui_data)
         CCSurfaces.construct_left_side(gui_data)
         CCSurfaces.construct_right_side(gui_data)
     end
-    -- TODO: add templates and clusters
+    if mode == control_center_modes.templates then
+        CCTemplates.construct_left_side(gui_data)
+        CCTemplates.construct_right_side(gui_data)
+    end
+
+    -- TODO: add clusters
 end
 
 ---Sets gui_data.mode to provided value or clears it if new_val == old_val.

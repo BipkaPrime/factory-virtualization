@@ -10,9 +10,7 @@ Create, delete, start compilation, stop compilation, view information
 ---@class ControlCenterElements additional LuaGuiElements that can be used in "surfaces" mode
 ---@field new_surface_btn LuaGuiElement|nil button that is used to open vsurface creation interface
 ---@field delete_surface_btn LuaGuiElement|nil button that is used to delete selected idle vsurface
----@field idle_surface_search LuaGuiElement|nil textfield above idle surface selector
 ---@field idle_surface_selector LuaGuiElement|nil selector displaying idle vsurfaces
----@field compiling_surface_search LuaGuiElement|nil textfield above compiling surface selector
 ---@field compiling_surface_selector LuaGuiElement|nil selector displaying compiling vsurfaces
 ---@field start_compilation_btn LuaGuiElement|nil start compilation button on the left
 ---@field stop_compilation_btn LuaGuiElement|nil stop compilation button on the left
@@ -39,7 +37,7 @@ Create, delete, start compilation, stop compilation, view information
 
 local CommonGui = require("src.gui.common")
 local VSurfaceManager = require("src.world.vsurface-manager")
-local ComputationManager = require("src.simulation.computation-manager")
+local TCCManager = require("src.simulation.tcc-manager")
 
 local PREFIX = "FV-"
 local CCSurfaces = {}
@@ -89,41 +87,36 @@ end
 local function update_idle_surface_selector(gui_data)
     local selector = gui_data.elements.idle_surface_selector
     if not selector or not selector.valid then return end
-    local options = VSurfaceManager.get_idle_vsurfaces()
     local query = gui_data.idle_surface_query
-    local selected = gui_data.selected_vsurface
+    local options = VSurfaceManager.get_idle_vsurfaces(query)
+    local selected_option = gui_data.selected_vsurface
     -- if selected vsurface is compiling, it's not displayed as selected
-    if VSurfaceManager.is_compiling(selected) then
-        selected = nil
+    if VSurfaceManager.is_compiling(selected_option) then
+        selected_option = nil
     end
-    CommonGui.configure_selector(selector, options, query, selected)
+    CommonGui.update_selector(selector, options, selected_option)
 end
 
----Updates idle vsurface selector and searchfield above
----@param gui_data ControlCenterData
-local function update_idle_surface_selection_widget(gui_data)
-    local search = gui_data.elements.idle_surface_search
-    if not search or not search.valid then return end
-    search.text = gui_data.idle_surface_query or ""
-    update_idle_surface_selector(gui_data)
-end
-
----Adds selection widget for idle vsurfaces to given parent element. Widget consists of
----of "label", "textfield" for searching and "list-box" for selection.
+---Adds selection widget for idle vsurfaces to given parent element. Widget
+---consists of "label", "textfield" for searching and "list-box" for selection.
 ---@param parent LuaGuiElement
 ---@param gui_data ControlCenterData
 local function add_idle_surface_selection_widget(parent, gui_data)
-    local search, selector = CommonGui.create_selection_widget(
+    local search, selector = CommonGui.add_selection_widget(
         parent,
         PREFIX .. "cc-idle-surface-search",
         PREFIX .. "cc-idle-surface-selector",
         {"cc-surfaces.idle-vsurfaces"},
         140
     )
-    local elements = gui_data.elements
-    elements.idle_surface_search = search
-    elements.idle_surface_selector = selector
-    update_idle_surface_selection_widget(gui_data)
+    search.text = gui_data.idle_surface_query or ""
+    gui_data.elements.idle_surface_selector = selector
+    update_idle_surface_selector(gui_data)
+    -- scrolling to selected item when creating the element
+    local selected_index = selector.selected_index
+    if selected_index ~= 0 then
+        selector.scroll_to_item(selected_index, "top-third")
+    end
 end
 
 ---------------------------- DELETE SURFACE BUTTON ----------------------------
@@ -194,41 +187,36 @@ end
 local function update_compiling_surface_selector(gui_data)
     local selector = gui_data.elements.compiling_surface_selector
     if not selector or not selector.valid then return end
-    local options = VSurfaceManager.get_compiling_vsurfaces()
     local query = gui_data.compiling_surface_query
-    local selected = gui_data.selected_vsurface
+    local options = VSurfaceManager.get_compiling_vsurfaces(query)
+    local selected_option = gui_data.selected_vsurface
     -- if selected surface is idle, it's not displayed as selected
-    if VSurfaceManager.is_idle(selected) then
-        selected = nil
+    if VSurfaceManager.is_idle(selected_option) then
+        selected_option = nil
     end
-    CommonGui.configure_selector(selector, options, query, selected)
+    CommonGui.update_selector(selector, options, selected_option)
 end
 
----Updates compiling surface selector and searchfield above
----@param gui_data ControlCenterData
-local function update_compiling_surface_selection_widget(gui_data)
-    local search = gui_data.elements.compiling_surface_search
-    if not search or not search.valid then return end
-    search.text = gui_data.compiling_surface_query or ""
-    update_compiling_surface_selector(gui_data)
-end
-
----Adds selection widget for compiling vsurfaces to given parent element. Widget consists of
----of "label", "textfield" for searching and "list-box" for selection.
+---Adds selection widget for compiling vsurfaces to given parent element. Widget
+---consists of "label", "textfield" for searching and "list-box" for selection.
 ---@param parent LuaGuiElement
 ---@param gui_data ControlCenterData
 local function add_compiling_surface_selection_widget(parent, gui_data)
-    local search, selector = CommonGui.create_selection_widget(
+    local search, selector = CommonGui.add_selection_widget(
         parent,
         PREFIX .. "cc-compiling-surface-search",
         PREFIX .. "cc-compiling-surface-selector",
         {"cc-surfaces.compiling-vsurfaces"},
         140
     )
-    local elements = gui_data.elements
-    elements.compiling_surface_search = search
-    elements.compiling_surface_selector = selector
-    update_compiling_surface_selection_widget(gui_data)
+    search.text = gui_data.compiling_surface_query or ""
+    gui_data.elements.compiling_surface_selector = selector
+    update_compiling_surface_selector(gui_data)
+    -- scrolling to selected item when creating the element
+    local selected_index = selector.selected_index
+    if selected_index ~= 0 then
+        selector.scroll_to_item(selected_index, "top-third")
+    end
 end
 
 --------------------------- STOP COMPILATION BUTTON ---------------------------
@@ -272,8 +260,8 @@ local function update_computation_display_section(gui_data)
     local progressbar = gui_data.elements.computation_progressbar
     if not progressbar or not progressbar.valid then return end
 
-    local demand = ComputationManager.get_current_demand()
-    local max_available = ComputationManager.get_max_potential()
+    local demand = TCCManager.get_computation_curr_demand()
+    local max_available = TCCManager.get_computation_max_available()
 
     -- assembling progressbar caption
     local demand_fmt = CommonGui.large_number_to_string(demand)
@@ -335,9 +323,7 @@ local function add_new_vsurface_name_textfield(parent, gui_data)
     ---Setting text to anything saved in vsurface config
     ---@type VSurfaceConfig assuming table was created on submode change
     local vsurface_config = gui_data.vsurface_config
-    if vsurface_config.name then
-        textfield.text = vsurface_config.name
-    end
+    textfield.text = vsurface_config.name or ""
 end
 
 ---Helps in creation of new vsurface size widget. Adds numeric textfield with caption.
@@ -452,7 +438,7 @@ local function add_generate_as_selector(parent, gui_data)
     local vsurface_config = gui_data.vsurface_config
     local selected_option = vsurface_config.generate_as
     local options = VSurfaceManager.get_generate_as_options()
-    CommonGui.configure_selector(selector, options, nil, selected_option)
+    CommonGui.update_selector(selector, options, selected_option)
 end
 
 ---Updates new vsurface confirm button

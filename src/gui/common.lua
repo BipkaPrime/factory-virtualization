@@ -162,7 +162,7 @@ end
 ---@param caption LocalisedString caption above searchfield
 ---@param height number|nil height of the selector. Defaults to 200
 ---@return LuaGuiElement searchfield, LuaGuiElement selector
-function CommonGui.create_selection_widget(parent, search_name, selector_name, caption, height)
+function CommonGui.add_selection_widget(parent, search_name, selector_name, caption, height)
     local flow = parent.add{
         type = "flow",
         direction = "vertical",
@@ -183,19 +183,6 @@ function CommonGui.create_selection_widget(parent, search_name, selector_name, c
     return searchfield, selector
 end
 
----Filters the given array in place based on a search query.
----@param options string[] array of strings to search through
----@param query string|nil search query
-local function filter_strings(options, query)
-    if not query or not string.find(query, "%S", 1, false) then return end
-    for i = #options, 1, -1 do
-        local option = options[i]
-        if not string.find(option, query, 1, true) then
-            table.remove(options, i)
-        end
-    end
-end
-
 ---Finds the first index in options such that options[i] == value.
 ---@param options string[]
 ---@param value string
@@ -208,19 +195,14 @@ local function find_value(options, value)
     end
 end
 
----Configures options that are diplayed by the given selector.
----This function mutates options table passed to it.
----@param selector LuaGuiElement list-box that should be configured
+---Updates options that are diplayed by the given selector.
+---@param selector LuaGuiElement list-box that should be updated
 ---@param options string[] list of options to display
----@param query string|nil search query that options should be matched against
 ---@param selected_option string|nil option that should be selected
-function CommonGui.configure_selector(selector, options, query, selected_option)
-    -- filtering options in-place based on search query
-    filter_strings(options, query)
+function CommonGui.update_selector(selector, options, selected_option)
     selector.items = options
     -- looking for selected_option in options
-    local selected_index = selected_option and find_value(options, selected_option) or 0
-    selector.selected_index = selected_index
+    selector.selected_index = selected_option and find_value(options, selected_option) or 0
 end
 
 -------------------------------------------------------------------------------

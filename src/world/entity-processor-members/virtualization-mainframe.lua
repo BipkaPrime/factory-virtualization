@@ -25,7 +25,6 @@ Properties that can be assigned during on-tick processing:
 --]]
 
 local ClusterProcessor = require("src.simulation.cluster-processor")
-local TemplateStorage = require("src.simulation.template-storage")
 local VSurfaceManager = require("src.world.vsurface-manager")
 
 
@@ -62,6 +61,9 @@ local weights = {
 ---table, makes sure contained_buildings table has sections for all requesting items.
 ---@param properties EntityProperties
 local function prepare_template_construction(properties)
+    -- TODO: FIX
+
+    --[[
     local template_name = properties.first_template
     local build_cost = TemplateStorage.get_building_cost(template_name)
     local entity_name = properties.entity_name
@@ -87,6 +89,7 @@ local function prepare_template_construction(properties)
     end
     properties.building_requests = requests
     properties.building_contents = contents
+    --]]
 end
 
 ---Checks that all requirements for operation of virtualization mainframe are met.

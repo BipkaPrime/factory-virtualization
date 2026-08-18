@@ -50,8 +50,7 @@ It also orchestrates vsurface compilation and handles start/stop compilation req
 ---@field compilation_venv CompilationVEnv
 
 local ChunkProcessor = require("src.world.vsurface-chunk-processor")
-local ComputationManager = require("src.simulation.computation-manager")
-local TemplateStorage = require("src.simulation.template-storage")
+local TCCManager = require("src.simulation.tcc-manager")
 
 local VSurfaceManager = {}
 
@@ -146,13 +145,12 @@ function VSurfaceManager.can_create_vsurface(vsurface_config)
     end
     -- checking that computation amount is sufficient
     local computation_demand = VSurfaceManager.get_idle_computation_demand(vsurface_config)
-    local available_computation = ComputationManager.get_available_computation()
+    local available_computation = TCCManager.get_available_computation()
     if computation_demand > available_computation then
         return false, {"vsurface-manager.not-enough-computation"}
     end
 
-    -- TODO: check surface tier
-    -- TODO: control center entity is ok?
+    -- TODO: control center entity tier?
     return true
 end
 
@@ -255,7 +253,7 @@ function VSurfaceManager.create_vsurface(vsurface_config)
     -- adding surface to chunk registry for chunk processing
     ChunkProcessor.register_surface(surface)
     -- adding idle computation demand of created vsurface
-    ComputationManager.increase_demand(vsurface_data.idle_demand)
+    TCCManager.increase_computation_curr_demand(vsurface_data.idle_demand)
     return true
 end
 
@@ -278,7 +276,7 @@ local function delete_vsurface_data(data_index)
     table.remove(array, data_index)
 
     -- removing computation demand of deleted vsurface
-    ComputationManager.decrease_demand(data.idle_demand)
+    TCCManager.decrease_computation_curr_demand(data.idle_demand)
 end
 
 ---Attempts to delete a vsurface provided its name
@@ -440,15 +438,23 @@ end
 
 ---------------------------- GENERAL GUI REQUESTS -----------------------------
 
----Gathers names of all idle vsurfaces in order of their creation 
+---Gathers names of all idle vsurfaces in order of their creation
+---@param query string|nil search query
 ---@return string[]
-function VSurfaceManager.get_idle_vsurfaces()
+function VSurfaceManager.get_idle_vsurfaces(query)
     ---@type VSurfaceData[]
     local array = storage.vsurfaces.array
     local result = {}
+    local has_query = query and string.find(query, "%S", 1, false)
     for _, data in ipairs(array) do
+        -- colection names of vsurfaces that are not compiling
         if not data.compiling then
-            table.insert(result, data.name)
+            local name = data.name
+            -- collection vsurface names that match with query
+            ---@diagnostic disable-next-line
+            if not has_query or string.find(name, query, 1, true) then
+                table.insert(result, data.name)
+            end
         end
     end
     return result
@@ -456,19 +462,26 @@ end
 
 ---Gathers names of all compiling vsurfaces in chronological order.
 ---Older compilations first.
+---@param query string|nil search query
 ---@return string[]
-function VSurfaceManager.get_compiling_vsurfaces()
+function VSurfaceManager.get_compiling_vsurfaces(query)
     local vsurfaces = storage.vsurfaces
     ---@type integer[] surface_indexes
     local queue = vsurfaces.compilation_queue
     ---@type table<integer, VSurfaceData>
     local lookup = vsurfaces.lookup
-
+    local has_query = query and string.find(query, "%S", 1, false)
     local result = {}
+    -- collecting names of vsurfaces from the compilation queue
     for _, surface_index in ipairs(queue) do
         local data = lookup[surface_index]
         if data then
-            table.insert(result, data.name)
+            local name = data.name
+            -- collecting vsurface names that match with query
+            ---@diagnostic disable-next-line
+            if not has_query or string.find(name, query, 1, true) then
+                table.insert(result, data.name)
+            end
         end
     end
     return result
@@ -480,26 +493,6 @@ end
 
 ---Base vsurface compilation time in ticks (10 minutes)
 local BASE_COMPILATION_TIME = 36000
-
----Checks if template with provided name is currently compiling
----@param template_name string
----@return boolean status true if template with provided name is compiling
-local function is_template_name_compiling(template_name)
-    local vsurfaces = storage.vsurfaces
-    ---@type integer[] surface_indexes
-    local queue = vsurfaces.compilation_queue
-    ---@type table<integer, VSurfaceData>
-    local lookup = vsurfaces.lookup
-
-    -- looking through compilation queue
-    for _, surface_index in ipairs(queue) do
-        local data = lookup[surface_index]
-        if data.compilation_venv.template_name == template_name then
-            return true
-        end
-    end
-    return false
-end
 
 ---Checks if compilation of a given surface can be started
 ---@param surface_name string|nil
@@ -514,14 +507,6 @@ function VSurfaceManager.can_start_compilation(surface_name, template_name)
     if not template_name or not string.find(template_name, "%S", 1, false) then
         return false, {"vsurface-manager.template-name-missing"}
     end
-    -- checking that template name is not occupied in template storage
-    if not TemplateStorage.is_name_available(template_name) then
-        return false, {"vsurface-manager.template-name-exists"}
-    end
-    -- checking that template with provided name is not currently compiling
-    if is_template_name_compiling(template_name) then
-        return false, {"vsurface-manager.template-name-compiling"}
-    end
     -- checking that vsurface data exists in storage
     local vsurface_data = get_vsurface_data_by_name(surface_name)
     if not vsurface_data then
@@ -533,14 +518,14 @@ function VSurfaceManager.can_start_compilation(surface_name, template_name)
     end
     -- checking that computation is sufficient
     local computation_delta = vsurface_data.compiling_demand - vsurface_data.idle_demand
-    local available_computation = ComputationManager.get_available_computation()
+    local available_computation = TCCManager.get_available_computation()
     if computation_delta > available_computation then
         return false, {"vsurface-manager.not-enough-computation"}
     end
     return true
 end
 
----Attempts to starts a compilation of a given vsurface
+---Attempts to start a compilation of a given vsurface
 ---@param surface_name string|nil name of vsurface to compile
 ---@param template_name string|nil unique template identifier
 ---@return boolean status, LocalisedString|nil reason
@@ -571,7 +556,7 @@ function VSurfaceManager.start_compilation(surface_name, template_name)
 
     -- increasing compuatation demand of the surface
     local computation_delta = vsurface_data.compiling_demand - vsurface_data.idle_demand
-    ComputationManager.increase_demand(computation_delta)
+    TCCManager.increase_computation_curr_demand(computation_delta)
 
     -- switching vsurface state in chunk registry
     ChunkProcessor.set_compiling_flag(surface_index, true)
@@ -601,7 +586,7 @@ local function terminate_compilation(surface_index)
 
     -- decreasing computation demand of this surface
     local computation_delta = data.compiling_demand - data.idle_demand
-    ComputationManager.decrease_demand(computation_delta)
+    TCCManager.decrease_computation_curr_demand(computation_delta)
 
     -- switching vsurface state in chunk registry
     ChunkProcessor.set_compiling_flag(surface_index, false)
@@ -796,7 +781,7 @@ local function create_template(vsurface_data)
         building_cost = get_vsurface_building_cost(surface_index),
         energy_drain = vsurface_data.energy_drain,
     }
-    TemplateStorage.save_template(template, venv.template_name)
+    TCCManager.add_template(template, venv.template_name)
 end
 
 -------------------------------------------------------------------------------
@@ -805,7 +790,7 @@ end
 
 ---Checks for deficit in computation. It there is, takes action.
 local function enforce_computation_limits()
-    if not ComputationManager.has_computation_deficit() then return end
+    if TCCManager.is_computation_sufficient() then return end
     -- stopping newest vsurface compilation (1 per tick)
     local compilation_stopped = stop_newest_compilation()
     if compilation_stopped then return end
