@@ -220,28 +220,52 @@ function TCCManager.add_template(template, name)
     templates.uuid_to_name[uuid] = unique_name
 end
 
+---Checks if template can be renamed.
+---@param old_name template_name|nil
+---@param new_name template_name|nil
+---@return boolean status true if template can be renamed
+---@return LocalisedString|nil reason why template can not be renamed
+function TCCManager.can_rename_template(old_name, new_name)
+    -- checking that old name is provided
+    if not old_name then
+        return false, {"tcc-manager.old-name-missing"}
+    end
+    -- checking that new name is not empty
+    if not new_name or not string.find(new_name, "%S", 1, false) then
+        return false, {"tcc-manager.new-name-empty"}
+    end
+    -- checking that names are different
+    if new_name == old_name then
+        return false, {"tcc-manager.names-not-different"}
+    end
+    -- checking that new name is not occupied
+    local templates = storage.templates
+    local name_to_uuid = templates.name_to_uuid
+    if name_to_uuid[new_name] then
+        return false, {"tcc-manager.new-name-occupied"}
+    end
+    -- checking that template with old name exists in storage
+    if not name_to_uuid[old_name] then
+        return false, {"tcc-manager.old-name-no-data"}
+    end
+    return true
+end
+
 ---Changes display name for a given template
----@param old_name template_name
----@param new_name template_name
+---@param old_name template_name|nil
+---@param new_name template_name|nil
 ---@return boolean status true if template was successfully renamed
 ---@return LocalisedString|nil reason error string if rename failed
 function TCCManager.rename_template(old_name, new_name)
-    -- safety check: old_name key will be erased from lookup tables
-    if old_name == new_name then return true end
+    local status, reason = TCCManager.can_rename_template(old_name, new_name)
+    if not status then return false, reason end
+    ---@cast old_name string
+    ---@cast new_name string
 
     ---@type TemplateStorage
     local templates = storage.templates
     local name_to_uuid = templates.name_to_uuid
     local uuid = name_to_uuid[old_name]
-
-    -- checking that template is found
-    if not uuid then
-        return false, "[Template storage] [color=red]Error:[/color] rename failed: template data not found"
-    end
-    -- checking that new name is free
-    if name_to_uuid[new_name] then
-        return false, "[Template storage] [color=red]Error:[/color] rename failed: new name is occupied"
-    end
 
     -- everything is ok: renaming template
     name_to_uuid[new_name] = uuid
@@ -251,24 +275,28 @@ function TCCManager.rename_template(old_name, new_name)
 end
 
 ---Deletes provided template from storage
----@param name template_name display name
+---@param template_name template_name|nil display name
 ---@return boolean status true if deletion was successful
 ---@return LocalisedString|nil reason error string if deletion failed
-function TCCManager.delete_template(name)
+function TCCManager.delete_template(template_name)
+    -- checking that template name is provided
+    if not template_name then
+        return false, {"tcc-manager.deletion-error-no-name"}
+    end
+
+    -- checking that template exists in storage
     ---@type TemplateStorage
     local templates = storage.templates
     local name_to_uuid = templates.name_to_uuid
-    local template_uuid = name_to_uuid[name]
-
-    -- checking that template is found
+    local template_uuid = name_to_uuid[template_name]
     if not template_uuid then
-        return false, "[Template storage] [color=red]Error:[/color] deletion failed: template data not found"
+        return false, {"tcc-manager.deletion-error-no-data"}
     end
 
     -- Data is found: erasing it from all tables
     templates.template_lookup[template_uuid] = nil
     templates.uuid_to_name[template_uuid] = nil
-    name_to_uuid[name] = nil
+    name_to_uuid[template_name] = nil
 
     -- Erasing template from transmission tables
     local transmit = templates.transmit
@@ -335,7 +363,7 @@ end
 ---@param template_uuid template_uuid unique template identifier
 ---@param cluster_uuid cluster_uuid unique cluster identifier
 ---@return boolean status true if receiver was added successfully
-function TCCManager.create_template_receiver(template_uuid, cluster_uuid)
+function TCCManager.add_template_receiver(template_uuid, cluster_uuid)
     ---@type TemplateStorage
     local templates = storage.templates
     local receive = templates.receive
@@ -402,9 +430,10 @@ end
 
 ---Checks if given template is active. Template is considered active if it
 ---appears at least in one routing table.
----@param template_name template_name display name
+---@param template_name template_name|nil display name
 ---@return boolean status true if template is found and active
 function TCCManager.is_template_active(template_name)
+    if not template_name then return false end
     ---@type TemplateStorage
     local templates = storage.templates
     local uuid = templates.name_to_uuid[template_name]
@@ -415,9 +444,10 @@ end
 
 ---Checks if given template is inactive. Template is considered inactive if it
 ---does not appear in routing tables.
----@param template_name template_name display name
+---@param template_name template_name|nil display name
 ---@return boolean status true if template is found and inactive
 function TCCManager.is_template_inactive(template_name)
+    if not template_name then return false end
     ---@type TemplateStorage
     local templates = storage.templates
     local uuid = templates.name_to_uuid[template_name]
@@ -477,9 +507,10 @@ end
 
 ---Collects uuids of all clusters given template is transmitted to.
 ---Uuids are returned in random order.
----@param template_name template_name display name
+---@param template_name template_name|nil display name
 ---@return string[] uuids
 function TCCManager.get_transmit_cluster_uuids(template_name)
+    if not template_name then return {} end
     ---@type TemplateStorage
     local templates = storage.templates
     local template_uuid = templates.name_to_uuid[template_name]
@@ -497,9 +528,10 @@ end
 
 ---Collects uuids of all clusters given template is received by
 ---Uuids are returned in random order.
----@param template_name template_name display name
+---@param template_name template_name|nil display name
 ---@return string[] uuids
 function TCCManager.get_receive_cluster_uuids(template_name)
+    if not template_name then return {} end
     ---@type TemplateStorage
     local templates = storage.templates
     local template_uuid = templates.name_to_uuid[template_name]
@@ -515,6 +547,45 @@ function TCCManager.get_receive_cluster_uuids(template_name)
     return result
 end
 
+---Gets template data by name
+---@param template_name template_name|nil display name
+---@return TemplateData|nil
+local function get_template_by_name(template_name)
+    if not template_name then return end
+    ---@type TemplateStorage
+    local templates = storage.templates
+    local uuid = templates.name_to_uuid[template_name]
+    if not uuid then return end
+    return templates.template_lookup[uuid]
+end
+
+---Gets inputs and energy drain of given template
+---@param template_name template_name|nil display name
+---@return table<BufferKeyString, number> input, number energy_drain
+function TCCManager.get_template_inputs(template_name)
+    local template = get_template_by_name(template_name)
+    if not template then return {}, 0 end
+    return template.input, template.energy_drain
+end
+
+---Gets outputs of given template
+---@param template_name template_name|nil display name
+---@return table<BufferKeyString, number> input
+function TCCManager.get_template_outputs(template_name)
+    local template = get_template_by_name(template_name)
+    if not template then return {} end
+    return template.output
+end
+
+---Gets building cost of given template
+---@param template_name template_name|nil display name
+---@return table<BufferKeyString, number> input
+function TCCManager.get_template_building_cost(template_name)
+    local template = get_template_by_name(template_name)
+    if not template then return {} end
+    return template.building_cost
+end
+
 ------------------------------- DEBUG COMMANDS --------------------------------
 
 ---Adds several test templates
@@ -522,27 +593,53 @@ commands.add_command("add_test_templates", "", function()
     ---@type TemplateData
     local template = {
         input = {
-            ["iron-plates//legendary"] = 1234,
+            ["iron-plate//legendary"] = 1234,
+            ["copper-plate//normal"] = 800,
+            ["advanced-circuit//epic"] = 500,
             ["water"] = 10000,
             ["electric_energy"] = 1e9,
         },
         output = {
-            ["iron-gears//legendary"] = 1234,
+            ["iron-gear-wheel//legendary"] = 1234,
+            ["processing-unit//epic"] = 10000,
+            ["electric_energy"] = 1e10,
         },
         building_cost = {
-            ["assembling-machine-1//epic"] = 12,
+            ["assembling-machine-3//epic"] = 12,
             ["stack-inserter//uncommon"] = 123,
+            ["electric-furnace//rare"] = 70,
         },
         energy_drain = 1e8,
     }
-    for i = 1, 10 do
+    for i = 1, 2 do
         TCCManager.add_template(template, "test template")
     end
-    for i = 1, 10 do
+    for i = 1, 2 do
         TCCManager.add_template(
             {input = {}, output = {}, building_cost = {}, energy_drain = 0},
             "empty_template"
         )
+    end
+end)
+
+---Adds transmitting and receiving clusters to some templates
+commands.add_command("add_test_routing", "", function()
+    local uuid_to_name = storage.templates.uuid_to_name
+    for uuid, _ in pairs(uuid_to_name) do
+        local roll = math.random()
+        if roll > 0.5 then
+            TCCManager.add_template_transmitter(
+                uuid,
+                string.format("cluster %.2f", roll)
+            )
+        end
+        local roll = math.random()
+        if roll > 0.5 then
+            TCCManager.add_template_receiver(
+                uuid,
+                string.format("cluster %.2f", roll)
+            )
+        end
     end
 end)
 

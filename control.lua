@@ -137,6 +137,8 @@ local on_gui_click_router = {
     [PREFIX .. "cc-view-surface-btn"] = CCSurfaces.handle_view_vsurface_btn,
     [PREFIX .. "cc-rename-template"] = CCTemplates.handle_rename_template_button,
     [PREFIX .. "cc-delete-template"] = CCTemplates.handle_delete_template_button,
+    [PREFIX .. "cc-confirm-template-rename"] = CCTemplates.handle_template_rename_confirm_btn,
+    [PREFIX .. "cc-confirm-template-deletion"] = CCTemplates.handle_template_deletion_confirm_btn,
 }
 script.on_event(defines.events.on_gui_click, function(event)
     element_name_router(event, on_gui_click_router)
@@ -163,6 +165,7 @@ local on_gui_text_changed_router = {
     [PREFIX .. "cc-new-template-name"] = CCSurfaces.handle_new_template_name_textfield,
     [PREFIX .. "cc-inactive-template-search"] = CCTemplates.handle_inactive_template_search,
     [PREFIX .. "cc-active-template-search"] = CCTemplates.handle_active_template_search,
+    [PREFIX .. "cc-template-rename-textfield"] = CCTemplates.handle_template_rename_textfield,
 }
 script.on_event(defines.events.on_gui_text_changed, function(event)
     element_name_router(event, on_gui_text_changed_router)

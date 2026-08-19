@@ -17,3 +17,20 @@ local control_center_shortcut = {
 }
 
 data.extend({control_center_hotkey, control_center_shortcut})
+
+-- Template routing table style
+data.raw["gui-style"]["default"]["template_routing_table"] = {
+    type = "table_style",
+    parent = "bordered_table",
+    right_cell_padding = 8,
+    column_alignments = {
+        {column = 1, alignment = "left"},
+        {column = 2, alignment = "center"},
+        {column = 3, alignment = "center"},
+    },
+    column_widths = {
+      {column = 1, width = 216},
+      {column = 2, width = 60},
+      {column = 3, width = 60}
+    },
+}

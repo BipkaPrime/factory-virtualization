@@ -35,7 +35,7 @@ local number_prefixes = {
 }
 ---Converts large number to human-readable format
 ---@param value number number to format
----@return string formated_value for example: "105 M", "5.1 G"
+---@return string formatted_value for example: "105 M", "5.1 G"
 function CommonGui.large_number_to_string(value)
     local selected = number_prefixes[1]
     for _, prefix in ipairs(number_prefixes) do
@@ -216,32 +216,12 @@ end
 ---@field count number|nil
 ---@field quality string|nil
 
----Adds one sprite button to provided element
----@param parent LuaGuiElement info element will be added here
----@param button_data SpriteButtonData
-function CommonGui.create_sprite_button(parent, button_data)
-    parent.add{
-        type = "sprite-button",
-        sprite = button_data.sprite,
-        style = "slot_button",
-        quality = button_data.quality,
-        tooltip = button_data.tooltip,
-        number = button_data.count,
-    }
-end
-
----Comparison function that is used to sort sprite buttons by count.
----@param a SpriteButtonData
----@param b SpriteButtonData
-local function sprite_buttons_comparison(a, b)
-    return (a.count or 0) > (b.count or 0)
-end
-
----Creates a sprite button table. Buttons are sorted by count.
+---Creates an element used to display an array of sprite buttons.
+---Consists of scroll-pane and a table for button alignment.
 ---Number of buttons per row is hardcoded to 10 because it looks nice.
 ---@param parent LuaGuiElement table will be added here
----@param buttons SpriteButtonData[] button data
-function CommonGui.create_sprite_button_table(parent, buttons)
+---@return LuaGuiElement table_element created table where buttons can be added
+function CommonGui.add_sprite_button_table(parent)
     -- deep container element
     local container = parent.add{
         type = "scroll-pane",
@@ -257,11 +237,52 @@ function CommonGui.create_sprite_button_table(parent, buttons)
         column_count = 10,
         style = "slot_table"
     }
-    -- sorting the buttons by count
-    table.sort(buttons, sprite_buttons_comparison)
-    -- adding the buttons
-    for _, button in ipairs(buttons) do
-        CommonGui.create_sprite_button(button_table, button)
+    return button_table
+end
+
+---Comparison function that is used to sort sprite buttons by count.
+---@param a SpriteButtonData
+---@param b SpriteButtonData
+local function sprite_buttons_comparison(a, b)
+    return (a.count or 0) > (b.count or 0)
+end
+
+---Updates sprite button tables using providing button data. Buttons are sorted by count.
+---All LuaGuiElements passed to this function are assumed to be valid.
+---@param btn_table LuaGuiElement parent element that contains all buttons (new buttons are added here)
+---@param buttons LuaGuiElement[] table used to cache references to buttons. Can be modified by this function.
+---@param buttons_data SpriteButtonData[] sprite button configuration data
+function CommonGui.update_sprite_button_table(btn_table, buttons, buttons_data)
+    table.sort(buttons_data, sprite_buttons_comparison)
+
+    -- setting up first #button_data elements in btn_table
+    local target_count = #buttons_data
+    for i = 1, target_count do
+        local btn_data = buttons_data[i]
+        if not buttons[i] then
+            -- button i does not exist, creating a new one
+            buttons[i] = btn_table.add{
+                type = "sprite-button",
+                sprite = btn_data.sprite,
+                style = "slot_button",
+                quality = btn_data.quality,
+                tooltip = btn_data.tooltip,
+                number = btn_data.count,
+            }
+        else
+            -- button i exists, changing its properties
+            local button = buttons[i]
+            button.sprite = btn_data.sprite
+            button.quality = btn_data.quality
+            button.tooltip = btn_data.tooltip
+            button.number = btn_data.count
+        end
+    end
+
+    -- clearing buttons table of any tailing elements
+    for i = #buttons, target_count + 1, -1 do
+        buttons[i].destroy()
+        buttons[i] = nil
     end
 end
 

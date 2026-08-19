@@ -652,7 +652,6 @@ local function add_compilation_info_section(parent, gui_data)
     update_compilation_info_section(gui_data)
 end
 
-
 -------------------------- DELETE SELECTED VSURFACE ---------------------------
 
 ---Adds section used for confirmation of vsurface deletion.
