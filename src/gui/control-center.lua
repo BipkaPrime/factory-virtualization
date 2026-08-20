@@ -235,16 +235,21 @@ end
 
 ----------------------------- TIME-BASED UPDATES ------------------------------
 
+---@type table<string, fun(gui_data: ControlCenterData, update_cycle: integer)>
+local update_router = {
+    [control_center_modes.surfaces] = CCSurfaces.on_tick_updater,
+    [control_center_modes.templates] = CCTemplates.on_tick_updater,
+}
+
 ---Used for fast time-based control center updates. Called about once a tick
 ---@param gui_data ControlCenterData
-local function time_based_fast_updater(gui_data)
-    local mode = gui_data.mode
-    if mode == control_center_modes.surfaces then
-        CCSurfaces.fast_interface_updater(gui_data)
-    end
+local function on_tick_updater(gui_data, update_cycle)
+    local handler = update_router[gui_data.mode]
+    if not handler then return end
+    handler(gui_data, update_cycle)
 end
 
-GuiUpdater.add_schema("control_center", time_based_fast_updater)
+GuiUpdater.add_schema("control_center", on_tick_updater)
 
 --------------------------- WINDOW OPEN/CLOSE LOGIC ---------------------------
 
@@ -263,16 +268,13 @@ local function toggle_control_center_window(player)
     gui_data = create_control_center_base(player)
     populate_control_center_base(gui_data)
     -- registering window for time-based updates
-    GuiUpdater.register_gui("control_center", gui_data, player_index)
+    GuiUpdater.register_gui("control_center", gui_data, player)
 end
 
 ---Closes control center window when event is triggered
 ---@param event EventData.on_gui_closed
 function ControlCenter.handle_window_closed(event)
-    local gui_data = storage.control_center[event.player_index]
-    gui_data.opened = nil
-    gui_data.elements.main_window.destroy()
-    gui_data.elements = nil
+    GuiUpdater.close_window(event.player_index)
 end
 
 ---Toggles control center window when shortcut bar element is clicked

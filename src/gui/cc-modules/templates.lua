@@ -621,12 +621,13 @@ function CCTemplates.construct_right_side(gui_data)
     end
 end
 
-function CCTemplates.fast_interface_updater(gui_data)
-
-end
-
-function CCTemplates.slow_interface_updater(gui_data)
-    update_template_routing_table(gui_data)
+---Time based updater for the window in templates mode
+---@param gui_data ControlCenterData
+---@param update_cycle integer
+function CCTemplates.on_tick_updater(gui_data, update_cycle)
+    if update_cycle % 30 == 0 then
+        update_template_routing_table(gui_data)
+    end
 end
 
 -------------------------------------------------------------------------------
@@ -749,15 +750,6 @@ end
 ------------------- RIGHT FRAME CONTROL ELEMENTS: HANDLERS --------------------
 -------------------------------------------------------------------------------
 
----Prints given message for given player
----@param player_index integer unique player identifier
----@param message LocalisedString message to print
-local function print_message(player_index, message)
-    local player = game.get_player(player_index)
-    if not player then return end
-    player.print(message)
-end
-
 --------------------------- TEMPLATE RENAME SECTION ---------------------------
 
 ---Handles new name textfield being changed in template rename section
@@ -799,8 +791,8 @@ function CCTemplates.handle_template_deletion_confirm_btn(event)
     local gui_data = storage.control_center[player_index]
     local template_name = gui_data.selected_template
     local status, reason = TCCManager.delete_template(template_name)
-    ---@diagnostic disable-next-line
-    if not status then print_message(player_index, reason) return end
+    if not status then CommonGui.print_message(player_index, reason) return end
+
     -- deletion successful, cleaning up gui
     gui_data.selected_template = nil
     gui_data.template_submode = nil

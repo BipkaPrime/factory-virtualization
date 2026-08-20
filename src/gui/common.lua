@@ -9,6 +9,16 @@ CommonGui.yellow = {r = 0.85, g = 0.85, b = 0.4}
 CommonGui.green = {r = 0.2, g = 0.8, b = 0.2}
 CommonGui.grey = {r = 0.5, g = 0.5, b = 0.5}
 
+
+---Prints given message for given player
+---@param player_index integer unique player identifier
+---@param message LocalisedString|nil message to print
+function CommonGui.print_message(player_index, message)
+    local player = game.get_player(player_index)
+    if not player or not message then return end
+    player.print(message)
+end
+
 -------------------------------------------------------------------------------
 ------------------------------ NUMBER FORMATING -------------------------------
 -------------------------------------------------------------------------------

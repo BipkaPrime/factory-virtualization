@@ -869,34 +869,27 @@ function CCSurfaces.construct_right_side(gui_data)
     end
 end
 
----Used for time-based updates of elements that should be updated
----as frequently as possible. Ideally once every tick.
+---Time based updater for the window in surfaces mode
 ---@param gui_data ControlCenterData
-function CCSurfaces.fast_interface_updater(gui_data)
+---@param update_cycle integer
+function CCSurfaces.on_tick_updater(gui_data, update_cycle)
     update_computation_display_section(gui_data)
 
     -- Updating vsurface information if it's selected
-    local selected_vsurface = gui_data.selected_vsurface
-    if selected_vsurface then
+    if gui_data.selected_vsurface then
         update_vsurface_info_section(gui_data)
         update_compilation_info_section(gui_data)
     end
 
-    -- Updating submode section if necessery
-    local submode = gui_data.surface_submode
-    if submode == surface_submodes.new_surface then
-        update_new_vsurface_confirm_button(gui_data)
-    elseif submode == surface_submodes.start_compilation then
-        update_confirm_compilation_start_section(gui_data)
+    -- Updating surface submode section
+    if update_cycle % 30 == 0 then
+        local submode = gui_data.surface_submode
+        if submode == surface_submodes.new_surface then
+            update_new_vsurface_confirm_button(gui_data)
+        elseif submode == surface_submodes.start_compilation then
+            update_confirm_compilation_start_section(gui_data)
+        end
     end
-end
-
----Used for time-based updates of elements that should
----not be updated frequently. About once per second.
----@param gui_data ControlCenterData
-function CCSurfaces.slow_interface_updater(gui_data)
-    -- Currently there are no such elements
-    -- Do something about left side selectors?
 end
 
 -------------------------------------------------------------------------------
@@ -1052,15 +1045,6 @@ end
 ------------------- RIGHT FRAME CONTROL ELEMENTS: HANDLERS --------------------
 -------------------------------------------------------------------------------
 
----Prints given message for given player
----@param player_index integer unique player identifier
----@param message LocalisedString message to print
-local function print_message(player_index, message)
-    local player = game.get_player(player_index)
-    if not player then return end
-    player.print(message)
-end
-
 ------------------------- NEW VSURFACE CONFIGURATION --------------------------
 
 ---Handles new vsurface name textfield being changed
@@ -1121,8 +1105,7 @@ function CCSurfaces.handle_new_vsurface_confirm_button(event)
     -- attempting to create requested vsurface
     local status, reason = VSurfaceManager.create_vsurface(gui_data.vsurface_config)
     ---Vsurface was not created: displaying reason in chat
-    ---@diagnostic disable-next-line
-    if not status then print_message(player_index, reason) return end
+    if not status then CommonGui.print_message(player_index, reason) return end
 
     ---Vsurface was successfully created: doing cleanup
     -- selecting created surface
@@ -1169,8 +1152,7 @@ function CCSurfaces.handle_confirm_surface_deletion_btn(event)
         gui_data.selected_vsurface
     )
     ---Vsurface was not deleted: displaying reason in chat
-    ---@diagnostic disable-next-line
-    if not status then print_message(player_index, reason) return end
+    if not status then CommonGui.print_message(player_index, reason) return end
 
     ---Vsurface successfully deleted: doing cleanup
     gui_data.selected_vsurface = nil
@@ -1203,8 +1185,7 @@ function CCSurfaces.handle_confirm_compilation_button(event)
         template_name
     )
     ---Compilation was not started: displaying reason in chat
-    ---@diagnostic disable-next-line
-    if not status then print_message(player_index, reason) return end
+    if not status then CommonGui.print_message(player_index, reason) return end
 
     ---Compilation successfully started: doing cleanup
     gui_data.new_template_name = nil
@@ -1225,8 +1206,7 @@ function CCSurfaces.handle_confirm_compilation_stop_button(event)
         gui_data.selected_vsurface
     )
     ---Compilation was not stopped: displaying reason in chat
-    ---@diagnostic disable-next-line
-    if not status then print_message(player_index, reason) return end
+    if not status then CommonGui.print_message(player_index, reason) return end
 
     ---Compilation was stopped successfully: doing cleanup
     gui_data.surface_submode = nil

@@ -1,138 +1,215 @@
 --[[
 Opened guis added by this mod may need updates to display relevant information.
-This operation usually heavily impacts performance. Currently, updating all cluster information
-in a window can take around ~0.5 ms on my computer, which is a lot.
-Because of this, we can't update all opened GUIs every tick, because it can cause
-performance issues in the multiplayer. Instead, we will update one opened window per tick.
-This file is needed to enable this idea.
+Updating a gui window can be computationally intense and can generate some garbage for GC.
+Because of this, we can not fully update all opened GUIs every tick.
 
-Currently there are 3 types of GUIs that can be opened: entity, template dashboard, vsurface manager.
-Different windows should be updated using different functions. Since we can't simply save functions
-in storage, we will have to get a bit creative. We will create a router that maps strings to functions.
-These strings serve as unique updater identifiers and are called "schemas".
-A gui file that adds a window that should be updated, must call add_schema function when loading.
+This file is used for scheduling gui updates. More specifically, it forms a ring buffer
+from opened windows added to it. To add a window to this updater two following steps
+must be taken:
+1. During the file loading stage of runtime an update schema must be added
+with add_schema(). An "update schema" consists of 2 parts. First is
+function that should be used for updates of a window (later). Second is
+schema "name" (string): it is used to tell apart update functions.
+2. During regular event handling of runtime stage, opened window can be added
+to the updater with register_gui(). Among other arguments it takes schema
+name (used to decide which update function should be used) and a table
+"gui_data", which must contain several fields mandatory for updater
+operation (more info on this below). 
 
-This updater is also used to solve problems with strage gui behavior. For example:
-After player changes surface with a window opened, player.opened can be assigned nil without
-actually destroying the window. (Somehow on_gui_closed event was not triggering). I also encountered
-similar behavior when going into editor mode.
-To solve this problem, we should have the source of truth in the gui_data table. If window is opened
-then gui_data.opened must be set to true. When updating a window, player.opened will be set
-to gui_data.element.main_window in case gui_data.opened is set to true. This flag is also vital for
-updater operation. It is used to automatically remove tables that have gui_data.opened ~= true.
+When updating a window, an update function is called and 2 arguments are passed
+to it. First is "gui_data" (table), second is "update_cycle" (integer): it's a couter
+for how many times this window was updated since it was added to the buffer; it can
+be useful if you'd like to update something in your window once every n calls.
 
-Table in storage used by this gui updater is the following:
-storage.opened_guis = {
-    array = {},
-    next_index = 1,
+Also, before calling an update function on a window, several things are checked:
+1. LuaPlayer, for which this window is opened, is valid. Otherwise the window
+is "closed" internally and removed from update buffer.
+2. LuaPlayer, for which this window is opened, is connected. Otherwise the window
+is closed and removed from update buffer.
+3. gui_data.opened == true. Otherwise the window is removed from update buffer.
+4. schema_name points to an update funtion. Otherwise window is removed from update buffer.
+
+Apart from everything mentioned above, updater serves one more purpose. It makes sure
+that player.opened is syncronized with data in storage. When gui_data.opened == true
+player.opened will be set to the window being updated.
+
+Gui_data fields that are mandatory for operation of gui updater.
+1. opened boolean|nil true if window is opened. Must be accurate. Used to remove
+window from ring buffer of updater when window is closed.
+2. elements.main_window LuaGuiElement: used to close the window and for
+player.opened syncronization.
+
+The updater operates on the following rules. Each tick it updates exactly one registered
+window (or zero if empty). The buffer cannot contain more than one entry for a single
+player_index. In case of a collision (aka. for some reason you are trying to register
+a second entry for a given player_index), the older entry is always destroyed. Also, if
+schema names do not match between the older and newer entries, the updater ensures that
+the older window is closed before deleting the entry.
+
+Everything related to this updater is located at:
+storage.gui_updater = {
+    array GuiUpdaterEntry[]: contains all registered entries, used as the ring buffer
+    lookup table<player_index, GuiUpdaterEntry> maps player index to their entries
+    next_index integeк points to the inxed in array that should be updated in the next iteration 
 }
 --]]
 
----Base class for table containing references to LuaGuiElements
----@class GuiElementsBase
----@field main_window LuaGuiElement main window that should be destroyed when closing the gui
+---A function used to update one gui window
+---@alias gui_update_fun fun(gui_data: table, update_cycle: integer)
+---@alias gui_data table must contain "opened" and "elements.main_window"
 
----Base class for table containing gui data. All tables with gui data must contain these fields
----@class GuiDataBase
----@field opened boolean|nil true if window is opened
----@field elements GuiElementsBase|nil
-
----Union of all classes that inherit from GuiDataBase
----@alias GuiData
----|EntityGuiData
----|ControlCenterData
-
----Entry in the storage.opened_guis.array
 ---@class GuiUpdaterEntry
----@field schema string update function identifier
----@field gui_data GuiData
----@field player_index number unique player identifier
+---@field array_index integer index of this entry in the array
+---@field player_index integer unique player identifier
+---@field schema_name string unique update function identifier
+---@field gui_data gui_data
+---@field player LuaPlayer player for which window is opened
+---@field update_cycle integer how many times this entry was updated
+
 
 local GuiUpdater = {}
 
----Maps update schemas to functions that should be used for an update
----@type table<string, function>
+---Maps schema names to update functions
+---@type table<string, gui_update_fun>
 GuiUpdater.router = {}
 
 ---Adds update schema to update router
 ---@param name string
----@param updater fun(gui_data: GuiData)
+---@param updater gui_update_fun
 function GuiUpdater.add_schema(name, updater)
     GuiUpdater.router[name] = updater
 end
 
+---Removes the given entry from the updater data structure.
+---@param entry GuiUpdaterEntry
+local function delete_entry(entry)
+    local updater = storage.gui_updater
+    ---@type GuiUpdaterEntry[]
+    local array = updater.array
+    ---@type table<integer, GuiUpdaterEntry>
+    local lookup = updater.lookup
+
+    -- replacing entry with the last element in the array
+    local last_element = array[#array]
+    local index = entry.array_index
+    array[index] = array[#array]
+    last_element.array_index = index
+
+    -- deleting entry from both tables
+    array[#array] = nil
+    lookup[entry.player_index] = nil
+end
+
+---Ensures that the window corresponding to the given entry is closed
+---and deletes the entry from the data structure.
+---@param entry GuiUpdaterEntry
+local function unregister_entry(entry)
+    local gui_data = entry.gui_data
+    if gui_data.opened then
+        gui_data.opened = nil
+        local main_window = gui_data.elements.main_window
+        if main_window and main_window.valid then
+            main_window.destroy()
+        end
+        gui_data.elements = nil
+    end
+    delete_entry(entry)
+end
+
+---Used to close a window opened for given player index.
+---@param player_index integer unique player identifier
+function GuiUpdater.close_window(player_index)
+    local entry = storage.gui_updater.lookup[player_index]
+    if not entry then return end
+    unregister_entry(entry)
+end
+
 ---Registers gui for on-tick updates
----@param schema string
----@param gui_data GuiData
----@param player_index number
-function GuiUpdater.register_gui(schema, gui_data, player_index)
-    local arr = storage.opened_guis.array
+---@param schema_name string unique update function identifier
+---@param gui_data gui_data gui window data
+---@param player LuaPlayer assumed to be valid
+function GuiUpdater.register_gui(schema_name, gui_data, player)
+    local updater = storage.gui_updater
+    ---@type GuiUpdaterEntry[]
+    local array = updater.array
+    ---@type table<integer, GuiUpdaterEntry>
+    local lookup = updater.lookup
+
+    -- checking for collisions on player_index
+    local player_index = player.index
+    local old_entry = lookup[player_index]
+    if old_entry then
+        local old_schema = old_entry.schema_name
+        if old_schema ~= schema_name then
+            -- closing old window and deleting entry
+            unregister_entry(old_entry)
+        else
+            delete_entry(old_entry)
+        end
+    end
+
+    -- creating and adding the entry for new window
+    local array_index = #array + 1
     ---@type GuiUpdaterEntry
     local entry = {
-        schema = schema,
+        array_index = array_index,
         player_index = player_index,
+        schema_name = schema_name,
         gui_data = gui_data,
+        player = player,
+        update_cycle = 1,
     }
-    table.insert(arr, entry)
+    array[array_index] = entry
+    lookup[player_index] = entry
 end
 
----Removes entry from gui updater given its index
----@param index number 
-local function unregister_gui(index)
-    local arr = storage.opened_guis.array
-    arr[index] = arr[#arr]
-    table.remove(arr)
-end
-
----Time-based updater for opened guis. Should be called every tick.
-function GuiUpdater.update()
-    -- if update array is empty, return
-    local arr = storage.opened_guis.array
-    if #arr == 0 then return end
+---Time-based gui updater
+function GuiUpdater.on_tick()
+    local updater = storage.gui_updater
+    local array = updater.array
+    -- no windows to update: return
+    if #array == 0 then return end
 
     -- getting entry we want to update this tick
-    local index = storage.opened_guis.next_index
-    if not arr[index] then index = 1 end
+    local index = updater.next_index
+    if not array[index] then index = 1 end
     ---@type GuiUpdaterEntry
-    local entry = arr[index]
+    local entry = array[index]
 
     -- removing entry from updater if player is not found
-    local player = game.get_player(entry.player_index)
-    if not player then
-        unregister_gui(index)
+    -- in case player was removed from the game or smth
+    local player = entry.player
+    if not player.valid then
+        unregister_entry(entry)
         return
     end
 
-    -- closing window and removing it from updater if player disconnected
-    local gui_data = entry.gui_data
+    -- closing the window in case player disconnected
     if not player.connected then
-        local elements = gui_data.elements
-        if elements and elements.main_window and elements.main_window.valid then
-            elements.main_window.destroy()
-            gui_data.elements = nil
-            gui_data.opened = false
-        end
-        unregister_gui(index)
+        unregister_entry(entry)
         return
     end
 
-    -- making sure player.opened is correctly set to opened window    
+    -- syncronizing player.opened with opened window
+    local gui_data = entry.gui_data
     if gui_data.opened then
         player.opened = gui_data.elements.main_window
     else
-        unregister_gui(index)
+        delete_entry(entry)
         return
     end
 
     -- making sure handler is found in the router
-    local handler = GuiUpdater.router[entry.schema]
-    if not handler then
-        unregister_gui(index)
+    local update_function = GuiUpdater.router[entry.schema_name]
+    if not update_function then
+        unregister_entry(entry)
         return
     end
 
-    handler(gui_data)
-    storage.opened_guis.next_index = index + 1
+    local update_cycle = entry.update_cycle
+    update_function(gui_data, update_cycle)
+    entry.update_cycle = update_cycle + 1
+    updater.next_index = index + 1
 end
 
 return GuiUpdater

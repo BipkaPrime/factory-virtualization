@@ -37,14 +37,12 @@ script.on_init(function()
         receive = {},
         receive_inv = {},
     }
-    -- simulation/venv-processor
-    storage.venvs = {}
     -- gui/control-center
     storage.control_center = {}
     -- gui/entity-gui
     storage.entity_gui = {}
     -- gui/updater
-    storage.opened_guis = {array = {}, next_index = 1}
+    storage.gui_updater = {array = {}, lookup = {}, next_index = 1}
 end)
 
 script.on_configuration_changed(function()
@@ -60,7 +58,7 @@ script.on_event(defines.events.on_tick, function(event)
     EntityProcessor.process_entities(event)
     ChunkProcessor.process_chunks(event)
     VSurfaceManager.on_tick_updater()
-    GuiUpdater.update()
+    GuiUpdater.on_tick()
 end)
 
 -------------------------------------------------------------------------------
