@@ -47,49 +47,7 @@ Lookup maps cluster identifier (string) with corresponding ClusterData.
 
 ---@alias ClusterIdString string template_name//surface_index
 
----Table describing one stored type in cluster buffer.
----@class ClusterBufferEntry
----@field current number currently stored amount
----@field per_craft number amount required per 1 craft
----@field maximum number largest amount that can be stored
----@field ls_possible_crafts number number of crafts this buffer could allow at the time of last craft
----@field ls_input_flow number amount that entered the buffer in the last second
----@field ls_output_flow number amount that left the buffer in the last second
----@field cs_flow number amount that entered(input buffer)/exited(output buffer) from the time of last craft
----@field type "item"|"fluid"|"energy"
----@field name string|nil only present for items and fluids
----@field quality string|nil only present for items
 
----Table describing one cluster member
----@class ClusterMemberData
----@field x_pos number x-coordinate of this entity
----@field y_pos number y-coordinate of this entity
----@field weight number weight of this entity
----@field key BufferKeyString name//quality of this entity
----@field crafting_power number|nil amount of crafting potential entity is contributing
----@field storage_capacity number|nil amount of storage this entity is contributing
----@field buffer ClusterBufferEntry|nil buffer to which entity is contributing storage capacity
-
----Table describing one virtualization cluster
----@class ClusterData
----@field index number position of this cluster in the data structure
----@field cluster_id ClusterIdString template_name//surface_index
----@field template_name string name of template for this cluster
----@field surface_index number unique surface identifier
----@field input table<BufferKeyString, ClusterBufferEntry> cluster input buffer
----@field output table<BufferKeyString, ClusterBufferEntry> cluster output buffer
----@field member_counts table<BufferKeyString, number> count of all cluster members
----@field members table<number, ClusterMemberData> key is entity.unit_number. contains data of all members
----@field crafting_power number maximum number of crafts cluster can produce per second
----@field sum_x number weighted sum of x-coordinates of all members
----@field sum_y number weighted sum of y coordinates of all members
----@field total_weight number sum of weights of all members
----@field sum_squares number weighted sum of squares (x^2 + y^2) of all member positions
----@field decentralization_loss number multiplier of energy per craft of this cluster
----@field base_energy_per_craft number base electric energy consumption per craft
----@field last_cycle_crafts number crafts performed in the last crafting cycle
----@field item_statistics LuaFlowStatistics|nil for player force and cluster surface (will be cached when crafting)
----@field fluid_statistics LuaFlowStatistics|nil for player force and cluster surface (will be cached when crafting)
 
 
 local ClusterProcessor = {}
