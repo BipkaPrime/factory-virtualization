@@ -22,12 +22,24 @@ script.on_init(function()
     -- world/vsurface-chunk-processor
     storage.vsurface_chunks = {}
     -- world/vsurface-manager
-    storage.vsurfaces = {array = {}, lookup = {}, compilation_queue = {}, next_index = 1}
+    storage.vsurfaces = {
+        array = {},
+        lookup = {},
+        compilation_queue = {},
+        next_index = 1
+    }
     -- simulation/cluster-processor
-    storage.clusters = {array = {}, lookup = {}}
+    ---@type ClusterStorage
+    storage.clusters = {
+        array = {},
+        lookup = {},
+        name_to_uuid = {},
+        uuid_to_name = {}
+    }
     -- simulation/tcc-manager
     storage.tcc = {}
     storage.computation = {max_available = 0, curr_demand = 0}
+    ---@type TemplateStorage
     storage.templates = {
         template_lookup = {},
         name_to_uuid = {},

@@ -27,6 +27,7 @@ Rename, delete compiled templates as well as view template data.
 
 local CommonGui = require("src.gui.common")
 local TCCManager = require("src.simulation.tcc-manager")
+local ClusterProcessor = require("src.simulation.cluster-processor")
 
 
 local PREFIX = "FV-"
@@ -366,7 +367,9 @@ local function update_template_routing_table(gui_data)
     local transmit_uuids = TCCManager.get_transmit_cluster_uuids(template_name)
     local receive_uuids = TCCManager.get_receive_cluster_uuids(template_name)
 
-    -- TODO: convert cluster uuids to cluster display names
+    -- converting cluster uuids to cluster names
+    ClusterProcessor.convert_to_cluster_names(transmit_uuids)
+    ClusterProcessor.convert_to_cluster_names(receive_uuids)
     local transmit_names = transmit_uuids
     local receive_names = receive_uuids
 

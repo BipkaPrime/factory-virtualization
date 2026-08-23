@@ -411,6 +411,7 @@ end
 ---Gets uuid of template assigned to the given cluster.
 ---@param cluster_uuid cluster_uuid unique cluster identifier
 ---@return template_uuid|nil template_uuid id of assigned template
+---@return TemplateData|nil template assigned template data
 function TCCManager.get_assigned_template(cluster_uuid)
     if not is_tcc_registered() then return end
     ---@type TemplateStorage
@@ -422,7 +423,7 @@ function TCCManager.get_assigned_template(cluster_uuid)
     local receive_uuid = receive_inv[cluster_uuid]
     if not receive_uuid then return end
     if transmit_uuid == receive_uuid then
-        return transmit_uuid
+        return transmit_uuid, templates.template_lookup[transmit_uuid]
     end
 end
 
