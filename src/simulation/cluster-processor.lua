@@ -115,7 +115,7 @@ All cluster data is located at storage.clusters (see ClusterStorage class).
 ---
 ---Fields related to assigned template or changed during processing 
 ---@field template_uuid string|nil identifier of template assigned to this cluster
----@field build_cost table<BufferKeyString, number>|nil items needed for template construction
+---@field build_cost table<BufferKeyString, number>|nil items for template construction
 ---@field input table<BufferKeyString, ClusterBufferEntry> cluster input buffer
 ---@field output table<BufferKeyString, ClusterBufferEntry> cluster output buffer
 ---@field energy_per_craft number electric energy consumption per craft, calculated
@@ -696,12 +696,13 @@ end
 ---Gets a buffer entry from the cluster if it exists.
 ---@param cluster_uuid string unique cluster identifier
 ---@param buffer_key BufferKeyString buffer entry identifier
----@param io_mode "input"|"output" which buffer should be checked
+---@param is_output boolean|nil which buffer should be checked
 ---@return ClusterBufferEntry|nil
-function ClusterProcessor.get_buffer_entry(cluster_uuid, buffer_key, io_mode)
+function ClusterProcessor.get_buffer_entry(cluster_uuid, buffer_key, is_output)
     local cluster = storage.clusters.lookup[cluster_uuid]
     if not cluster then return end
-    return cluster[io_mode][buffer_key]
+    if is_output then return cluster.output[buffer_key] end
+    return cluster.input[buffer_key]
 end
 
 ---Gets available space in provided buffer entry

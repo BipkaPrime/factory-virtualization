@@ -1,36 +1,59 @@
 --[[
-This mod introduces several entities that must have data associated with them in storage,
-they also need to be tracked and updated once in a while. This file is used for that.
-Data associated with entity will be reffered to as entity "properties". They can be
-stored in 2 places depending on state of the entity. Ghost-entities have their properties
-stored in their ghost tags. Alive entities have their properties in the "entity registry".
+This mod introduces several entities which require storing additional data
+associated with them somewhere. Furthermore, these entities need to be tracked
+and updated once in a while. Data associated with entity will be reffered
+to as entity "properties". For some entities to operate they must be properly
+configured. A part of properties is "entity configuration": fields like
+"selected_item", "io_mode", "first_cluster", etc. These are user inputs.
 
-Entity registry is located at storage.entity_registry and consists of 3 parts:
-storage.entity_registry = {
-    initialized: EntityProperties[],
-    uninitialized: EntityProperties[],
-    lookup: table<number, EntityProperties>,
-}
-Entities are first registered to "uninitialized" array, from which they can be moved to
-"initialized" array if their properties satisfy certain conditions. "Initialized" array is 
-for regular entity operation. Both "initializaed" and "uninitialized" arrays are processed
-incrementally on-tick. Each time properties from "uninitialized" array are processed,
-initialization is attempted. "Lookup" maps unit number of an entity to its properties.
-It is required to find properties of a given entity in O(1) time.
+Entities are registered when "build" events are fired. Properties of entities
+are stored in one of several sections of "entity registry" depending on the
+state and configuration of entity. Properties of an entity are removed from
+the registry after it becomes invalid (after a delay).
 
-Entities are registered when build events are fired. Entities are
-deleted from then registry automatically when they become invalid. To delete item in
-O(1) time, properties must contain it's key in lookup. In our case unit number of the entity.
+Entity configuration data for a ghost is stored in its tags. It's automatically
+transfered to entity properties on registration. Any change to entity
+configuration should only be done using this file. It automatically decides
+where to store configuration data depending on entity state. 
 
-Entity properties can be divided into 3 groups.
-First group is mandatory: every entity must have these.
-Second group is user-inputs: they have setter and getter functions and
-can be directly influenced by the player.
-Third group is internal: these can only be assigned on initialization or during regular processing.
+Data structure is located at storage.entity_registry. See EntityRegistry class
+for more information. Note that unit_number of an entity is vital for operation
+of this module, thus only entities which have it can be registered.
+
+Entity properties can be divided into 3 logical groups.
+1. System: mandatory fields assigned on registration
+2. Configuration: user-inputs (these have setter and getter functions)
+3. Cache: assigned on initialization or during processing
 --]]
 
 ---Serves as key in tables where items, fluids and energy are stored together
----@alias BufferKeyString string "name//quality" for items, "name" for fluids, "electric_energy" for energy
+---@alias BufferKeyString string "name//quality" for items, "name" for fluids,
+---"electric_energy" for energy
+
+---Union of all sections in the entity registry
+---@alias EntityRegistrySection "active"|"stalled"|"pending"|"incorrect"
+
+---Union of all names of entity configuration fields
+---@alias EntityConfigField
+---|"io_mode"
+---|"operation_mode"
+---|"selected_item_name"
+---|"selected_item_quality"
+---|"selected_fluid"
+---|"first_cluster"
+---|"second_cluster"
+---|"capability_override"
+---|"overflow_threshold"
+
+---Union of all semantic roles of entity configuration fields
+---@alias EntityConfigRole
+---|"primary_cluster" cluster for entities that connect to a single one
+---|"item_selection"
+---|"fluid_selection"
+---|"io_cluster_logistics" io_mode for 
+---|"io_cluster_storage" io_mode for cluster storage
+---|"io_template_access" io_mode for template access interfaces
+
 
 ---Table describing one item stack
 ---@class ItemBuffer
@@ -39,63 +62,84 @@ Third group is internal: these can only be assigned on initialization or during 
 ---@field name string name of this item
 
 ---Table describing entity properties in registry
----@class EntityProperties mandatory technical fields (assigned on registration)
----@field unit_number number unique entity identifier: used as lookup key
+---@class EntityProperties
+---SYSTEM (mandatory fields assigned on registration):
+---@field unit_number integer unique entity identifier
 ---@field entity LuaEntity entity that owns these properties
 ---@field entity_name string name of entity that owns these properties
----@field initialized boolean true if entity is initialized
----@field index number location of table in the data structure
-
----@class EntityProperties entity configuration fields (user-inputs)
----@field io_mode "input"|"output"|nil selected io mode
----@field selected_item_name string|nil name of selected item
----@field selected_item_quality string|nil name of quality of selected item
----@field selected_fluid string|nil user-input. Name of selected fluid
----@field first_template string|nil user-input. Name of first selected template
----@field second_template string|nil user-input. Name of second selected template
----@field operation_mode "item"|"fluid"|"energy"|nil user-input. Selected mode of operation
----@field capability_override number|nil user-input. Number from 0 to 1. Allows user to limit building capability.
----@field overflow_threshold number|nil user-input. Number from 0 to 1. Defines what is considered an overflow by overflow controller.
-
----@class EntityProperties internal fields (assigned on initialization or during on-tick processing)
----@field first_cluster ClusterData|nil reference to cluster associated with first selected template
----@field second_cluster ClusterData|nil reference to cluster associated with second selected template
----@field inventory LuaInventory|nil inventory object of this entity
----@field capacity number|nil storage capacity of cluster storage unit
----@field first_buffer_entry ClusterBufferEntry|nil first buffer entry that entity is connected to
----@field second_buffer_entry ClusterBufferEntry|nil second buffer entry that entity is connected to
----@field operational boolean|nil used as a flag for cluster members that contribute something to cluster (crafting power, etc.)
+---@field section EntityRegistrySection location of properties in registry
+---@field array_index number location of properties in registry
+---CONFIGURATION (user-inputs, have setter and getter functions):
+---@field io_mode "input"|"output"|nil
+---@field operation_mode "item"|"fluid"|"energy"|nil 
+---@field selected_item_name string|nil must be set if selected quality is set
+---@field selected_item_quality string|nil must be set if selected item is set
+---@field selected_fluid string|nil name of selected fluid
+---@field first_cluster string|nil uuid of cluster associated with entity
+---@field second_cluster string|nil uuid of another cluster associated with entity
+---@field capability_override number|nil number in the range [0, 1]
+---@field overflow_threshold number|nil number in the range [0, 1]
+---CACHE (assigned on initialization or during processing)
+---@field status LocalisedString|nil entity status
+---@field buffer_key BufferKeyString|nil used to access cluster or venv buffer entry
+---@field is_output boolean|nil used to determine entity operation mode
 ---@field flow_limit number|nil maximum flow limit of this entity
+---@field inventory LuaInventory|nil inventory object of this entity
+---@field io_request ItemStackDefinition|Fluid|nil cached table used to make calls
+---to factorio API like "inventory.insert()"/"entity.extract_fluid()"/etc.
 ---@field ls_flow number|nil last second flow for this entity
+---@field operational boolean|nil true if entity is marked operational in its clusters
+
+--[[
+---@class EntityProperties internal fields (assigned on initialization or during on-tick processing)
+
+---@field capacity number|nil storage capacity of cluster storage unit
+---@field  used as a flag for cluster members that contribute something to cluster (crafting power, etc.)
+
 ---@field is_output boolean|nil used to indicate whether entity is an input or output
 ---@field buffer_key BufferKeyString|nil string used for access to cluster/venv tables
 ---@field building_requests table<BufferKeyString, ItemBuffer>|nil building requests of this mainframe
 ---@field building_contents table<BufferKeyString, ItemBuffer>|nil building contents of this mainframe
 ---@field logistic_point LuaLogisticPoint|nil logistic point of this entity
----@field io_request ItemStackDefinition|Fluid|nil cached table used to make calls to factorio API like "inventory.insert()"
+
 ---@field computation_limit number|nil maximum amount of computation this template computation array can provide
 ---@field computation_cost number|nil energy cost for one unit of computation provided by this entity
 ---@field startup_energy number|nil amount of energy required to "turn on" this entity
+--]]
+
+
+---Used to store properties of all relevant entities
+---@class EntityRegistry
+---@field active EntityProperties[] initialized entities in operation
+---@field stalled EntityProperties[] same as active but updated less frequently
+---@field pending EntityProperties[] initialization pending
+---@field incorrect EntityProperties[] incorrect configuration
+---@field lookup table<integer, EntityProperties> key is unit number
 
 ---Defines a standard interface (handler module) for a specific building type.
----@class EntityProcessorMember
----@field copyable string[] names of copyable entity properties
----@field attempt_entity_initialization fun(properties: EntityProperties): boolean used to attempt entity initialization
----@field on_processing_stopped fun(properties: EntityProperties) used when entity is being uninitialized
----@field process_entity fun(properties: EntityProperties) used for regular on-tick processing of initialized entity
+---@class EntityProcessorModule
+---@field configuration table<EntityConfigField, EntityConfigRole>
+---@field initialize fun(properties: EntityProperties): EntityRegistrySection
+---attempts entity initialization, returns name of section to which entity
+---properties should be moved
+---@field uninitialize fun(properties: EntityProperties) removes fields assigned
+---on initialization/updates and reverts side effects.
+---@field update fun(properties: EntityProperties): EntityRegistrySection used
+---for regular on-tick processing of initialized entity. Returns name of section
+---to which entity properties should be moved
 
 
-local ClusterEnergyIO = require("src.world.entity-processor-members.cluster-energy-io")
-local ClusterFluidIO = require("src.world.entity-processor-members.cluster-fluid-io")
-local ClusterItemIO = require("src.world.entity-processor-members.cluster-item-io")
-local OverflowController = require("src.world.entity-processor-members.cluster-overflow-controller")
-local StorageUnit = require("src.world.entity-processor-members.cluster-storage-unit")
-local ClusterBridge = require("src.world.entity-processor-members.inter-cluster-bridge")
-local ComputationArray = require("src.world.entity-processor-members.template-computation-array")
-local TemplateEnergyIO = require("src.world.entity-processor-members.template-energy-io")
-local TemplateFluidIO = require("src.world.entity-processor-members.template-fluid-io")
-local TemplateItemIO = require("src.world.entity-processor-members.template-item-io")
-local VMainframe = require("src.world.entity-processor-members.virtualization-mainframe")
+local ClusterEnergyIO = require("src.world.e-processor-modules.cluster-energy-io")
+local ClusterFluidIO = require("src.world.e-processor-modules.cluster-fluid-io")
+local ClusterItemIO = require("src.world.e-processor-modules.cluster-item-io")
+local OverflowController = require("src.world.e-processor-modules.cluster-overflow-controller")
+local StorageUnit = require("src.world.e-processor-modules.cluster-storage-unit")
+local ClusterBridge = require("src.world.e-processor-modules.inter-cluster-bridge")
+local ComputationArray = require("src.world.e-processor-modules.template-computation-array")
+local TemplateEnergyIO = require("src.world.e-processor-modules.template-energy-io")
+local TemplateFluidIO = require("src.world.e-processor-modules.template-fluid-io")
+local TemplateItemIO = require("src.world.e-processor-modules.template-item-io")
+local VMainframe = require("src.world.e-processor-modules.virtualization-mainframe")
 
 
 local PREFIX = "FV-"
@@ -106,7 +150,7 @@ local EntityProcessor = {}
 -------------------------------------------------------------------------------
 
 ---Maps entity names to their handler modules
----@type table<string, EntityProcessorMember>
+---@type table<string, EntityProcessorModule>
 local module_router = {
     [PREFIX .. "cluster-energy-io-mk1"] = ClusterEnergyIO,
     [PREFIX .. "cluster-energy-io-mk2"] = ClusterEnergyIO,
@@ -329,9 +373,9 @@ local function set_entity_property(entity, field, value)
         -- entity is not a ghost: data in registry
         local properties = get_entity_properties(entity.unit_number)
         if not properties then return end
-        properties[field] = value
         -- uninitializing entity when any field is set
         uninitialize_entity(properties)
+        properties[field] = value
     end
 end
 
