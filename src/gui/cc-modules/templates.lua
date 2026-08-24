@@ -79,10 +79,7 @@ local function add_inactive_template_selection_widget(parent, gui_data)
     gui_data.elements.inactive_template_selector = selector
     update_inactive_template_selector(gui_data)
     -- scrolling to selected item
-    local selected_index = selector.selected_index
-    if selected_index ~= 0 then
-        selector.scroll_to_item(selected_index, "top-third")
-    end
+    CommonGui.scroll_to_selection(selector)
 end
 
 -------------------------------- RENAME BUTTON --------------------------------
@@ -175,10 +172,7 @@ local function add_active_template_selection_widget(parent, gui_data)
     gui_data.elements.active_template_selector = selector
     update_active_template_selector(gui_data)
     -- scrolling to selected item
-    local selected_index = selector.selected_index
-    if selected_index ~= 0 then
-        selector.scroll_to_item(selected_index, "top-third")
-    end
+    CommonGui.scroll_to_selection(selector)
 end
 
 -------------------------------------------------------------------------------
@@ -556,7 +550,8 @@ local function add_delete_template_section(parent, gui_data)
         "cc-templates.deletion-warning-general",
         template_name
     }
-    section.add{type = "label",caption = general_caption}
+    local general_label = section.add{type = "label", caption = general_caption}
+    general_label.style.single_line = false
 
     -- Additional warning if template is active
     if TCCManager.is_template_active(template_name) then

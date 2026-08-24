@@ -193,13 +193,13 @@ function CommonGui.add_selection_widget(parent, search_name, selector_name, capt
     return searchfield, selector
 end
 
----Finds the first index in options such that options[i] == value.
----@param options string[]
----@param value string
----@return number|nil
-local function find_value(options, value)
-    for i = 1, #options do
-        if options[i] == value then
+---Finds the first index of given value in an array
+---@param array any[]
+---@param val any
+---@return integer|nil
+function CommonGui.find_value(array, val)
+    for i = 1, #array do
+        if array[i] == val then
             return i
         end
     end
@@ -208,11 +208,21 @@ end
 ---Updates options that are diplayed by the given selector.
 ---@param selector LuaGuiElement list-box that should be updated
 ---@param options string[] list of options to display
----@param selected_option string|nil option that should be selected
-function CommonGui.update_selector(selector, options, selected_option)
+---@param selected string|nil option that should be selected
+function CommonGui.update_selector(selector, options, selected)
     selector.items = options
-    -- looking for selected_option in options
-    selector.selected_index = selected_option and find_value(options, selected_option) or 0
+    -- looking for selected option in options
+    local index = selected and CommonGui.find_value(options, selected) or 0
+    selector.selected_index = index
+end
+
+---Scrolls given list-box to selected item
+---@param selector LuaGuiElement list-box that should be scrolled
+function CommonGui.scroll_to_selection(selector)
+    local selected_index = selector.selected_index
+    if selected_index ~= 0 then
+        selector.scroll_to_item(selected_index, "top-third")
+    end
 end
 
 -------------------------------------------------------------------------------

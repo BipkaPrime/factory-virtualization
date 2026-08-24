@@ -113,10 +113,7 @@ local function add_idle_surface_selection_widget(parent, gui_data)
     gui_data.elements.idle_surface_selector = selector
     update_idle_surface_selector(gui_data)
     -- scrolling to selected item when creating the element
-    local selected_index = selector.selected_index
-    if selected_index ~= 0 then
-        selector.scroll_to_item(selected_index, "top-third")
-    end
+    CommonGui.scroll_to_selection(selector)
 end
 
 ---------------------------- DELETE SURFACE BUTTON ----------------------------
@@ -213,10 +210,7 @@ local function add_compiling_surface_selection_widget(parent, gui_data)
     gui_data.elements.compiling_surface_selector = selector
     update_compiling_surface_selector(gui_data)
     -- scrolling to selected item when creating the element
-    local selected_index = selector.selected_index
-    if selected_index ~= 0 then
-        selector.scroll_to_item(selected_index, "top-third")
-    end
+    CommonGui.scroll_to_selection(selector)
 end
 
 --------------------------- STOP COMPILATION BUTTON ---------------------------

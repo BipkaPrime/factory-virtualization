@@ -19,6 +19,7 @@
 
 local CCSurfaces = require("src.gui.cc-modules.surfaces")
 local CCTemplates = require("src.gui.cc-modules.templates")
+local CCClusters = require("src.gui.cc-modules.clusters")
 local CommonGui = require("src.gui.common")
 local GuiUpdater = require("src.gui.updater")
 
@@ -108,6 +109,7 @@ local function create_control_center_base(player)
     control_center[player_index] = gui_data
     -- mandatory fields of gui_data
     gui_data.opened = true
+    ---@diagnostic disable-next-line
     gui_data.elements = {main_window = main_window}
 
     -- top panel: window mode selection
@@ -182,8 +184,10 @@ local function populate_control_center_base(gui_data)
         CCTemplates.construct_left_side(gui_data)
         CCTemplates.construct_right_side(gui_data)
     end
-
-    -- TODO: add clusters
+    if mode == control_center_modes.clusters then
+        CCClusters.construct_left_side(gui_data)
+        CCClusters.construct_right_side(gui_data)
+    end
 end
 
 ---Sets gui_data.mode to provided value or clears it if new_val == old_val.

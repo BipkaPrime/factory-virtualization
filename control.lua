@@ -8,6 +8,7 @@ local EntityControls = require("src.gui.entity-controls")
 local ControlCenter = require("src.gui.control-center")
 local CCSurfaces = require("src.gui.cc-modules.surfaces")
 local CCTemplates = require("src.gui.cc-modules.templates")
+local CCClusters = require("src.gui.cc-modules.clusters")
 local GuiUpdater = require("src.gui.updater")
 
 local PREFIX = "FV-"
@@ -50,6 +51,7 @@ script.on_init(function()
         receive_inv = {},
     }
     -- gui/control-center
+    ---@type table<integer, ControlCenterData>
     storage.control_center = {}
     -- gui/entity-gui
     storage.entity_gui = {}
@@ -66,7 +68,7 @@ end)
 -------------------------------------------------------------------------------
 
 script.on_event(defines.events.on_tick, function(event)
-    ClusterProcessor.process_clusters(event)
+    ClusterProcessor.on_tick(event)
     EntityProcessor.process_entities(event)
     ChunkProcessor.process_chunks(event)
     VSurfaceManager.on_tick_updater()
@@ -149,6 +151,15 @@ local on_gui_click_router = {
     [PREFIX .. "cc-delete-template"] = CCTemplates.handle_delete_template_button,
     [PREFIX .. "cc-confirm-template-rename"] = CCTemplates.handle_template_rename_confirm_btn,
     [PREFIX .. "cc-confirm-template-deletion"] = CCTemplates.handle_template_deletion_confirm_btn,
+    [PREFIX .. "cc-new-cluster-btn"] = CCClusters.handle_new_cluster_btn,
+    [PREFIX .. "cc-rename-cluster"] = CCClusters.handle_rename_cluster_btn,
+    [PREFIX .. "cc-clear-template-btn"] = CCClusters.handle_clear_template_btn,
+    [PREFIX .. "cc-delete-cluster-btn"] = CCClusters.handle_delete_cluster_btn,
+    [PREFIX .. "cc-select-current-surface-btn"] = CCClusters.handle_select_current_surface_btn,
+    [PREFIX .. "cc-new-cluster-confirm"] = CCClusters.handle_confirm_cluster_creation_btn,
+    [PREFIX .. "cc-confirm-template-clear"] = CCClusters.handle_confirm_template_clear_btn,
+    [PREFIX .. "cc-confirm-cluster-delete"] = CCClusters.handle_confirm_cluster_delete_btn,
+    [PREFIX .. "cc-confirm-cluster-rename"] = CCClusters.handle_confirm_cluster_rename,
 }
 script.on_event(defines.events.on_gui_click, function(event)
     element_name_router(event, on_gui_click_router)
@@ -176,6 +187,10 @@ local on_gui_text_changed_router = {
     [PREFIX .. "cc-inactive-template-search"] = CCTemplates.handle_inactive_template_search,
     [PREFIX .. "cc-active-template-search"] = CCTemplates.handle_active_template_search,
     [PREFIX .. "cc-template-rename-textfield"] = CCTemplates.handle_template_rename_textfield,
+    [PREFIX .. "cc-suboptimal-cluster-search"] = CCClusters.handle_suboptimal_cluster_search,
+    [PREFIX .. "cc-optimal-cluster-search"] = CCClusters.handle_optimal_cluster_search,
+    [PREFIX .. "cc-new-cluster-name"] = CCClusters.handle_new_cluster_name,
+    [PREFIX .. "cc-cluster-rename-textfield"] = CCClusters.handle_cluster_rename_textfield,
 }
 script.on_event(defines.events.on_gui_text_changed, function(event)
     element_name_router(event, on_gui_text_changed_router)
@@ -189,6 +204,9 @@ local on_gui_selection_state_changed_router = {
     [PREFIX .. "cc-generate-as-selector"] = CCSurfaces.handle_new_vsurface_generate_as_selector,
     [PREFIX .. "cc-inactive-template-selector"] = CCTemplates.handle_inactive_template_selector,
     [PREFIX .. "cc-active-template-selector"] = CCTemplates.handle_active_template_selector,
+    [PREFIX .. "cc-suboptimal-cluster-selector"] = CCClusters.handle_cluster_selection_change,
+    [PREFIX .. "cc-optimal-cluster-selector"] = CCClusters.handle_cluster_selection_change,
+    [PREFIX .. "cc-new-cluster-selector"] = CCClusters.handle_new_cluster_surface_selection,
 }
 script.on_event(defines.events.on_gui_selection_state_changed, function(event)
     element_name_router(event, on_gui_selection_state_changed_router)

@@ -130,6 +130,7 @@ All cluster data is located at storage.clusters (see ClusterStorage class).
 
 
 local TCCManager = require("src.simulation.tcc-manager")
+local VSurfaceManager = require("src.world.vsurface-manager")
 
 
 local ClusterProcessor = {}
@@ -152,6 +153,19 @@ local function generate_cluster_uuid(cluster_name)
     return uuid
 end
 
+---Collects names of all surfaces where the new cluster can be created
+---@return string[] names
+function ClusterProcessor.get_cluster_location_options()
+    local result = {}
+    for _, surface in pairs(game.surfaces) do
+        local surface_index = surface.index
+        if not VSurfaceManager.is_vsurface(surface_index) then
+            table.insert(result, surface.name)
+        end
+    end
+    return result
+end
+
 ---@param cluster_name string|nil cluster display name (user input)
 ---@param surface_name string|nil user input
 ---@return boolean status true if cluster can be created
@@ -159,11 +173,11 @@ end
 function ClusterProcessor.can_create_cluser(cluster_name, surface_name)
     -- checking that cluster name is provided
     if not cluster_name or not string.find(cluster_name, "%S", 1, false) then
-        return false, "Cluster name is missing"
+        return false, {"cluster-processor.cluster-name-missing"}
     end
     -- checking that surface name is provided
     if not surface_name then
-        return false, "Surface name is missing"
+        return false, {"cluster-processor.surface-name-missing"}
     end
     return true
 end
@@ -185,7 +199,7 @@ function ClusterProcessor.create_cluster(cluster_name, surface_name)
     -- checking that provided name points to an existing surface
     local surface = game.get_surface(surface_name)
     if not surface then
-        return false, "[Cluster manager] [color=red]Error:[/color] creation failed, surface not found"
+        return false, {"cluster-processor.creation-error-surface-not-found"}
     end
     local surface_index = surface.index
 
@@ -256,14 +270,14 @@ end
 function ClusterProcessor.drop_assigned_template(cluster_name)
     -- checking that cluster name is provided
     if not cluster_name then
-        return false, "[Cluster manager] [color=red]Error:[/color] template drop failed: cluster name not provided"
+        return false, {"cluster-processor.drop-error-no-name"}
     end
     -- checking that cluster exists in storage
     local clusters = storage.clusters
     local name_to_uuid = clusters.name_to_uuid
     local cluster_uuid = name_to_uuid[cluster_name]
     if not cluster_uuid then
-        return false, "[Cluster manager] [color=red]Error:[/color] template drop failed: cluster data not found"
+        return false, {"cluster-processor.drop-error-data-not-found"}
     end
 
     -- Everything is ok: dropping assigned template
@@ -285,24 +299,24 @@ end
 function ClusterProcessor.can_rename_cluster(old_name, new_name)
     -- checking that old name is provided
     if not old_name then
-        return false, "Old name is missing"
+        return false, {"cluster-processor.old-name-missing"}
     end
     -- checking that new name is not empty
     if not new_name or not string.find(new_name, "%S", 1, false) then
-        return false, "New cluster name cannot be empty"
+        return false, {"cluster-processor.new-name-empty"}
     end
     -- checking that names are different
     if new_name == old_name then
-        return false, "New cluster name cannot be the same as the old one"
+        return false, {"cluster-processor.names-not-different"}
     end
     -- checking that new name is not occupied
     local name_to_uuid = storage.clusters.name_to_uuid
     if name_to_uuid[new_name] then
-        return false, "Cluster with provided new name already exists"
+        return false, {"cluster-processor.new-name-occupied"}
     end
     -- checking that cluster with old name exists in storage
     if not name_to_uuid[old_name] then
-        return false, "Cluster data associated with old name not found"
+        return false, {"cluster-processor.old-name-no-data"}
     end
     return true
 end
@@ -339,7 +353,7 @@ end
 function ClusterProcessor.delete_cluster(cluster_name)
     -- checking that cluster name is provided
     if not cluster_name then
-        return false, "[Cluster manager] [color=red]Error:[/color] deletion failed: cluster name not provided"
+        return false, {"cluster-processor.deletion-error-no-name"}
     end
 
     -- checking that cluster exists in storage
@@ -347,7 +361,7 @@ function ClusterProcessor.delete_cluster(cluster_name)
     local name_to_uuid = clusters.name_to_uuid
     local cluster_uuid = name_to_uuid[cluster_name]
     if not cluster_uuid then
-        return false, "[Cluster manager] [color=red]Error:[/color] deletion failed: cluster data not found"
+        return false, {"cluster-processor.deletion-error-no-data"}
     end
 
     -- Data is found: erasing it from all tables
@@ -817,6 +831,44 @@ function ClusterProcessor.convert_to_cluster_names(cluster_uuids)
         local name = uuid_to_name[uuid]
         if name then cluster_uuids[i] = name end
     end
+end
+
+---Gets cluster data from storage by name
+---@param cluster_name string|nil
+---@return ClusterData|nil
+local function get_cluster_by_name(cluster_name)
+    if not cluster_name then return end
+    local clusters = storage.clusters
+    local uuid = clusters.name_to_uuid[cluster_name]
+    if not uuid then return end
+    return clusters.lookup[uuid]
+end
+
+---Checks if given cluster exists in storage and is optimal
+---@param cluster_name string|nil cluster display name
+---@return boolean status true if cluster is found and optimal
+function ClusterProcessor.is_cluster_optimal(cluster_name)
+    local cluster = get_cluster_by_name(cluster_name)
+    if not cluster then return false end
+    return is_cluster_optimal(cluster)
+end
+
+---Checks if given cluster exists in storage and is suboptimal
+---@param cluster_name string|nil cluster display name
+---@return boolean status true if cluster is found and suboptimal
+function ClusterProcessor.is_cluster_suboptimal(cluster_name)
+    local cluster = get_cluster_by_name(cluster_name)
+    if not cluster then return false end
+    return not is_cluster_optimal(cluster)
+end
+
+---Gets total number of members for a given cluster
+---@param cluster_name string|nil
+---@return integer
+function ClusterProcessor.get_member_count(cluster_name)
+    local cluster = get_cluster_by_name(cluster_name)
+    if not cluster then return 0 end
+    return cluster.total_members
 end
 
 ------------------------------ BACKEND REQUESTS -------------------------------
