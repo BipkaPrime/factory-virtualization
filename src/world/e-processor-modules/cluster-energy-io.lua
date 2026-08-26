@@ -36,10 +36,10 @@ local ClusterEnergyIO = {}
 
 
 ---List of all copyable properties of this entity
----@type table<EntityConfigField, EntityConfigRole>
+---@type EntityConfigField[]
 ClusterEnergyIO.configuration = {
-    first_cluster = "primary_cluster",
-    io_mode = "io_cluster_logistics",
+    "first_cluster",
+    "io_mode",
 }
 
 ---Maps entity names to their flow limits
@@ -126,11 +126,10 @@ function ClusterEnergyIO.update(properties)
     properties.ls_flow = 0
 
     -- Attempting to reach specified cluster buffer entry
-    local is_output = properties.is_output
     local buffer_entry = ClusterProcessor.get_buffer_entry(
         properties.first_cluster,
         properties.buffer_key,
-        is_output
+        properties.io_mode
     )
     if not buffer_entry then
         properties.operational = false

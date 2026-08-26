@@ -39,12 +39,12 @@ local PREFIX = "FV-"
 local ClusterItemIO = {}
 
 ---List of all copyable properties of this entity
----@type table<EntityConfigField, EntityConfigRole>
+---@type EntityConfigField[]
 ClusterItemIO.configuration = {
-    first_cluster = "primary_cluster",
-    selected_item_name = "item_selection",
-    selected_item_quality = "item_selection",
-    io_mode = "io_cluster_logistics",
+    "first_cluster",
+    "selected_item_name",
+    "selected_item_quality",
+    "io_mode",
 }
 
 ---Maps entity names to their flow limits
@@ -145,11 +145,10 @@ function ClusterItemIO.update(properties)
     properties.ls_flow = 0
 
     -- Attempting to reach specified cluster buffer entry
-    local is_output = properties.is_output
     local buffer_entry = ClusterProcessor.get_buffer_entry(
         properties.first_cluster,
         properties.buffer_key,
-        is_output
+        properties.io_mode
     )
     if not buffer_entry then
         properties.operational = false

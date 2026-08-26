@@ -429,6 +429,8 @@ end
 function ClusterProcessor.add_member_to_cluster(entity, cluster_uuid, weight)
     local cluster = storage.clusters.lookup[cluster_uuid]
     if not cluster then return false end
+    -- checking that entity surface matches with cluster surface
+    if entity.surface_index ~= cluster.surface_index then return false end
 
     ---@type integer assuming entity has a unit number
     local unit_number = entity.unit_number
@@ -666,6 +668,8 @@ end
 
 ---Removes buffer capacity assigned to the given unit number. Intended use case:
 ---during on-tick processing in the entity-processor.
+---@param cluster_uuid string unique cluster identifier
+---@param unit_number integer unique entity identifier
 function ClusterProcessor.remove_member_buffer_capacity(cluster_uuid, unit_number)
     local cluster = storage.clusters.lookup[cluster_uuid]
     if not cluster then return end
@@ -696,13 +700,12 @@ end
 ---Gets a buffer entry from the cluster if it exists.
 ---@param cluster_uuid string unique cluster identifier
 ---@param buffer_key BufferKeyString buffer entry identifier
----@param is_output boolean|nil which buffer should be checked
+---@param io_mode "input"|"output" which buffer should be checked
 ---@return ClusterBufferEntry|nil
-function ClusterProcessor.get_buffer_entry(cluster_uuid, buffer_key, is_output)
+function ClusterProcessor.get_buffer_entry(cluster_uuid, buffer_key, io_mode)
     local cluster = storage.clusters.lookup[cluster_uuid]
     if not cluster then return end
-    if is_output then return cluster.output[buffer_key] end
-    return cluster.input[buffer_key]
+    return cluster[io_mode][buffer_key]
 end
 
 ---Gets available space in provided buffer entry

@@ -1,7 +1,7 @@
 --[[
-Template computation array is required for template compulation.
-It produces "computation", which is a flow variable, meaning that
-computation can not be stored and is provided as long as the building is 
+Template computation array is required to produce "computation" resource,
+which is needed for template compilation. Computation is a flow variable,
+meaning that it cannot be stored and is provided as long as the building is 
 powered and running. If energy stored in the entity is not sufficient,
 it stops working until enough energy is provided.
 -------------------------------------------------------------------------------
@@ -13,24 +13,26 @@ I. Entity is not located on a vsurface.
 -- ON-TICK PROCESSING
 -------------------------------------------------------------------------------
 Properties that are assigned on initialization:
-1. Computation limit: number, maximum amount of computation this entity can provide
-2. Computation cost: number, energy cost of one unit of provided computation
-3. Startup energy: number, amount of energy required to "activate" the entity.
+1. flow_limit. maximum amount of computation this entity can provide
+2. computation_cost. entity power usage for one unit of provided computation
+3. startup_energy. amount of energy required to "activate" the entity.
 
 Properties that can be assigned during on-tick processing:
-1. Operational. Used as an indication that entity is contributing computation potential
-2. Ls flow. Used to track how much computation this entity is currently producing.
+1. operational. Used as an indication that entity is contributing computation potential
+2. ls_flow. Used to track how much computation this entity is currently producing.
 --]]
 
 local TCCManager = require("src.simulation.tcc-manager")
 local VSurfaceManager = require("src.world.vsurface-manager")
+local Utilities = require("src.world.e-processor-modules.utilities")
 
 
 local PREFIX = "FV-"
 local ComputationArray = {}
 
 ---This building has no "configuration"
-ComputationArray.copyable = {}
+---@type EntityConfigField[]
+ComputationArray.configuration = {}
 
 ---Maps entity names to amount of computation they provide
 local computation_limits = {
@@ -53,67 +55,76 @@ local idle_power_consumption = {
     [PREFIX .. "template-computation-array-mk3"] = 5e7,
 }
 
----Checks that all requirements for operation of template computation array are met.
+---Attemps entity initialization: checks that all requirments are met.
+---If they are, prepares entity properties for on-tick processing.
 ---@param properties EntityProperties table from entity processor
----@return boolean status true if initialization was successful
-function ComputationArray.attempt_entity_initialization(properties)
+---@return EntityRegistrySection
+function ComputationArray.initialize(properties)
+    -- Checking that entity is not located on a virtualization surface
     local entity = properties.entity
-    if VSurfaceManager.is_vsurface(entity.surface_index) then return false end
+    if VSurfaceManager.is_vsurface(entity.surface_index) then
+        properties.status = Utilities.entity_status.vsurface_no_work
+        return Utilities.registry_sections.incorrect
+    end
 
+    -- All requirements are met: preparing properties for on-tick updates
+    properties.status = Utilities.entity_status.initialized
     local entity_name = properties.entity_name
-    local computation_limit = computation_limits[entity_name]
-    properties.computation_limit = computation_limit
-    local computation_cost = computation_costs[entity_name]
-    properties.computation_cost = computation_cost
+    local base_flow = computation_limits[entity_name]
+    local quality_mult = 1 + 0.5 * entity.quality.level
+    local comp_limit = base_flow * quality_mult
+    properties.flow_limit = comp_limit
+    local comp_cost = computation_costs[entity_name] / quality_mult
+    properties.computation_cost = comp_cost
+
     local idle_power = idle_power_consumption[entity_name]
     -- energy required for one second of operation at maximum load
-    properties.startup_energy = 60 * (computation_limit * computation_cost + idle_power)
+    properties.startup_energy = 60 * (comp_limit * comp_cost + idle_power)
     -- when pasting computation array from blueprint, energy usage is pasted as well
-    properties.entity.power_usage = idle_power
-    return true
+    entity.power_usage = idle_power
+    return Utilities.registry_sections.active
 end
 
----Clears properties of anything assigned on initialization or during on-tick processing.
----Should be called when stopping on-tick processing of entity to clear fields that were
----assigned on initialization or during on-tick processing
----@param properties EntityProperties table from entity processor
-function ComputationArray.on_processing_stopped(properties)
-    properties.ls_flow = nil
+---Clears properties of anything assigned on initialization or during on-tick
+---updates. Intended use case: by entity processor when moving properties
+---from "active" or "stalled" to "pending" or "incorrect". Does not clear
+---"status" field from properties.
+---@param properties EntityProperties
+function ComputationArray.uninitialize(properties)
     if properties.operational then
         TCCManager.decrease_computation_max_available(
-            properties.computation_limit
+            properties.flow_limit
         )
     end
-    properties.operational = nil
-    properties.computation_limit = nil
+    properties.flow_limit = nil
     properties.computation_cost = nil
     properties.startup_energy = nil
+    properties.ls_flow = nil
+    properties.operational = nil
 end
 
----Used for on-tick processing of template computation arrays.
+---Used for on-tick updates of this entity after initialization.
 ---@param properties EntityProperties
-function ComputationArray.process_entity(properties)
+---@return EntityRegistrySection
+function ComputationArray.update(properties)
+    properties.ls_flow = 0
     local entity = properties.entity
     local current_energy = entity.energy
+    ---@type number assigned on initialization
+    local comp_limit = properties.flow_limit
 
-    -- trying to turn on the entity if possible
-    if not properties.operational then
-        local startup_power = properties.startup_energy
-        if current_energy >= startup_power then
-            TCCManager.increase_computation_max_available(
-                properties.computation_limit
-            )
-            properties.operational = true
-        else
-            properties.ls_flow = 0
-        end
+    -- Trying to turn on the entity if possible
+    if not properties.operational and current_energy >= properties.startup_energy then
+        TCCManager.increase_computation_max_available(comp_limit)
+        properties.operational = true
+        properties.status = Utilities.entity_status.operational
     end
 
-    -- handling entity being operational
+    -- Handling entity being operational
     if properties.operational then
         -- getting amount of computation expected from this entity
         local demand_ratio = TCCManager.get_computation_demand_ratio()
-        local requested = properties.computation_limit * demand_ratio
+        local requested = comp_limit * demand_ratio
         properties.ls_flow = requested
 
         -- changing power consumption according to requested computation
@@ -124,13 +135,13 @@ function ComputationArray.process_entity(properties)
         if current_energy > required_power then
             entity.power_usage = required_power
         else
-            TCCManager.decrease_computation_max_available(
-                properties.computation_limit
-            )
+            TCCManager.decrease_computation_max_available(comp_limit)
             properties.operational = false
             entity.power_usage = idle_power
+            properties.status = Utilities.entity_status.not_enough_power
         end
     end
+    return Utilities.registry_sections.active
 end
 
 return ComputationArray

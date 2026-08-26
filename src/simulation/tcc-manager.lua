@@ -34,29 +34,65 @@ local TCCManager = {}
 
 ---Used to store template control center data
 ---@class TCCData
+---@field allowed_surface string name of surface tcc can work on
 ---@field registered boolean|nil true is tcc is registered
 ---@field surface_index integer|nil identifier of the surface tcc is located on
 ---@field pos_x number|nil x-coordinate of template control center entity
 ---@field pos_y number|nil y-coordinate of template control center entity
-
+---@field max_tae_dist number|nil maximum distance from which template access
+---interfaces can tarsmit
 
 ---Attempts to register template control center. Entity has to be valid
 ---@param entity LuaEntity assumed to be valid
+---@param transmit_dist number maximum distance tae can transmit from
 ---@return boolean status true if entity was registered
-function TCCManager.register_control_center(entity)
+---@return LocalisedString|nil reason why entity was not registered
+function TCCManager.register_control_center(entity, transmit_dist)
     local tcc = storage.tcc
     -- can not register control center, if one is already registered
-    if tcc.registered then return false end
+    if tcc.registered then
+        return false, "Initialization failed: You already have another tcc"
+    end
+    -- can not register entity if it's located on the wrong surface
+    if entity.surface.name ~= tcc.allowed_surface then
+        return false, "Initialization failed: Invalid surface for tcc"
+    end
+
     -- everything is ok: registering
     tcc.registered = true
     tcc.surface_index = entity.surface_index
     local position = entity.position
     tcc.pos_x, tcc.pos_y = position.x, position.y
+    tcc.max_tae_dist = transmit_dist * transmit_dist
     return true
 end
 
+---Unregistered template control center.
 function TCCManager.unregister_control_center()
-    storage.tcc = {}
+    local tcc = storage.tcc
+    tcc.registered = nil
+    tcc.surface_index = nil
+    tcc.pos_x = nil
+    tcc.pos_y = nil
+end
+
+---Decides if entity is close enough to tcc to transmit a template
+---@param entity LuaEntity assumed to be valid
+---@return boolean status true if entity can transmit
+---@return LocalisedString|nil reason why entity cannot transmit
+function TCCManager.can_entity_transmit(entity)
+    local tcc = storage.tcc
+    if entity.surface_index ~= tcc.surface_index then
+        return false, "Cannot transmit: no tcc on this surface"
+    end
+
+    local position = entity.position
+    local dist = (tcc.pos_x - position.x)^2 + (tcc.pos_y - position.y)^2
+    if dist > tcc.max_tae_dist then
+        return false, "Cannot transmit: too far from tcc"
+    end
+
+    return true
 end
 
 ---Checks if template control center is registered
@@ -168,7 +204,8 @@ end
 ---@class TemplateData
 ---@field input table<BufferKeyString, number> input per second
 ---@field output table<BufferKeyString, number> output per second
----@field building_cost table<BufferKeyString, number> items needed for construction of this template
+---@field building_cost table<BufferKeyString, number> items needed for
+---construction of this template
 ---@field energy_drain number energy drain of this template
 
 ---Contains data of all compiled templates

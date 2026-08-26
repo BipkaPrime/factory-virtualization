@@ -8,39 +8,37 @@ is added to the cluster.
 -------------------------------------------------------------------------------
 For this building to function following conditions must be met:
 I. Mandatory entity controls are provided:
-    1. First template. Used to determine the cluster to connect to.
+    1. first_cluster. Used to determine the cluster to connect to.
 II. Entity is not located on a vsurface.
+III. Selected cluster exists and this entity can be added to it.
 -------------------------------------------------------------------------------
 -- ON-TICK PROCESSING
 -------------------------------------------------------------------------------
 Properties that are assigned on initialization:
-1. First cluster. Used to make calls to cluster processor.
-2. Building requests. Used to create logistic requests and track building progress.
-3. Building contents. Used to track building stored in the mainframe
-4. Inventory. Used to make calls for factorio API
-5. Logistic point. Used to make calls for factorio API
+1. status. Used to display entity status in the gui
+2. capacity. amount of crafting power this building can provide
+3. inventory. Used to make calls for factorio API
+4. logistic_point. Used to make calls for factorio API
 
 Properties that can be assigned during on-tick processing:
-1. Operational. Used as an indication of template construction being completed
+1. operational. Used as an indication that entity is contributing crafting power
+2. template_uuid. Identification of template being constructed
+3. building_requests. Used to create requests and track building progress.
+4. building_contents. Used to track building stored in the mainframe
 --]]
 
 local ClusterProcessor = require("src.simulation.cluster-processor")
 local VSurfaceManager = require("src.world.vsurface-manager")
+local Utilities = require("src.world.e-processor-modules.utilities")
 
 
 local PREFIX = "FV-"
 local VMainframe = {}
 
 ---List of all copyable properties of this entity
-VMainframe.copyable = {
-    "first_template",
-}
-
----Maps entity names to amount of buildings it requests
-local building_cost_multiplier = {
-    [PREFIX .. "virtualization-mainframe-mk1"] = 1,
-    [PREFIX .. "virtualization-mainframe-mk2"] = 10,
-    [PREFIX .. "virtualization-mainframe-mk3"] = 100,
+---@type EntityConfigField[]
+VMainframe.configuration = {
+    "first_cluster",
 }
 
 ---Maps entity names to amount of crafting power they provide
@@ -52,10 +50,14 @@ local crafting_power = {
 
 ---Maps entity names to their weights inside clusters
 local weights = {
-    [PREFIX .. "virtualization-mainframe-mk1"] = 10,
-    [PREFIX .. "virtualization-mainframe-mk2"] = 100,
-    [PREFIX .. "virtualization-mainframe-mk3"] = 1000,
+    [PREFIX .. "virtualization-mainframe-mk1"] = 1e-5,
+    [PREFIX .. "virtualization-mainframe-mk2"] = 1e-4,
+    [PREFIX .. "virtualization-mainframe-mk3"] = 1e-3,
 }
+
+
+
+
 
 ---Prepares for construction of new template: copies template building cost to requesting
 ---table, makes sure contained_buildings table has sections for all requesting items.

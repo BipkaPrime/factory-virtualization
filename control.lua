@@ -19,7 +19,14 @@ local PREFIX = "FV-"
 
 script.on_init(function()
     -- world/entity-processor
-    storage.entity_registry = {initialized = {}, uninitialized = {}, lookup = {}}
+    ---@type EntityRegistry
+    storage.entity_registry = {
+        active = {},
+        stalled = {},
+        pending = {},
+        incorrect = {},
+        lookup = {},
+    }
     -- world/vsurface-chunk-processor
     storage.vsurface_chunks = {}
     -- world/vsurface-manager
@@ -38,7 +45,10 @@ script.on_init(function()
         uuid_to_name = {}
     }
     -- simulation/tcc-manager
-    storage.tcc = {}
+    local tcc_surface = mods["space-age"] and "aquilo" or "nauvis"
+    ---@type TCCData
+    storage.tcc = {allowed_surface = tcc_surface}
+    ---@type ComputationStorage
     storage.computation = {max_available = 0, curr_demand = 0}
     ---@type TemplateStorage
     storage.templates = {
@@ -241,10 +251,4 @@ script.on_event(PREFIX .. "control-center-hotkey", ControlCenter.handle_hotkey)
 commands.add_command("save_template_data", "Saves all compiled template data to json", function()
     helpers.write_file("compiled_templates.json", serpent.block(storage.templates), false)
     game.print("Template data saved to compiled_templates.json")
-end)
-
-commands.add_command("set_computation_demand", "", function(event)
-    local d = tonumber(event.parameter) or 0
-    storage.computation.required = storage.computation.maximum_available * d
-    game.print("Demand set to " .. d .. " (Required: " .. storage.computation.required .. ")")
 end)

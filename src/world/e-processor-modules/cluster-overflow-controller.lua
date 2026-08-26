@@ -1,48 +1,51 @@
 --[[
 Cluster overflow controller is used for voiding overflow in one
 cluster buffer entry. It consumes electric energy and works only
-when building has enough.
+when building has enough power.
 -------------------------------------------------------------------------------
 -- ENTITY CONFIGURATION
 -------------------------------------------------------------------------------
 For this building to function following conditions must be met:
 I. Mandatory entity controls are provided:
-    1. First template. Used to determine the cluster this entity
+    1. first_cluster. Used to determine the cluster this entity
         should connect to.
-    2. Operation mode (item/fluid/energy). Used to determine the buffer entry
-        that this entity should connect to.
-    3. Overflow threshold. Used to determine what is considered an overflow.
-    4. Selected item (only for "item" mode). Used to determine the buffer 
-        entry that this entity should connect to.
-    5. Selected fluid (only for "fluid" mode). Used to determine the
-        buffer entry that this entity should connect to.
+    2. operation_mode. Used to determine the buffer entry this entity
+        will attempt to reach.
+    3. selected_item (only for "item" mode). Used to determine the buffer
+        entry this entity will attempt to reach.
+    4. selected_fluid (only for "fluid" mode). Used to determine the buffer
+        entry this entity will attempt to reach.
+    5. overflow_threshold. Used to determine what is considered an overflow.
 II. Entity is not located on a vsurface.
+III. Selected cluster exists and this entity can be added to it.
 
 Optional entity controls this building can have:
-1. Capability override. Used to artificially lower flow rate of this entity.
+1. capability_override. Used to artificially lower flow rate of this entity.
 -------------------------------------------------------------------------------
 -- ON-TICK PROCESSING
 -------------------------------------------------------------------------------
 Properties that are assigned on initialization:
-1. First cluster. Used to remove entity from cluster when necessery.
-2. Buffer entry. Used to make calls to cluster processor.
-3. Flow limit. Used to make calls to cluster processor.
+1. status. Used to display entity status in the gui
+2. buffer_key. Used to access a specific cluster buffer entry
+3. flow_limit. Determines maximum flow rate for this entity
 
 Properties that can be assigned during on-tick processing:
-1. Ls flow. Can be used to track entity work.
+1. ls_flow. Used to display entity work in the gui
+2. operational. true if entity is marked operational in its clusters
 --]]
 
 local ClusterProcessor = require("src.simulation.cluster-processor")
 local VSurfaceManager = require("src.world.vsurface-manager")
-local Utilities = require("src.world.entity-processor-members.utilities")
+local Utilities = require("src.world.e-processor-modules.utilities")
 
 
 local PREFIX = "FV-"
 local OverflowController = {}
 
 ---List of all copyable properties of this entity
-OverflowController.copyable = {
-    "first_template",
+---@type EntityConfigField[]
+OverflowController.configuration = {
+    "first_cluster",
     "operation_mode",
     "overflow_threshold",
     "selected_item_name",
@@ -72,91 +75,149 @@ local flow_limits = {
 
 ---Maps entity names to their weights inside clusters
 local weights = {
-    [PREFIX .. "cluster-overflow-controller-mk1"] = 1,
-    [PREFIX .. "cluster-overflow-controller-mk2"] = 10,
-    [PREFIX .. "cluster-overflow-controller-mk3"] = 100,
+    [PREFIX .. "cluster-overflow-controller-mk1"] = 1e-6,
+    [PREFIX .. "cluster-overflow-controller-mk2"] = 1e-5,
+    [PREFIX .. "cluster-overflow-controller-mk3"] = 1e-4,
 }
 
----Checks that all requirements for operation of cluster overflow controller are met.
+---Attemps entity initialization: checks that all requirments are met.
 ---If they are, prepares entity properties for on-tick processing.
 ---@param properties EntityProperties table from entity processor
----@return boolean status true if initialization was successful
-function OverflowController.attempt_entity_initialization(properties)
-    -- 1. First template is selected
-    local first_template = properties.first_template
-    if not first_template then return false end
-    -- 2. Operation mode is selected
+---@return EntityRegistrySection
+function OverflowController.initialize(properties)
+    -- Checking that first cluster is provided
+    local cluster_uuid = properties.first_cluster
+    if not cluster_uuid then
+        properties.status = Utilities.entity_status.no_primary_cluster
+        return Utilities.registry_sections.incorrect
+    end
+    -- Checking that operation mode is provided
     local operation_mode = properties.operation_mode
-    if not operation_mode then return false end
-    -- 3. Overflow threshold is provided
-    local overflow_threshold = properties.overflow_threshold
-    if not overflow_threshold then return false end
-    -- 4. Item is selected in "item" mode
+    if not operation_mode then
+        properties.status = Utilities.entity_status.no_operation_mode
+        return Utilities.registry_sections.incorrect
+    end
+    -- Checking that item name and quality are provided in "item" mode 
     local item_name = properties.selected_item_name
     local item_quality = properties.selected_item_quality
-    if operation_mode == "item" and (not item_name or not item_quality) then return false end
-    -- 5. Fluid is selected in "fluid" mode
+    if operation_mode == "item" and (not item_name or not item_quality) then
+        properties.status = Utilities.entity_status.no_selected_item
+        return Utilities.registry_sections.incorrect
+    end
+    -- Checking that fluid name is provided in "fluid" mode
     local selected_fluid = properties.selected_fluid
-    if operation_mode == "fluid" and not selected_fluid then return false end
-    -- 6. Entity is not located on a vsurface
+    if operation_mode == "fluid" and not selected_fluid then
+        properties.status = Utilities.entity_status.no_selected_fluid
+        return Utilities.registry_sections.incorrect
+    end
+    -- Checking that overflow threshold is provided
+    local overflow_threshold = properties.overflow_threshold
+    if not overflow_threshold then
+        properties.status = Utilities.entity_status.no_overflow_threshold
+        return Utilities.registry_sections.incorrect
+    end
+    -- Checking that entity is not located on a virtualization surface
     local entity = properties.entity
-    if VSurfaceManager.is_vsurface(entity.surface_index) then return false end
-
-    ---All requirements are met. Preparing properties for on-tick processing
-    -- attempting to connect entity to cluster
+    if VSurfaceManager.is_vsurface(entity.surface_index) then
+        properties.status = Utilities.entity_status.vsurface_no_work
+        return Utilities.registry_sections.incorrect
+    end
+    -- Attempting to add entity to its primary cluster
     local entity_name = properties.entity_name
-    local cluster = ClusterProcessor.add_to_cluster(
+    local status = ClusterProcessor.add_member_to_cluster(
         entity,
-        first_template,
+        cluster_uuid,
         weights[entity_name]
     )
-    if not cluster then return false end
-    properties.first_cluster = cluster
-    -- attempting to assign buffer entry to entity
-    local buffer_key = Utilities.generate_multimode_buffer_key(properties)
-    local buffer_entry = ClusterProcessor.get_buffer_entry(cluster, buffer_key, "output")
-    if not buffer_entry then return false end
-    properties.first_buffer_entry = buffer_entry
-    -- caching flow limit considering base limit and capability override
+    if not status then
+        properties.status = Utilities.entity_status.cluster_not_found
+        return Utilities.registry_sections.incorrect
+    end
+
+    -- All requirements are met: preparing properties for on-tick updates
+    properties.status = Utilities.entity_status.initialized
+    properties.buffer_key = Utilities.generate_multimode_buffer_key(properties)
+    local base_flow = flow_limits[entity_name][operation_mode]
+    local quality_mult = 1 + 0.5 * entity.quality.level
     local override = (properties.capability_override or 1)
-    local base_limit = flow_limits[entity_name][operation_mode]
-    properties.flow_limit = base_limit * override
-    return true
+    properties.flow_limit = base_flow * quality_mult * override
+    return Utilities.registry_sections.active
 end
 
----Clears properties of anything assigned on initialization or during on-tick processing.
----Should be called when stopping on-tick processing of entity to clear fields that were
----assigned on initialization or during on-tick processing
----@param properties EntityProperties table from entity processor
-function OverflowController.on_processing_stopped(properties)
-    properties.ls_flow = nil
-    properties.flow_limit = nil
-    properties.first_buffer_entry = nil
-    -- removing entity from associated cluster
-    ClusterProcessor.remove_from_cluster(
+---Clears properties of anything assigned on initialization or during on-tick
+---updates. Intended use case: by entity processor when moving properties
+---from "active" or "stalled" to "pending" or "incorrect". Does not clear
+---"status" field from properties.
+---@param properties EntityProperties
+function OverflowController.uninitialize(properties)
+    ClusterProcessor.remove_member_from_cluster(
         properties.first_cluster,
         properties.unit_number
     )
-    properties.first_cluster = nil
+    properties.buffer_key = nil
+    properties.flow_limit = nil
+    properties.ls_flow = nil
+    properties.operational = nil
 end
 
----Used for on-tick processing of cluster overflow controllers.
+local output = "output"
+---Used for on-tick updates of this entity after initialization.
 ---@param properties EntityProperties
-function OverflowController.process_entity(properties)
+---@return EntityRegistrySection
+function OverflowController.update(properties)
+    properties.ls_flow = 0
+
+    -- Attempting to reach specified cluster buffer entry
+    local buffer_entry = ClusterProcessor.get_buffer_entry(
+        properties.first_cluster,
+        properties.buffer_key,
+        output
+    )
+    if not buffer_entry then
+        properties.operational = false
+        -- buffer not found: checking for cluster existence
+        if not ClusterProcessor.does_cluster_exist(properties.first_cluster) then
+            properties.status = Utilities.entity_status.cluster_deleted
+            return Utilities.registry_sections.incorrect
+        end
+        -- cluster exists: marking entity as not operational
+        properties.operational = false
+        ClusterProcessor.mark_member_not_operational(
+            properties.first_cluster,
+            properties.unit_number
+        )
+        properties.status = Utilities.entity_status.entry_not_found
+        return Utilities.registry_sections.stalled
+    end
+
     local entity = properties.entity
-    ---@type number assuming overflow controller is electric energy interface
     local power_usage = entity.power_usage
     local current_energy = entity.energy
-
     if current_energy > power_usage then
+        -- there is enough energy: entity is operational
+        if not properties.operational then
+            properties.operational = true
+            ClusterProcessor.mark_member_operational(
+                properties.first_cluster,
+                properties.unit_number
+            )
+            properties.status = Utilities.entity_status.operational
+        end
         properties.ls_flow = ClusterProcessor.void_overflow(
-            properties.first_buffer_entry,
+            buffer_entry,
             properties.flow_limit,
             properties.overflow_threshold
         )
     else
-        properties.ls_flow = 0
+        -- there is not enough energy: entity is not operational
+        properties.operational = false
+        ClusterProcessor.mark_member_not_operational(
+            properties.first_cluster,
+            properties.unit_number
+        )
+        properties.status = Utilities.entity_status.not_enough_power
     end
+    return Utilities.registry_sections.active
 end
 
 return OverflowController
