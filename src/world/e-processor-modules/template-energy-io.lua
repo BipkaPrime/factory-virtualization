@@ -1,23 +1,23 @@
 --[[
 Template energy IOs are used in creation of templates on virtualization surfaces.
-They serve as inputs and outputs of energy.
+They serve as inputs and outputs for electric energy.
 -------------------------------------------------------------------------------
--- ENTITY CONFIGURATION
+-- ENTITY INITIALIZATION
 -------------------------------------------------------------------------------
-For this building to function following conditions must be met:
-I. Mandatory entity controls are provided:
+Initialization requirements for this building:
+I. Mandatory entity configuration is provided:
     1. io_mode. Used to determine the entity operation.
 II. Entity is located on a vsurface.
--------------------------------------------------------------------------------
--- ON-TICK PROCESSING
--------------------------------------------------------------------------------
+
 Properties that are assigned on initialization:
 1. status. Used to display entity status in the gui
 2. is_output. Used to determine entity operation
 3. buffer_key. Used to make calls to venv processor
 4. flow_limit. Used to make calls to factorio API
 5. surface_index. Used to make calls to venv processor
-
+-------------------------------------------------------------------------------
+-- ON-TICK UPDATES
+-------------------------------------------------------------------------------
 Properties that can be assigned during on-tick processing:
 1. ls_flow. Can be used to track entity work.
 --]]
@@ -50,7 +50,7 @@ function TemplateEnergyIO.initialize(properties)
     -- Checking that io mode is selected
     local io_mode = properties.io_mode
     if not io_mode then
-        properties.status = Utilities.entity_status.no_io_mode_primary
+        properties.status = Utilities.entity_status.no_io_mode
         return Utilities.registry_sections.incorrect
     end
     -- Checking that entity is located on a virtualization surface

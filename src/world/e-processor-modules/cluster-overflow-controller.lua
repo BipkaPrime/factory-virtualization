@@ -1,37 +1,39 @@
 --[[
-Cluster overflow controller is used for voiding overflow in one
+Cluster overflow controller is used to void overflow in one
 cluster buffer entry. It consumes electric energy and works only
 when building has enough power.
 -------------------------------------------------------------------------------
--- ENTITY CONFIGURATION
+-- ENTITY INITIALIZATION
 -------------------------------------------------------------------------------
-For this building to function following conditions must be met:
-I. Mandatory entity controls are provided:
-    1. first_cluster. Used to determine the cluster this entity
-        should connect to.
-    2. operation_mode. Used to determine the buffer entry this entity
-        will attempt to reach.
-    3. selected_item (only for "item" mode). Used to determine the buffer
-        entry this entity will attempt to reach.
-    4. selected_fluid (only for "fluid" mode). Used to determine the buffer
-        entry this entity will attempt to reach.
+Initialization requirements for this building:
+I. Mandatory entity configuration is provided:
+    1. first_cluster. Used to determine the cluster entity should connect to.
+    2. operation_mode. Used to determine buffer_key.
+    3. selected_item (only for "item" mode). Used to determine buffer_key.
+    4. selected_fluid (only for "fluid" mode). Used to determine buffer_key.
     5. overflow_threshold. Used to determine what is considered an overflow.
 II. Entity is not located on a vsurface.
 III. Selected cluster exists and this entity can be added to it.
 
 Optional entity controls this building can have:
 1. capability_override. Used to artificially lower flow rate of this entity.
--------------------------------------------------------------------------------
--- ON-TICK PROCESSING
--------------------------------------------------------------------------------
+
 Properties that are assigned on initialization:
 1. status. Used to display entity status in the gui
 2. buffer_key. Used to access a specific cluster buffer entry
 3. flow_limit. Determines maximum flow rate for this entity
-
+-------------------------------------------------------------------------------
+-- ON-TICK UPDATES
+-------------------------------------------------------------------------------
 Properties that can be assigned during on-tick processing:
 1. ls_flow. Used to display entity work in the gui
 2. operational. true if entity is marked operational in its clusters
+
+Entity is considered operational when:
+1. Specified buffer entry is found in the associated cluster.
+2. Entity has enough electric energy stored.
+
+If cluster is not found during an update, entity is moved to "incorrect".
 --]]
 
 local ClusterProcessor = require("src.simulation.cluster-processor")
@@ -75,9 +77,9 @@ local flow_limits = {
 
 ---Maps entity names to their weights inside clusters
 local weights = {
-    [PREFIX .. "cluster-overflow-controller-mk1"] = 1e-6,
-    [PREFIX .. "cluster-overflow-controller-mk2"] = 1e-5,
-    [PREFIX .. "cluster-overflow-controller-mk3"] = 1e-4,
+    [PREFIX .. "cluster-overflow-controller-mk1"] = 5e-6,
+    [PREFIX .. "cluster-overflow-controller-mk2"] = 5e-5,
+    [PREFIX .. "cluster-overflow-controller-mk3"] = 5e-4,
 }
 
 ---Attemps entity initialization: checks that all requirments are met.
@@ -122,6 +124,11 @@ function OverflowController.initialize(properties)
         properties.status = Utilities.entity_status.vsurface_no_work
         return Utilities.registry_sections.incorrect
     end
+    -- Checking that cluster exists
+    if not ClusterProcessor.does_cluster_exist(cluster_uuid) then
+        properties.status = Utilities.entity_status.cluster_not_found
+        return Utilities.registry_sections.incorrect
+    end
     -- Attempting to add entity to its primary cluster
     local entity_name = properties.entity_name
     local status = ClusterProcessor.add_member_to_cluster(
@@ -130,7 +137,7 @@ function OverflowController.initialize(properties)
         weights[entity_name]
     )
     if not status then
-        properties.status = Utilities.entity_status.cluster_not_found
+        properties.status = Utilities.entity_status.cluster_cant_connect
         return Utilities.registry_sections.incorrect
     end
 
@@ -160,6 +167,29 @@ function OverflowController.uninitialize(properties)
     properties.operational = nil
 end
 
+---Switches entity to operational state
+---@param properties EntityProperties
+local function switch_to_operational(properties)
+    if properties.operational then return end
+    ClusterProcessor.mark_member_operational(
+        properties.first_cluster,
+        properties.unit_number
+    )
+    properties.operational = true
+    properties.status = Utilities.entity_status.operational
+end
+
+---Switches entity to not operational state
+---@param properties EntityProperties
+local function switch_to_not_operational(properties)
+    if not properties.operational then return end
+    ClusterProcessor.mark_member_not_operational(
+        properties.first_cluster,
+        properties.unit_number
+    )
+    properties.operational = false
+end
+
 local output = "output"
 ---Used for on-tick updates of this entity after initialization.
 ---@param properties EntityProperties
@@ -174,35 +204,24 @@ function OverflowController.update(properties)
         output
     )
     if not buffer_entry then
-        properties.operational = false
         -- buffer not found: checking for cluster existence
         if not ClusterProcessor.does_cluster_exist(properties.first_cluster) then
             properties.status = Utilities.entity_status.cluster_deleted
             return Utilities.registry_sections.incorrect
         end
         -- cluster exists: marking entity as not operational
-        properties.operational = false
-        ClusterProcessor.mark_member_not_operational(
-            properties.first_cluster,
-            properties.unit_number
-        )
+        switch_to_not_operational(properties)
         properties.status = Utilities.entity_status.entry_not_found
         return Utilities.registry_sections.stalled
     end
 
+    -- Everything ok: normal operation
     local entity = properties.entity
     local power_usage = entity.power_usage
     local current_energy = entity.energy
     if current_energy > power_usage then
         -- there is enough energy: entity is operational
-        if not properties.operational then
-            properties.operational = true
-            ClusterProcessor.mark_member_operational(
-                properties.first_cluster,
-                properties.unit_number
-            )
-            properties.status = Utilities.entity_status.operational
-        end
+        switch_to_operational(properties)
         properties.ls_flow = ClusterProcessor.void_overflow(
             buffer_entry,
             properties.flow_limit,
@@ -210,11 +229,7 @@ function OverflowController.update(properties)
         )
     else
         -- there is not enough energy: entity is not operational
-        properties.operational = false
-        ClusterProcessor.mark_member_not_operational(
-            properties.first_cluster,
-            properties.unit_number
-        )
+        switch_to_not_operational(properties)
         properties.status = Utilities.entity_status.not_enough_power
     end
     return Utilities.registry_sections.active

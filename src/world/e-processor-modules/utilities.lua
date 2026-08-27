@@ -2,25 +2,47 @@ local Utilities = {}
 
 
 ---Contains localised strings used to display entity status
+---@enum entity_status
 Utilities.entity_status = {
-    no_primary_cluster = {"entity-status.cluster-not-selected"},
-    no_io_mode_primary = {"entity-status.no-io-mode-primary"},
+    -- Initialization errors: missing values
+    no_primary_cluster = {"entity-status.no-primary-cluster"},
+    no_io_mode = {"entity-status.no-io-mode"},
     no_selected_item = {"entity-status.no-selected-item"},
-    vsurface_no_work = {"entity-status.vsurface-no-work"},
-    cluster_not_found = {"entity-status.cluster-not-found"},
-    initialized = {"entity-status.initialized"},
-    entry_not_found = {"entity-status.entry-not-found"},
-    operational = {"entity-status.operational"},
-    cluster_deleted = {"entity-status.cluster-deleted"},
     no_selected_fluid = {"entity-status.no-selected-fluid"},
     no_operation_mode = {"entity-status.no-operation-mode"},
     no_overflow_threshold = {"entity-status.no-overflow-threshold"},
-    not_enough_power = {"entity-status.not-enough-power"},
-    no_source_cluster = {"entity-status.no-source-cluster"},
-    no_destination_cluster = {"entity-status.no-destination-cluster"},
+    no_selected_template = {"entity-status.no-selected-template"},
+    no_transmission_mode = {"entity-status.no-transmission-mode"},
+    no_s_cluster = {"entity-status.no-s-cluster"},
+    no_d_cluster = {"entity-status.no-d-cluster"},
+    -- Initialization errors: other errors
+    template_not_found = {"entity-status.template-not-found"},
+    cluster_not_found = {"entity-status.cluster-not-found"},
     s_cluster_not_found = {"entity-status.s-cluster-not-found"},
     d_cluster_not_found = {"entity-status.d-cluster-not-found"},
+    cluster_cant_connect = {"entity-status.cluster-cant-connect"},
+    s_cluster_cant_connect = {"entity-status.s-cluster-cant-connect"},
+    d_cluster_cant_connect = {"entity-status.d-cluster-cant-connect"},
+    vsurface_no_work = {"entity-status.vsurface-no-work"},
     vsurface_only_work = {"entity-status.vsurface-only-work"},
+    transmit_surface_mismatch = {"entity-status.transmit-surface-mismatch"},
+    works_only_on = {"entity-status.works-only-on"},
+    -- Update warnings/errors
+    not_enough_power = {"entity-status.not-enough-power"},
+    entry_not_found = {"entity-status.entry-not-found"},
+    s_entry_not_found = {"entity-status.s-entry-not-found"},
+    d_entry_not_found = {"entity-status.d-entry-not-found"},
+    no_tcc_in_proximity = {"entity-status.no-tcc-in-proximity"},
+    transmission_conflict = {"entity-status.transmission-conflict"},
+    reception_conflict = {"entity-status.reception-conflict"},
+    cluster_deleted = {"entity-status.cluster-deleted"},
+    s_cluster_deleted = {"entity-status.s-cluster-deleted"},
+    d_cluster_deleted = {"entity-status.d-cluster-deleted"},
+    tcc_reg_failed = {"entity-status.tcc-reg-failed"},
+    template_deleted = {"entity-status.template-deleted"},
+    -- Normal operation
+    initialized = {"entity-status.initialized"},
+    operational = {"entity-status.operational"},
 }
 
 ---Contains names of all sections in entity registry

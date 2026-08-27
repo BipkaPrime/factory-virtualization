@@ -1,17 +1,15 @@
 --[[
 Template item IOs are used in creation of templates on virtualization surfaces.
-They serve as inputs and outputs of items.
+They serve as inputs and outputs for items.
 -------------------------------------------------------------------------------
--- ENTITY CONFIGURATION
+-- ENTITY INITIALIZATION
 -------------------------------------------------------------------------------
-For this building to function following conditions must be met:
-I. Mandatory entity controls are provided:
+Initialization requirements for this building:
+I. Mandatory entity configuration is provided:
     1. io_mode. Used to determine the entity operation.
     2. selected_item. Used to determine the buffer key.
 II. Entity is located on a vsurface.
--------------------------------------------------------------------------------
--- ON-TICK PROCESSING
--------------------------------------------------------------------------------
+
 Properties that are assigned on initialization:
 1. status. Used to display entity status in the gui
 2. buffer_key. Used to make calls to venv processor
@@ -20,7 +18,9 @@ Properties that are assigned on initialization:
 5. inventory. Used to make calls to factorio API
 6. io_request. Used to make calls to factorio API
 7. surface_index. Used to make calls to venv processor
-
+-------------------------------------------------------------------------------
+-- ON-TICK UPDATES
+-------------------------------------------------------------------------------
 Properties that can be assigned during on-tick processing:
 1. ls_flow. Can be used to track entity work.
 --]]
@@ -55,7 +55,7 @@ function TemplateItemIO.initialize(properties)
     -- Checking that io mode is selected
     local io_mode = properties.io_mode
     if not io_mode then
-        properties.status = Utilities.entity_status.no_io_mode_primary
+        properties.status = Utilities.entity_status.no_io_mode
         return Utilities.registry_sections.incorrect
     end
     -- Checking that item and quality are selected

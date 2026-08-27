@@ -1,41 +1,41 @@
 --[[
 Cluster storage unit is used to increase buffer size of a cluster.
-It connects to one buffer entry and provides buffer capacity as long as
-the building is powered. If energy stored in the entity is not sufficient,
-it stops working and buffer capacity provided to cluster is disabled until
-enough energy is provided.
+It connects to a cluster and provides buffer capacity to one specific
+buffer key. This entity consumes electric energy and works as long
+as there is enough.
 -------------------------------------------------------------------------------
--- ENTITY CONFIGURATION
+-- ENTITY INITIALIZATION
 -------------------------------------------------------------------------------
-For this building to function following conditions must be met:
-I. Mandatory entity controls are provided:
-    1. first_cluster. Used to determine the cluster that gets
-        capacity increase.
-    2. io_mode. Used to determine the buffer entry this entity will
-        attempt to reach.
-    3. operation_mode. Used to determine the buffer entry this entity will
-        attempt to reach.
-    4. Selected item (only for "item" mode). Used to determine the buffer
-        entry this entity will attempt to reach.
-    5. Selected fluid (only for "fluid" mode). Used to determine the buffer
-        entry this entity will attempt to reach.
+Initialization requirements for this building:
+I. Mandatory entity configuration is provided:
+    1. first_cluster. Used to determine the cluster entity should connect to.
+    2. io_mode. Used to determine the buffer this entity will affect.
+    3. operation_mode. Used to determine buffer key.
+    4. Selected item (only for "item" mode). Used to determine buffer key.
+    5. Selected fluid (only for "fluid" mode). Used to determine buffer key.
 II. Entity is not located on a vsurface.
 III. Selected cluster exists and this entity can be added to it.
 
 Optional entity controls this building can have:
 1. capability_override. Used to artificially lower provided capacity.
--------------------------------------------------------------------------------
--- ON-TICK PROCESSING
--------------------------------------------------------------------------------
+
 Properties that are assigned on initialization:
 1. status. Used to display entity status in the gui
 2. buffer_key. Used to access a specific cluster buffer entry
 3. capacity. Determines how much capacity is provided.
-
+-------------------------------------------------------------------------------
+-- ON-TICK UPDATES
+-------------------------------------------------------------------------------
 Properties that can be assigned during on-tick processing:
-1. operational. true if entity is marked operational in its clusters
---]]
+1. operational. true if entity is marked operational in the cluster and
+providing buffer capacity.
 
+Entity is considered operational when:
+1. Specified buffer entry is found in the associated cluster.
+2. Entity has enough electric energy stored.
+
+If cluster is not found during an update, entity is moved to "incorrect".
+--]]
 
 local ClusterProcessor = require("src.simulation.cluster-processor")
 local VSurfaceManager = require("src.world.vsurface-manager")
@@ -78,9 +78,9 @@ local capacity_limits = {
 
 ---Maps entity names to their weights inside clusters
 local weights = {
-    [PREFIX .. "cluster-storage-unit-mk1"] = 1e-6,
-    [PREFIX .. "cluster-storage-unit-mk2"] = 1e-5,
-    [PREFIX .. "cluster-storage-unit-mk3"] = 1e-4,
+    [PREFIX .. "cluster-storage-unit-mk1"] = 5e-6,
+    [PREFIX .. "cluster-storage-unit-mk2"] = 5e-5,
+    [PREFIX .. "cluster-storage-unit-mk3"] = 5e-4,
 }
 
 ---Attemps entity initialization: checks that all requirments are met.
@@ -97,7 +97,7 @@ function StorageUnit.initialize(properties)
     -- Checking that io mode is selected
     local io_mode = properties.io_mode
     if not io_mode then
-        properties.status = Utilities.entity_status.no_io_mode_primary
+        properties.status = Utilities.entity_status.no_io_mode
         return Utilities.registry_sections.incorrect
     end
     -- Checking that operation mode is provided
@@ -125,6 +125,11 @@ function StorageUnit.initialize(properties)
         properties.status = Utilities.entity_status.vsurface_no_work
         return Utilities.registry_sections.incorrect
     end
+    -- Checking that cluster exists
+    if not ClusterProcessor.does_cluster_exist(cluster_uuid) then
+        properties.status = Utilities.entity_status.cluster_not_found
+        return Utilities.registry_sections.incorrect
+    end
     -- Attempting to add entity to its primary cluster
     local entity_name = properties.entity_name
     local status = ClusterProcessor.add_member_to_cluster(
@@ -133,7 +138,7 @@ function StorageUnit.initialize(properties)
         weights[entity_name]
     )
     if not status then
-        properties.status = Utilities.entity_status.cluster_not_found
+        properties.status = Utilities.entity_status.cluster_cant_connect
         return Utilities.registry_sections.incorrect
     end
 
@@ -177,6 +182,7 @@ local function switch_to_operational(properties)
         properties.io_mode,
         properties.capacity
     )
+    properties.status = Utilities.entity_status.operational
 end
 
 ---Switches entity to not operational state
@@ -201,7 +207,7 @@ end
 ---@param properties EntityProperties
 ---@return EntityRegistrySection
 function StorageUnit.update(properties)
-    -- Checking if buffer entry exists in the cluster
+    -- Checking that buffer entry exists in the cluster
     ---@type string checked on initialization
     local cluster_uuid = properties.first_cluster
     local buffer_entry = ClusterProcessor.get_buffer_entry(
@@ -228,7 +234,6 @@ function StorageUnit.update(properties)
     if current_energy > power_usage then
         -- there is enough energy: entity is operational
         switch_to_operational(properties)
-        properties.status = Utilities.entity_status.operational
     else
         -- there is not enough energy: entity is not operational
         switch_to_not_operational(properties)

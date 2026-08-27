@@ -85,6 +85,8 @@ Entity properties can be divided into 3 logical groups.
 ---@field computation_cost number|nil energy cost for one unit of computation
 ---@field startup_energy number|nil amount of energy required to "turn on" this entity
 ---@field surface_index integer|nil index of the surface entity is located on
+---@field pos_x number|nil x-coordinate of entity
+---@field pos_y number|nil y-coordinate of entity
 ---@field building_requests table<BufferKeyString, ItemBuffer>|nil building
 ---requests of this mainframe
 ---@field building_contents table<BufferKeyString, ItemBuffer>|nil building
@@ -95,8 +97,8 @@ Entity properties can be divided into 3 logical groups.
 ---@class EntityRegistry
 ---@field active EntityProperties[] initialized entities in operation
 ---@field stalled EntityProperties[] same as active but updated less frequently
----@field pending EntityProperties[] initialization pending
----@field incorrect EntityProperties[] incorrect configuration
+---@field pending EntityProperties[] initialization pending (not initialized)
+---@field incorrect EntityProperties[] incorrect configuration (not initialized)
 ---@field lookup table<integer, EntityProperties> key is unit number
 
 ---Defines a standard interface (handler module) for a specific building type.
@@ -111,20 +113,19 @@ Entity properties can be divided into 3 logical groups.
 ---for regular on-tick processing of initialized entity. Returns name of section
 ---to which entity properties should be moved
 
-
+local ClusterBridge = require("src.world.e-processor-modules.cluster-bridge")
 local ClusterEnergyIO = require("src.world.e-processor-modules.cluster-energy-io")
 local ClusterFluidIO = require("src.world.e-processor-modules.cluster-fluid-io")
 local ClusterItemIO = require("src.world.e-processor-modules.cluster-item-io")
 local OverflowController = require("src.world.e-processor-modules.cluster-overflow-controller")
 local StorageUnit = require("src.world.e-processor-modules.cluster-storage-unit")
-local ClusterBridge = require("src.world.e-processor-modules.inter-cluster-bridge")
+local TemplateAccess = require("src.world.e-processor-modules.template-access-interface")
 local ComputationArray = require("src.world.e-processor-modules.template-computation-array")
+local TemplateCC = require("src.world.e-processor-modules.template-control-center")
 local TemplateEnergyIO = require("src.world.e-processor-modules.template-energy-io")
 local TemplateFluidIO = require("src.world.e-processor-modules.template-fluid-io")
 local TemplateItemIO = require("src.world.e-processor-modules.template-item-io")
 local VMainframe = require("src.world.e-processor-modules.virtualization-mainframe")
-local ClusterProcessor = require("src.simulation.cluster-processor")
-local TCCManager = require("src.simulation.tcc-manager")
 
 
 local PREFIX = "FV-"
@@ -137,6 +138,9 @@ local EntityProcessor = {}
 ---Maps entity names to their handler modules
 ---@type table<string, EntityProcessorModule>
 local module_router = {
+    [PREFIX .. "inter-cluster-bridge-mk1"] = ClusterBridge,
+    [PREFIX .. "inter-cluster-bridge-mk2"] = ClusterBridge,
+    [PREFIX .. "inter-cluster-bridge-mk3"] = ClusterBridge,
     [PREFIX .. "cluster-energy-io-mk1"] = ClusterEnergyIO,
     [PREFIX .. "cluster-energy-io-mk2"] = ClusterEnergyIO,
     [PREFIX .. "cluster-energy-io-mk3"] = ClusterEnergyIO,
@@ -152,12 +156,15 @@ local module_router = {
     [PREFIX .. "cluster-storage-unit-mk1"] = StorageUnit,
     [PREFIX .. "cluster-storage-unit-mk2"] = StorageUnit,
     [PREFIX .. "cluster-storage-unit-mk3"] = StorageUnit,
-    [PREFIX .. "inter-cluster-bridge-mk1"] = ClusterBridge,
-    [PREFIX .. "inter-cluster-bridge-mk2"] = ClusterBridge,
-    [PREFIX .. "inter-cluster-bridge-mk3"] = ClusterBridge,
+    [PREFIX .. "template-access-interface-mk1"] = TemplateAccess,
+    [PREFIX .. "template-access-interface-mk2"] = TemplateAccess,
+    [PREFIX .. "template-access-interface-mk3"] = TemplateAccess,
     [PREFIX .. "template-computation-array-mk1"] = ComputationArray,
     [PREFIX .. "template-computation-array-mk2"] = ComputationArray,
     [PREFIX .. "template-computation-array-mk3"] = ComputationArray,
+    [PREFIX .. "template-control-center-mk1"] = TemplateCC,
+    [PREFIX .. "template-control-center-mk2"] = TemplateCC,
+    [PREFIX .. "template-control-center-mk3"] = TemplateCC,
     [PREFIX .. "template-energy-io-mk1"] = TemplateEnergyIO,
     [PREFIX .. "template-energy-io-mk2"] = TemplateEnergyIO,
     [PREFIX .. "template-energy-io-mk3"] = TemplateEnergyIO,
@@ -211,7 +218,7 @@ end
 -------------------------------------------------------------------------------
 
 ---Contains names of all sections in entity registry
----@type table<EntityRegistrySection, EntityRegistrySection>
+---@enum
 local registry_sections = {
     active = "active",
     stalled = "stalled",
@@ -270,7 +277,7 @@ local uninit_sections = {
     incorrect = true
 }
 ---Moves properties to specified registry section
----@param properties EntityProperties properties that will be moved
+---@param properties EntityProperties properties to move
 ---@param destination_name EntityRegistrySection name of destination section
 local function move_properties(properties, destination_name)
     local source_name = properties.section
@@ -342,6 +349,7 @@ end
 -------------------------------------------------------------------------------
 
 ---Names of all configuration fields
+---@enum
 local config_fields = {
     io_mode = "io_mode",
     operation_mode = "operation_mode",
@@ -385,6 +393,7 @@ function EntityProcessor.set_io_mode(entity, io_mode)
 end
 
 ---Names of all operation modes
+---@enum
 local operation_modes = {
     item = "item",
     fluid = "fluid",
@@ -424,17 +433,15 @@ end
 
 ---Sets first cluster for given entity or entity-ghost
 ---@param entity LuaEntity
----@param cluster_name string|nil value to set or nil to clear
-function EntityProcessor.set_first_cluster(entity, cluster_name)
-    local cluster_uuid = ClusterProcessor.get_cluster_uuid(cluster_name)
+---@param cluster_uuid string|nil value to set or nil to clear
+function EntityProcessor.set_first_cluster(entity, cluster_uuid)
     set_entity_property(entity, config_fields.first_cluster, cluster_uuid)
 end
 
 ---Sets second cluster for given entity or entity-ghost
 ---@param entity LuaEntity
----@param cluster_name string|nil value to set or nil to clear
-function EntityProcessor.set_second_cluster(entity, cluster_name)
-    local cluster_uuid = ClusterProcessor.get_cluster_uuid(cluster_name)
+---@param cluster_uuid string|nil value to set or nil to clear
+function EntityProcessor.set_second_cluster(entity, cluster_uuid)
     set_entity_property(entity, config_fields.second_cluster, cluster_uuid)
 end
 
@@ -454,21 +461,19 @@ end
 
 ---Sets selected template for given entity or entity-ghost
 ---@param entity LuaEntity
----@param template_name string|nil value to set or nil to clear
-function EntityProcessor.set_selected_template(entity, template_name)
-    local template_uuid
-    -- TODO: finish
-    
+---@param template_uuid string|nil value to set or nil to clear
+function EntityProcessor.set_selected_template(entity, template_uuid)
+    set_entity_property(entity, config_fields.selected_template, template_uuid)
 end
 
 -------------------------------------------------------------------------------
--- ENTITY DATA GETTERS: PUBLIC API (GUI CALLS)
+----------------- ENTITY DATA GETTERS: PUBLIC API (GUI CALLS) -----------------
 -------------------------------------------------------------------------------
 
 ---Abstract getter. Gets specified property for a given entity.
 ---@param entity LuaEntity entity for which data should be retrieved
 ---@param field string field in properties that is retrieved
----@return any property for tables returns reference, not a copy
+---@return any property
 local function get_entity_property(entity, field)
     if not entity.valid then return end
     if entity.name == "entity-ghost" then
@@ -488,15 +493,22 @@ end
 ---@param entity LuaEntity entity for which data should be retrieved
 ---@return "input"|"output"|nil io_mode
 function EntityProcessor.get_io_mode(entity)
-    return get_entity_property(entity, "io_mode")
+    return get_entity_property(entity, config_fields.io_mode)
+end
+
+---Gets mode of operation for a given entity or ghost-entity
+---@param entity LuaEntity
+---@return "item"|"fluid"|"energy"|nil
+function EntityProcessor.get_operation_mode(entity)
+    return get_entity_property(entity, config_fields.operation_mode)
 end
 
 ---Gets selected item for given entity or ghost-entity
 ---@param entity LuaEntity entity for which data should be retrieved
 ---@return string|nil name, string|nil quality  
 function EntityProcessor.get_selected_item(entity)
-    local name = get_entity_property(entity, "selected_item_name")
-    local quality = get_entity_property(entity, "selected_item_quality")
+    local name = get_entity_property(entity, config_fields.selected_item_name)
+    local quality = get_entity_property(entity, config_fields.selected_item_quality)
     return name, quality
 end
 
@@ -504,47 +516,46 @@ end
 ---@param entity LuaEntity entity for which data should be retrieved
 ---@return string|nil fluid_name
 function EntityProcessor.get_selected_fluid(entity)
-    local fluid_name = get_entity_property(entity, "selected_fluid")
-    return fluid_name
+    return get_entity_property(entity, config_fields.selected_fluid)
 end
 
----Gets first template for given entity or ghost-entity
+---Gets first cluster for given entity or ghost-entity
 ---@param entity LuaEntity entity for which data should be retrieved
----@return string|nil template_name
-function EntityProcessor.get_first_template(entity)
-    return get_entity_property(entity, "first_template")
+---@return string|nil cluster_uuid
+function EntityProcessor.get_first_cluster(entity)
+    return get_entity_property(entity, config_fields.first_cluster)
 end
 
----Gets second template for given entity or ghost-entity
+---Gets second cluster for given entity or ghost-entity
 ---@param entity LuaEntity entity for which data should be retrieved
----@return string|nil template_name
-function EntityProcessor.get_second_template(entity)
-    return get_entity_property(entity, "second_template")
+---@return string|nil cluster_uuid
+function EntityProcessor.get_second_cluster(entity)
+    return get_entity_property(entity, config_fields.second_cluster)
 end
 
----Gets mode of operation for a given entity
----@param entity LuaEntity
----@return "item"|"fluid"|"energy"|nil
-function EntityProcessor.get_operation_mode(entity)
-    return get_entity_property(entity, "operation_mode")
-end
-
----Gets capability override for a given entity
+---Gets capability override for a given entity or ghost-entity
 ---@param entity LuaEntity
 ---@return number|nil number in the range [0, 1]
 function EntityProcessor.get_capability_override(entity)
-    return get_entity_property(entity, "capability_override")
+    return get_entity_property(entity, config_fields.capability_override)
 end
 
----Gets overflow threshold for a given entity
+---Gets overflow threshold for a given entity or ghost-entity
 ---@param entity LuaEntity
 ---@return number|nil number in the range [0, 1]
 function EntityProcessor.get_overflow_threshold(entity)
-    return get_entity_property(entity, "overflow_threshold")
+    return get_entity_property(entity, config_fields.overflow_threshold)
+end
+
+---Gets selected template for a given entity or ghost-entity
+---@param entity LuaEntity
+---@return string|nil template_uuid
+function EntityProcessor.get_selected_template(entity)
+    return get_entity_property(entity, config_fields.selected_template)
 end
 
 -------------------------------------------------------------------------------
--- COPY PASTE
+--------------------------------- COPY PASTE ----------------------------------
 -------------------------------------------------------------------------------
 
 ---Adds tags to entities when player creates blueprint
@@ -554,40 +565,43 @@ function EntityProcessor.setup_blueprint_tags(event)
     if not blueprint then return end
     -- maps blueprint entity index to "real world" entity
     local mapping = event.mapping.get()
-
     for b_entity_index, entity in ipairs(mapping) do
-        -- skipping invalid entities
-        if not entity.valid then goto continue end
-        local entity_name = entity.name
-        -- skipping entities that are not recognized by this registry
-        if not copyable[entity_name] then goto continue end
-        -- if registry does not have entity properties we have to skip it
-        local properties = get_entity_properties(entity.unit_number)
-        -- skipping entities if their properties are not found
-        if not properties then goto continue end
-        -- creating a shallow copy with all copyable properties
-        local properties_copy = {}
-        local copyable_fields = copyable[entity_name]
-        for _, field in ipairs(copyable_fields) do
-            properties_copy[field] = properties[field]
+        -- considering only valid entities
+        if entity.valid then
+            local entity_name = entity.name
+            -- only entities recognized by this registry
+            if configuration[entity_name] then
+                local properties = get_entity_properties(entity.unit_number)
+                -- only if properties are found
+                if properties then
+                    -- creating a shallow copy with all copyable properties
+                    local properties_copy = {}
+                    local copyable_fields = configuration[entity_name]
+                    for _, field in ipairs(copyable_fields) do
+                        properties_copy[field] = properties[field]
+                    end
+                    blueprint.set_blueprint_entity_tag(
+                        b_entity_index,
+                        PREFIX,
+                        properties_copy
+                    )
+                end
+            end
         end
-        blueprint.set_blueprint_entity_tag(b_entity_index, PREFIX, properties_copy)
-
-        ::continue::
     end
 end
 
--- TODO: improve user experience???
+-- TODO: add following 
 -- on_blueprint_settings_pasted
 -- on_entity_cloned
 -- on_entity_settings_pasted
--- on_player_configured_blueprint
--- on_redo_applied (maybe?)
--- on_undo_applied (maybe?)
+-- (+ selection tool to configure area)
 
 -------------------------------------------------------------------------------
--- MAIN PROCESSOR
+------------------------------- MAIN PROCESSOR --------------------------------
 -------------------------------------------------------------------------------
+
+-- TODO: finish
 
 ---Attempts to initialize an entity.
 ---It's assumed that properties are located in "uninitialized" section

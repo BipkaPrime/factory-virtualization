@@ -1,29 +1,31 @@
 --[[
-Cluster energy IO is used to transfer electric energy from physical factorio world
-to internal virtual buffers of clusters and vice versa. It connects to one
-buffer entry and operates with it.
+Cluster energy IO is used to transfer electric energy from physical factorio
+world to internal virtual buffers of clusters and vice versa.
 -------------------------------------------------------------------------------
--- ENTITY CONFIGURATION
+-- ENTITY INITIALIZATION
 -------------------------------------------------------------------------------
-For this building to function following conditions must be met:
-I. Mandatory entity controls are provided:
-    1. First cluster. Used to determine the cluster this entity
-        should connect to.
-    2. IO mode. Used to determine the entity operation.
+Initialization requirements for this building:
+I. Mandatory entity configuration is provided:
+    1. first_cluster. Used to determine the cluster entity should connect to.
+    2. io_mode. Used to determine entity operation.
 II. Entity is not located on a vsurface.
 III. Selected cluster exists and this entity can be added to it.
--------------------------------------------------------------------------------
--- ON-TICK PROCESSING
--------------------------------------------------------------------------------
+
 Properties that are assigned on initialization:
 1. status. Used to display entity status in the gui
 2. buffer_key. Used to access a specific cluster buffer entry
 3. is_output. Used to determine entity operation
 4. flow_limit. Determines maximum flow rate for this entity
-
+-------------------------------------------------------------------------------
+-- ON-TICK UPDATES
+-------------------------------------------------------------------------------
 Properties that can be assigned during on-tick processing:
 1. ls_flow. Used to display entity work in the gui
 2. operational. true if entity is marked operational in its clusters
+
+Entity is considered operational when specified buffer entry is found in the
+associated cluster. If it's not, entity is considered not operational.
+If cluster is not found during an update, entity is moved to "incorrect".
 --]]
 
 local ClusterProcessor = require("src.simulation.cluster-processor")
@@ -33,7 +35,6 @@ local Utilities = require("src.world.e-processor-modules.utilities")
 
 local PREFIX = "FV-"
 local ClusterEnergyIO = {}
-
 
 ---List of all copyable properties of this entity
 ---@type EntityConfigField[]
@@ -70,7 +71,7 @@ function ClusterEnergyIO.initialize(properties)
     -- Checking that io mode is selected
     local io_mode = properties.io_mode
     if not io_mode then
-        properties.status = Utilities.entity_status.no_io_mode_primary
+        properties.status = Utilities.entity_status.no_io_mode
         return Utilities.registry_sections.incorrect
     end
     -- Checking that entity is not located on a virtualization surface
@@ -79,7 +80,12 @@ function ClusterEnergyIO.initialize(properties)
         properties.status = Utilities.entity_status.vsurface_no_work
         return Utilities.registry_sections.incorrect
     end
-    -- Attempting to add entity to its primary cluster
+    -- Checking that cluster exists
+    if not ClusterProcessor.does_cluster_exist(cluster_uuid) then
+        properties.status = Utilities.entity_status.cluster_not_found
+        return Utilities.registry_sections.incorrect
+    end
+    -- Attempting to add entity to the cluster
     local entity_name = properties.entity_name
     local status = ClusterProcessor.add_member_to_cluster(
         entity,
@@ -87,15 +93,21 @@ function ClusterEnergyIO.initialize(properties)
         weights[entity_name]
     )
     if not status then
-        properties.status = Utilities.entity_status.cluster_not_found
+        properties.status = Utilities.entity_status.cluster_cant_connect
         return Utilities.registry_sections.incorrect
     end
 
     -- All requirements are met: preparing properties for on-tick updates
     properties.status = Utilities.entity_status.initialized
     properties.buffer_key = "electric_energy"
-    properties.is_output = (io_mode == "output")
-    -- TODO: configure electric energy priority
+    local is_output = (io_mode == "output")
+    properties.is_output = is_output
+    -- setting up electric priority based on io mode
+    entity.electric_interface_mode = (
+        is_output and
+        defines.electric_interface_mode.primary_output or
+        defines.electric_interface_mode.primary_input
+    )
     local base_flow = flow_limits[entity_name]
     local quality_mult = 1 + 0.5 * entity.quality.level
     properties.flow_limit = base_flow * quality_mult
@@ -132,28 +144,30 @@ function ClusterEnergyIO.update(properties)
         properties.io_mode
     )
     if not buffer_entry then
-        properties.operational = false
         -- buffer not found: checking for cluster existence
         if not ClusterProcessor.does_cluster_exist(properties.first_cluster) then
             properties.status = Utilities.entity_status.cluster_deleted
             return Utilities.registry_sections.incorrect
         end
         -- cluster exists: marking entity as not operational
-        properties.operational = false
-        ClusterProcessor.mark_member_not_operational(
-            properties.first_cluster,
-            properties.unit_number
-        )
+        if properties.operational then
+            ClusterProcessor.mark_member_not_operational(
+                properties.first_cluster,
+                properties.unit_number
+            )
+            properties.operational = false
+        end
         properties.status = Utilities.entity_status.entry_not_found
         return Utilities.registry_sections.stalled
     end
-    -- buffer entry found: marking entity as operational in the cluster
+
+    -- Buffer entry found: marking entity as operational in the cluster
     if not properties.operational then
-        properties.operational = true
         ClusterProcessor.mark_member_operational(
             properties.first_cluster,
             properties.unit_number
         )
+        properties.operational = true
         properties.status = Utilities.entity_status.operational
     end
 
@@ -190,7 +204,6 @@ function ClusterEnergyIO.update(properties)
             properties.ls_flow = to_transfer
         end
     end
-
     return Utilities.registry_sections.active
 end
 

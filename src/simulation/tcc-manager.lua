@@ -35,67 +35,83 @@ local TCCManager = {}
 ---Used to store template control center data
 ---@class TCCData
 ---@field allowed_surface string name of surface tcc can work on
----@field registered boolean|nil true is tcc is registered
+---@field registered boolean|nil true if tcc is currently registered
+---@field unit_number integer|nil unit number of registered tcc
 ---@field surface_index integer|nil identifier of the surface tcc is located on
 ---@field pos_x number|nil x-coordinate of template control center entity
 ---@field pos_y number|nil y-coordinate of template control center entity
----@field max_tae_dist number|nil maximum distance from which template access
----interfaces can tarsmit
+---@field proximity_dist number|nil maximum distance from which entities
+---that require tcc proximity to work can interact with it.
 
----Attempts to register template control center. Entity has to be valid
----@param entity LuaEntity assumed to be valid
----@param transmit_dist number maximum distance tae can transmit from
+
+---Gets name of surface allowed for operation of template control center
+---and all buildings related to it.
+function TCCManager.get_allowed_surface()
+    return storage.tcc.allowed_surface
+end
+
+---Attempts to register template control center.
+---Registration will fail only when there is another registered tcc.
+---Assuming that surface is allowed (must be checked by function above).
+---@param unit_number integer unique entity identifier
+---@param surface_index integer unique surface identifier
+---@param entity_x number x-coordinate of entity
+---@param entity_y number y-coordinate of entity
+---@param proximity_dist number maximum distance
 ---@return boolean status true if entity was registered
----@return LocalisedString|nil reason why entity was not registered
-function TCCManager.register_control_center(entity, transmit_dist)
+function TCCManager.register_control_center(
+    unit_number,
+    surface_index,
+    entity_x,
+    entity_y,
+    proximity_dist
+)
     local tcc = storage.tcc
-    -- can not register control center, if one is already registered
-    if tcc.registered then
-        return false, "Initialization failed: You already have another tcc"
-    end
-    -- can not register entity if it's located on the wrong surface
-    if entity.surface.name ~= tcc.allowed_surface then
-        return false, "Initialization failed: Invalid surface for tcc"
-    end
+    -- another tcc is already registered: return
+    if tcc.registered then return false end
 
     -- everything is ok: registering
     tcc.registered = true
-    tcc.surface_index = entity.surface_index
-    local position = entity.position
-    tcc.pos_x, tcc.pos_y = position.x, position.y
-    tcc.max_tae_dist = transmit_dist * transmit_dist
+    tcc.unit_number = unit_number
+    tcc.surface_index = surface_index
+    tcc.pos_x = entity_x
+    tcc.pos_y = entity_y
+    tcc.proximity_dist = proximity_dist * proximity_dist
     return true
 end
 
----Unregistered template control center.
-function TCCManager.unregister_control_center()
+---Unregisteres template control center given its unit number.
+---@param unit_number integer unique entity identifier
+function TCCManager.unregister_control_center(unit_number)
     local tcc = storage.tcc
+    -- safety check: unit numbers must match
+    if tcc.unit_number ~= unit_number then return end
+
     tcc.registered = nil
+    tcc.unit_number = nil
     tcc.surface_index = nil
     tcc.pos_x = nil
     tcc.pos_y = nil
+    tcc.proximity_dist = nil
 end
 
----Decides if entity is close enough to tcc to transmit a template
----@param entity LuaEntity assumed to be valid
----@return boolean status true if entity can transmit
----@return LocalisedString|nil reason why entity cannot transmit
-function TCCManager.can_entity_transmit(entity)
+---Checks if given point on a surface is in close proximity to tcc.
+---@param surface_index integer unique surface identifier
+---@param x number x-coordinate of a point checked
+---@param y number y-coordinate of a point checked
+---@return boolean status true if point within proximity range
+function TCCManager.in_proximity_to_tcc(surface_index, x, y)
     local tcc = storage.tcc
-    if entity.surface_index ~= tcc.surface_index then
-        return false, "Cannot transmit: no tcc on this surface"
-    end
-
-    local position = entity.position
-    local dist = (tcc.pos_x - position.x)^2 + (tcc.pos_y - position.y)^2
-    if dist > tcc.max_tae_dist then
-        return false, "Cannot transmit: too far from tcc"
-    end
-
-    return true
+    -- checking that tcc is registered
+    if not tcc.registered then return false end
+    -- surfaces are different: no proximity
+    if tcc.surface_index ~= surface_index then return false end
+    -- checking distance from given point to tcc
+    local dist = (tcc.pos_x - x)^2 + (tcc.pos_y - y)^2
+    return dist <= tcc.proximity_dist
 end
 
----Checks if template control center is registered
+---Checks if template control center is currently registered
 ---@return boolean true if tcc is available
 local function is_tcc_registered()
     return storage.tcc.registered
@@ -110,27 +126,21 @@ end
 ---@field max_available number max amount of computation potentially available
 ---@field curr_demand number current computation demand
 
-
-local EPSILON = 0.001
-
 ---Gets maximum available amount of computation
 ---@return number max_available
 function TCCManager.get_computation_max_available()
-    if not is_tcc_registered() then return 0 end
     return storage.computation.max_available
 end
 
 ---Gets current computation demand
 ---@return number curr_demand
 function TCCManager.get_computation_curr_demand()
-    if not is_tcc_registered() then return 0 end
     return storage.computation.curr_demand
 end
 
 ---Gets the amount of currently available computation
 ---@return number available can not be negative
 function TCCManager.get_available_computation()
-    if not is_tcc_registered() then return 0 end
     local computation = storage.computation
     local available = math.max(
         computation.max_available - computation.curr_demand,
@@ -139,19 +149,19 @@ function TCCManager.get_available_computation()
     return available
 end
 
----Checks if there is enough computation resource
+---Checks if there is enough computation resource.
 ---@return boolean status true if computation is sufficient
 function TCCManager.is_computation_sufficient()
+    -- computation cannot be sufficient if tcc is not registered
     if not is_tcc_registered() then return false end
     local computation = storage.computation
-    return computation.curr_demand < computation.max_available + EPSILON
+    return computation.curr_demand < computation.max_available
 end
 
 ---Gets current computation demand ratio: fraction of computation
 ---currently required from providers.
 ---@return number fraction from the range [0, 1]
 function TCCManager.get_computation_demand_ratio()
-    if not is_tcc_registered() then return 0 end
     local computation = storage.computation
     local max = computation.max_available
     if max == 0 then return 0 end
@@ -170,7 +180,7 @@ end
 function TCCManager.decrease_computation_max_available(amount)
     local computation = storage.computation
     local result = computation.max_available - amount
-    if result < EPSILON then result = 0 end
+    if result < 1e-6 then result = 0 end
     computation.max_available = result
 end
 
@@ -186,7 +196,7 @@ end
 function TCCManager.decrease_computation_curr_demand(amount)
     local computation = storage.computation
     local result = computation.curr_demand - amount
-    if result < EPSILON then result = 0 end
+    if result < 1e-6 then result = 0 end
     computation.curr_demand = result
 end
 
@@ -348,7 +358,7 @@ function TCCManager.delete_template(template_name)
     -- Erasing template from receive tables
     local receive = templates.receive
     local receive_inv = templates.receive_inv
-    local clusters = receive[template_uuid]
+    clusters = receive[template_uuid]
     if clusters then
         for cluster_uuid, _ in pairs(clusters) do
             receive_inv[cluster_uuid] = nil
@@ -361,6 +371,7 @@ end
 ------------------------------ TEMPLATE ROUTING -------------------------------
 
 ---Adds the transmitter of provided template to provided cluster
+---Only one template can be transmitted to cluster at a time
 ---@param template_uuid template_uuid unique template identifier
 ---@param cluster_uuid cluster_uuid unique cluster identifier
 ---@return boolean status true if transmitter was added successfully
@@ -397,6 +408,7 @@ function TCCManager.remove_template_transmitter(cluster_uuid)
 end
 
 ---Adds the reciever of provided template to provided cluster
+---Only one template can be transmitted to cluster at a time
 ---@param template_uuid template_uuid unique template identifier
 ---@param cluster_uuid cluster_uuid unique cluster identifier
 ---@return boolean status true if receiver was added successfully
@@ -444,6 +456,13 @@ end
 -------------------------------------------------------------------------------
 
 ----------------------------------- BACKEND -----------------------------------
+
+---Checks if given template uuid corresponds to an existing template
+---@param template_uuid string unique template identifier
+---@return boolean status true if template exists
+function TCCManager.does_template_exist(template_uuid)
+    return not not storage.templates.template_lookup[template_uuid]
+end
 
 ---Gets uuid of template assigned to the given cluster.
 ---@param cluster_uuid cluster_uuid unique cluster identifier

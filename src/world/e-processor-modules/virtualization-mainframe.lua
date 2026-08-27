@@ -1,30 +1,32 @@
 --[[
 Virtualization mainframe is needed to provide crafting power to clusters.
-When it connects to a cluster, it starts requesting building materials needed
-for template construction. Once construction is finished, crafting power
-is added to the cluster.
+It connects to a cluster and "builds" the template assigned to cluster.
+Building a template means that it requests items (via logistic network)
+required for construction of given template. When template construction
+is complete, crafting power is provided to cluster.
 -------------------------------------------------------------------------------
--- ENTITY CONFIGURATION
+-- ENTITY INITIALIZATION
 -------------------------------------------------------------------------------
-For this building to function following conditions must be met:
-I. Mandatory entity controls are provided:
+Initialization requirements for this building:
+I. Mandatory entity configuration is provided:
     1. first_cluster. Used to determine the cluster to connect to.
 II. Entity is not located on a vsurface.
 III. Selected cluster exists and this entity can be added to it.
--------------------------------------------------------------------------------
--- ON-TICK PROCESSING
--------------------------------------------------------------------------------
+
 Properties that are assigned on initialization:
 1. status. Used to display entity status in the gui
 2. capacity. amount of crafting power this building can provide
 3. inventory. Used to make calls for factorio API
 4. logistic_point. Used to make calls for factorio API
-
+-------------------------------------------------------------------------------
+-- ON-TICK UPDATES
+-------------------------------------------------------------------------------
 Properties that can be assigned during on-tick processing:
-1. operational. Used as an indication that entity is contributing crafting power
+1. operational. Used as an indication that entity is contributing crafting
+    power and is marked operational in the associated cluster.
 2. template_uuid. Identification of template being constructed
 3. building_requests. Used to create requests and track building progress.
-4. building_contents. Used to track building stored in the mainframe
+4. building_contents. Used to track buildings stored in the mainframe
 --]]
 
 local ClusterProcessor = require("src.simulation.cluster-processor")
@@ -55,17 +57,39 @@ local weights = {
     [PREFIX .. "virtualization-mainframe-mk3"] = 1e-3,
 }
 
+---Attemps entity initialization: checks that all requirments are met.
+---If they are, prepares entity properties for on-tick processing.
+---@param properties EntityProperties table from entity processor
+---@return EntityRegistrySection
+function VMainframe.initialize(properties)
 
+end
 
+---Clears properties of anything assigned on initialization or during on-tick
+---updates. Intended use case: by entity processor when moving properties
+---from "active" or "stalled" to "pending" or "incorrect". Does not clear
+---"status" field from properties.
+---@param properties EntityProperties
+function VMainframe.uninitialize(properties)
 
+end
 
+---Used for on-tick updates of this entity after initialization.
+---@param properties EntityProperties
+---@return EntityRegistrySection
+function VMainframe.update(properties)
+
+end
+
+return VMainframe
+
+--[[
 ---Prepares for construction of new template: copies template building cost to requesting
 ---table, makes sure contained_buildings table has sections for all requesting items.
 ---@param properties EntityProperties
 local function prepare_template_construction(properties)
     -- TODO: FIX
 
-    --[[
     local template_name = properties.first_template
     local build_cost = TemplateStorage.get_building_cost(template_name)
     local entity_name = properties.entity_name
@@ -91,7 +115,6 @@ local function prepare_template_construction(properties)
     end
     properties.building_requests = requests
     properties.building_contents = contents
-    --]]
 end
 
 ---Checks that all requirements for operation of virtualization mainframe are met.
@@ -267,3 +290,5 @@ function VMainframe.process_entity(properties)
 end
 
 return VMainframe
+
+--]]
