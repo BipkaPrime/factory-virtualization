@@ -92,6 +92,9 @@ Entity properties can be divided into 3 logical groups.
 ---@field building_contents table<BufferKeyString, ItemBuffer>|nil building
 ---contents of this mainframe
 ---@field logistic_point LuaLogisticPoint|nil logistic point of this entity
+---@field state string|nil current entity state. Used for entities which
+---can have more than 2 possible states.
+---@field assigned_template string|nil uuid of template assigned to this mainframe
 
 ---Used to store properties of all relevant entities
 ---@class EntityRegistry
@@ -193,7 +196,7 @@ for entity_name, module in pairs(module_router) do
 end
 
 ---Maps entity names to functions used for their initialization
----@type table<string, fun(properties: EntityProperties): boolean>
+---@type table<string, fun(properties: EntityProperties): EntityRegistrySection>
 local initialization = {}
 for entity_name, module in pairs(module_router) do
     initialization[entity_name] = module.initialize
@@ -207,7 +210,7 @@ for entity_name, module in pairs(module_router) do
 end
 
 ---Maps entity names to functions used for regular updates after initialization
----@type table<string, fun(properties: EntityProperties)>
+---@type table<string, fun(properties: EntityProperties): EntityRegistrySection>
 local update = {}
 for entity_name, module in pairs(module_router) do
     update[entity_name] = module.update
@@ -313,7 +316,9 @@ end
 ---@param properties EntityProperties properties to be removed
 local function unregister_entity(properties)
     -- uninitializing entity before deleting its properties
-    uninitialization[properties.entity_name](properties)
+    if init_sections[properties.section] then
+        uninitialization[properties.entity_name](properties)
+    end
 
     local registry = storage.entity_registry
     ---@type EntityProperties[]
@@ -591,7 +596,7 @@ function EntityProcessor.setup_blueprint_tags(event)
     end
 end
 
--- TODO: add following 
+-- TODO: add following
 -- on_blueprint_settings_pasted
 -- on_entity_cloned
 -- on_entity_settings_pasted
@@ -601,71 +606,66 @@ end
 ------------------------------- MAIN PROCESSOR --------------------------------
 -------------------------------------------------------------------------------
 
--- TODO: finish
-
----Attempts to initialize an entity.
----It's assumed that properties are located in "uninitialized" section
----@param properties EntityProperties properties to be initialized
-local function attempt_entity_initialization(properties)
-    local status = initialization_router[properties.entity_name](properties)
-    -- if initialization failed: return
-    if not status then return end
-
-    -- moving properties to initialized section
-    local registry = storage.entity_registry
-    move_properties(
-        properties,
-        registry.uninitialized,
-        registry.initialized
-    )
-end
-
-
-
-
----Given an array and current tick, calculates the chunk that needs to be
----processed in this tick. This function aims to split the array into 60
----chunks of similar size, so the whole array is processed each second.
----@param array any[] 
----@param tick integer 
----@return integer start_idx, integer stop_idx
-local function get_current_chunk(array, tick)
-    local total_size = #array
-    local offset = tick % 60
-    local chunk_size = math.ceil(total_size / 60)
-    local start_index = (chunk_size * offset) + 1
-    if start_index > total_size then return 0, -1 end
-    local stop_index = math.min(chunk_size * (offset + 1), total_size)
-    return start_index, stop_index
-end
-
----On-tick entity processor. Processing is done in 60 chunks (one chunk per tick).
+---On-tick updater for entity registry
 ---@param event EventData.on_tick
-function EntityProcessor.process_entities(event)
+function EntityProcessor.on_tick(event)
     local registry = storage.entity_registry
     local tick = event.tick
 
-    -- processing uninitialized section of registry
-    local uninit = registry.uninitialized
-    local start_idx, stop_idx = get_current_chunk(uninit, tick)
-    for i = stop_idx, start_idx, -1 do
-        local properties = uninit[i]
-        local entity = properties.entity
-        if entity.valid then
-            attempt_entity_initialization(properties)
+    -- Pending section: initializing 1/60 of current array size
+    local pending = registry.pending
+    local size = #pending
+    local chunk_size = math.ceil(size / 60)
+    for i = size, size - chunk_size + 1, -1 do
+        local properties = pending[i]
+        if properties.entity.valid then
+            local handler = initialization[properties.entity_name]
+            local target_section = handler(properties)
+            move_properties(properties, target_section)
         else
+            -- entity is invalid: removing it from registry
             unregister_entity(properties)
         end
     end
-    -- processing initialized section of registry
-    local init = registry.initialized
-    local start_idx, stop_idx = get_current_chunk(init, tick)
-    for i = stop_idx, start_idx, -1 do
-        local properties = init[i]
-        local entity = properties.entity
-        if entity.valid then
-            processing_router[properties.entity_name](properties)
+
+    -- Active section: elements are updated once per second
+    local active = registry.active
+    local offset = tick % 60
+    -- updating every 60-th element in the array
+    for i = #active - offset, 1, -60 do
+        local properties = active[i]
+        if properties.entity.valid then
+            local handler = update[properties.entity_name]
+            local target_section = handler(properties)
+            move_properties(properties, target_section)
         else
+            -- entity is invalid: removing it from registry
+            unregister_entity(properties)
+        end
+    end
+
+    -- Stalled section: elements are updated once per 10 seconds
+    local stalled = registry.stalled
+    offset = tick % 600
+    -- updating every 60-th element in the array
+    for i = #stalled - offset, 1, -600 do
+        local properties = stalled[i]
+        if properties.entity.valid then
+            local handler = update[properties.entity_name]
+            local target_section = handler(properties)
+            move_properties(properties, target_section)
+        else
+            -- entity is invalid: removing it from registry
+            unregister_entity(properties)
+        end
+    end
+
+    -- Incorrect section: checking that entities are valid (once per 10 sec)
+    local incorrect = registry.incorrect
+    for i = #incorrect - offset, 1, -600 do
+        local properties = incorrect[i]
+        if not properties.entity.valid then
+            -- entity is invalid: removing it from registry
             unregister_entity(properties)
         end
     end

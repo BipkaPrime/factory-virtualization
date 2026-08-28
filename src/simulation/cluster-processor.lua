@@ -115,7 +115,7 @@ All cluster data is located at storage.clusters (see ClusterStorage class).
 ---
 ---Fields related to assigned template or changed during processing 
 ---@field template_uuid string|nil identifier of template assigned to this cluster
----@field build_cost table<BufferKeyString, number>|nil items for template construction
+---@field build_cost table<BufferKeyString, number> items for template construction
 ---@field input table<BufferKeyString, ClusterBufferEntry> cluster input buffer
 ---@field output table<BufferKeyString, ClusterBufferEntry> cluster output buffer
 ---@field energy_per_craft number electric energy consumption per craft, calculated
@@ -237,6 +237,7 @@ function ClusterProcessor.create_cluster(cluster_name, surface_name)
         crafting_power = 0,
         power_contributors = {},
         buffer_capacity = {input = {}, output = {}},
+        build_cost = {},
         input = {},
         output = {},
         energy_per_craft = 0,
@@ -283,7 +284,7 @@ function ClusterProcessor.drop_assigned_template(cluster_name)
     -- Everything is ok: dropping assigned template
     local cluster = clusters.lookup[cluster_uuid]
     cluster.template_uuid = nil
-    cluster.build_cost = nil
+    cluster.build_cost = {}
     cluster.input = {}
     cluster.output = {}
     cluster.energy_per_craft = 0
@@ -897,10 +898,10 @@ end
 ---Gets build cost of template assigned to given cluster. Intended use case:
 ---during update of virtualization mainframe in entity processor
 ---@param cluster_uuid string unique cluster identifier
----@return table<BufferKeyString, number>|nil
+---@return table<BufferKeyString, number>
 function ClusterProcessor.get_build_cost(cluster_uuid)
     local cluster = storage.clusters.lookup[cluster_uuid]
-    if not cluster then return end
+    if not cluster then return {} end
     return cluster.build_cost
 end
 

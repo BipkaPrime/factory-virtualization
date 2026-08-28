@@ -35,6 +35,7 @@ Utilities.entity_status = {
     no_tcc_in_proximity = {"entity-status.no-tcc-in-proximity"},
     transmission_conflict = {"entity-status.transmission-conflict"},
     reception_conflict = {"entity-status.reception-conflict"},
+    no_assigned_template = {"entity-status.no-assigned-template"},
     cluster_deleted = {"entity-status.cluster-deleted"},
     s_cluster_deleted = {"entity-status.s-cluster-deleted"},
     d_cluster_deleted = {"entity-status.d-cluster-deleted"},
@@ -46,7 +47,7 @@ Utilities.entity_status = {
 }
 
 ---Contains names of all sections in entity registry
----@type table<EntityRegistrySection, EntityRegistrySection>
+---@enum
 Utilities.registry_sections = {
     active = "active",
     stalled = "stalled",
