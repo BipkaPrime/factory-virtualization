@@ -9,7 +9,7 @@ configured. A part of properties is "entity configuration": fields like
 Entities are registered when "build" events are fired. Properties of entities
 are stored in one of several sections of "entity registry" depending on the
 state and configuration of entity. Properties of an entity are removed from
-the registry after it becomes invalid (after a delay).
+the registry after it becomes invalid.
 
 Entity configuration data for a ghost is stored in its tags. It's automatically
 transfered to entity properties on registration. Any change to entity
@@ -95,6 +95,11 @@ Entity properties can be divided into 3 logical groups.
 ---@field state string|nil current entity state. Used for entities which
 ---can have more than 2 possible states.
 ---@field assigned_template string|nil uuid of template assigned to this mainframe
+---@field logistic_filters LogisticFilter[]|nil used to control
+---logistic filters of this mainframe
+---@field filter_lookup table<BufferKeyString, integer>|nil maps buffer keys to indexes
+---of corresponding filters in "logistic_filters" field
+---@field logistic_section LuaLogisticSection|nil used to reduce load on GC
 
 ---Used to store properties of all relevant entities
 ---@class EntityRegistry

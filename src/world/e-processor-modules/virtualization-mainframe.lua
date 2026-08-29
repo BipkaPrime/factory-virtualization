@@ -26,13 +26,16 @@ Properties that can be assigned during on-tick processing:
 1. assigned_template. Uuid of template being constructed
 2. building_requests. Used to create requests and track building progress.
 3. building_contents. Used to track buildings stored in the mainframe.
+4. logistic_filters. Used to set filters of logistic section to requests.
+5. filter_lookup. Maps buffer keys to position in "logistic_filters" field.
+6. logistic_section. Cached logistic section used to setup filters.
 
 Entity state meaning breakdown:
 1. "Idle": entity does not have an assigned template, does not request
     anything, does not provide crafting power
 2. "Constructing": entity has an assigned template and is requesting
     materials, does not provide crafting power
-3. "Deconstructing": entity does not have an assigned template, does not
+3. "Deconstructing": entity has an assigned template, does not
     request anything, does not provide crafting power, currently trying
     to eject building contents to physical inventory.
 4. "Operational": entity has an assigned template, does not request anything
@@ -120,46 +123,56 @@ function VMainframe.initialize(properties)
     return Utilities.registry_sections.active
 end
 
----Clears properties of anything assigned on initialization or during on-tick
----updates. Intended use case: by entity processor when moving properties
----from "active" or "stalled" to "pending" or "incorrect". Does not clear
----"status" field from properties.
----@param properties EntityProperties
-function VMainframe.uninitialize(properties)
-
-end
-
 -------------------------------------------------------------------------------
 --------------------------------- IDLE STATE ----------------------------------
 -------------------------------------------------------------------------------
 
----Prepares properties for construction of the template
+---Used to change entity state from "idle" to "constructing".
+---Adds 4 tables to properties that are used in "constructing" mode.
 ---@param properties EntityProperties
-local function prepare_template_construction(properties)
+local function from_idle_to_constructing(properties)
     local build_cost = ClusterProcessor.get_build_cost(properties.first_cluster)
     local mult = properties.capacity
     ---@type table<BufferKeyString, ItemBuffer>
     local requests = {}
     ---@type table<BufferKeyString, ItemBuffer>
     local contents = {}
+    ---@type LogisticFilter[]
+    local filters = {}
+    ---@type table<BufferKeyString, integer>
+    local filter_lookup = {}
     -- processing all items from building cost of new template
     for key, count in pairs(build_cost) do
         local start_idx, end_idx = string.find(key, "//", 1, true)
         local name = string.sub(key, 1, start_idx - 1)
         local quality = string.sub(key, end_idx + 1)
+        local final_count = math.ceil(count * mult)
+        -- adding entry to requests table
         requests[key] = {
             name = name,
-            count = math.ceil(count * mult),
+            count = final_count,
             quality = quality,
         }
+        -- adding entry to contents table
         contents[key] = {
             name = name,
             count = 0,
             quality = quality,
         }
+        -- adding element to filters and its lookup table
+        local filter_idx = #filters + 1
+        filters[filter_idx] = {
+            value = {name = name, quality = quality},
+            min = final_count,
+            max = final_count,
+        }
+        filter_lookup[key] = filter_idx
     end
     properties.building_requests = requests
     properties.building_contents = contents
+    properties.logistic_filters = filters
+    properties.filter_lookup = filter_lookup
+    properties.state = entity_states.constructing
 end
 
 ---Used for on-tick updates of this entity in idle state.
@@ -176,8 +189,7 @@ local function idle_state_update(properties)
     end
     -- Assigned template is found: preparing for construction
     properties.assigned_template = template_uuid
-    prepare_template_construction(properties)
-    properties.state = entity_states.constructing
+    from_idle_to_constructing(properties)
     return Utilities.registry_sections.active
 end
 
@@ -188,11 +200,18 @@ end
 ---Scans entity inventory and withdraws anything that is in building requests
 ---@param properties EntityProperties
 local function withdraw_construction_materials(properties)
-    ---@type table<BufferKeyString, ItemBuffer> assuming table was created
+    ---Assuming tables below were created on state change
+    ---@type table<BufferKeyString, ItemBuffer>
     local requests = properties.building_requests
-    ---@type LuaInventory assuming it was cached on initialization
-    local inventory = properties.inventory
+    ---@type table<BufferKeyString, ItemBuffer>
+    local contents = properties.building_contents
+    ---@type LogisticFilter[]
+    local filters = properties.logistic_filters
+    ---@type table<BufferKeyString, integer>
+    local lookup = properties.filter_lookup
 
+    ---@type LuaInventory saved on initialization
+    local inventory = properties.inventory
     -- iterating over contents of entity inventory
     local inv_contents = inventory.get_contents()
     for _, item in ipairs(inv_contents) do
@@ -202,119 +221,217 @@ local function withdraw_construction_materials(properties)
         if entry then
             ---@diagnostic disable-next-line
             local removed_count = inventory.remove(entry)
-            -- updating requests table
-            entry.count = entry.count - removed_count
-            if entry.count == 0 then requests[buffer_key] = nil end
+
+            -- updating "requests" and "filters" tables
+            local new_count = entry.count - removed_count
+            local filter_idx = lookup[buffer_key]
+            if new_count > 0 then
+                entry.count = new_count
+                -- updating corresponding filter
+                local filter = filters[filter_idx]
+                filter.max = new_count
+                filter.min = new_count
+            else
+                -- new count is 0: removing this entry
+                requests[buffer_key] = nil
+                -- swapping current filter with last element for deletion
+                local last_filter = filters[#filters]
+                local value = last_filter.value
+                ---@diagnostic disable-next-line
+                local last_key = string.format("%s//%s", value.name, value.quality)
+                filters[filter_idx] = last_filter
+                filters[#filters] = nil
+                -- correcting lookup table
+                lookup[last_key] = filter_idx
+                lookup[buffer_key] = nil
+            end
+
             -- updating contents table
-            entry = properties.building_contents[buffer_key]
+            entry = contents[buffer_key]
             entry.count = entry.count + removed_count
         end
-    end
-end
-
--- TODO: change data structure. Have to cache table with section filters
-
-
-
----Clears logistic requests for a given mainframe
----@param properties EntityProperties
-local function clear_logistic_requests(properties)
-    ---@type LuaLogisticPoint assigned on initialization
-    local point = properties.logistic_point
-    point.trash_not_requested = true
-    -- deleting all sections from logistic point
-    for i = point.sections_count, 1, -1 do
-        point.remove_section(i)
     end
 end
 
 ---Sets logistic requests of an entity exactly to building requests.
 ---@param properties EntityProperties
 local function set_logistic_requests(properties)
-    ---@type LuaLogisticPoint assuming is was cached on initialization
-    local point = properties.logistic_point
-    point.trash_not_requested = true
-
-    -- Making sure there is exactly one logistic section and getting it
-    local s_count = point.sections_count
-    local section
-    if s_count == 0 then
-        section = point.add_section()
-    else
-        -- deleting all sections except the first one
-        for i = s_count, 2, -1 do
-            point.remove_section(i)
+    local section = properties.logistic_section
+    if not section or not section.valid then
+        ---@type LuaLogisticPoint
+        local log_point = properties.logistic_point
+        -- trying to get first section
+        section = log_point.get_section(1)
+        if not section then
+            -- no sections found: attempting to add one
+            section = log_point.add_section()
+            -- cannot create a section: return
+            if not section then return end
         end
-        section = point.get_section(1)
+        properties.logistic_section = section
     end
-    -- safety check: just in case
-    if not section or not section.is_manual then return end
-
-    local filters = {}
-    for _, entry in pairs(properties.building_requests) do
-        local count = entry.count
-        local filter = {
-            value = {name = entry.name, quality = entry.quality},
-            min = count,
-            max = count,
-        }
-        table.insert(filters, filter)
-    end
-    section.filters = filters
-    
-
-
-    -- clearing logistic requests
-    clear_logistic_requests(properties)
-    ---@type LuaLogisticPoint assuming it was cached on initialization
-    local log_point = properties.logistic_point
-    -- creating one new empty section
-    log_point.add_section()
-    local section = log_point.get_section(1)
-
-    -- requesting all construction materials
-    ---@type table<BufferKeyString, ItemBuffer> assuming table was created
-    local requests = properties.building_requests
-    local curr_slot = 1
-    for _, buffer in pairs(requests) do
-        local filter = {
-            value = {name = buffer.name, quality = buffer.quality},
-            min = buffer.count,
-            max = buffer.count,
-        }
-        section.set_slot(curr_slot, filter)
-        curr_slot = curr_slot + 1
-    end
+    section.filters = properties.logistic_filters
 end
 
+---Used to change entity state from "constructing" to "deconstructing"
+---@param properties EntityProperties
+local function from_constructing_to_deconstructing(properties)
+    -- Cleaning up fields used exclusively in "constructing" state
+    properties.building_requests = nil
+    properties.logistic_filters = nil
+    properties.filter_lookup = nil
+    properties.logistic_section = nil
 
+    properties.state = entity_states.deconstructing
+end
+
+---Used to change entity state from "constructing" to "operational"
+---@param properties EntityProperties
+local function from_constructing_to_operational(properties)
+    -- Cleaning up fields used exclusively in "constructing" state
+    properties.building_requests = nil
+    properties.logistic_filters = nil
+    properties.filter_lookup = nil
+    properties.logistic_section = nil
+
+    -- Assigning crafting power and marking operational
+    ---@type string checking on initialization
+    local cluster_uuid = properties.first_cluster
+    local unit_number = properties.unit_number
+    ClusterProcessor.assign_member_crafting_power(
+        cluster_uuid,
+        unit_number,
+        properties.capacity
+    )
+    ClusterProcessor.mark_member_operational(
+        cluster_uuid,
+        unit_number
+    )
+
+    properties.state = entity_states.operational
+end
 
 ---Used for on-tick updates of this entity in constructing state.
 ---@param properties EntityProperties
 ---@return EntityRegistrySection
 local function constructing_state_update(properties)
+    -- Checking for template change in the cluster
+    local current_template = properties.assigned_template
+    local cluster_template = ClusterProcessor.get_assigned_template(
+        properties.first_cluster
+    )
+    if current_template ~= cluster_template then
+        from_constructing_to_deconstructing(properties)
+        return Utilities.registry_sections.active
+    end
 
+    -- No template change occured: constructing current
+    withdraw_construction_materials(properties)
+    if not next(properties.building_requests) then
+        -- construction complete: moving to operational
+        from_constructing_to_operational(properties)
+        return Utilities.registry_sections.active
+    end
+    -- construction not complete: setting up filters
+    set_logistic_requests(properties)
+    return Utilities.registry_sections.active
 end
 
 -------------------------------------------------------------------------------
 ---------------------------- DECONSTRUCTING STATE -----------------------------
 -------------------------------------------------------------------------------
 
+---Attempts to move building contents to physical inventory. Can be called
+---in "deconstructing" state or during uninitialization.
+---Has to be safe in all possible initialized states.
+---@param properties EntityProperties
+local function eject_building_contents(properties)
+    ---@type LuaInventory assigned on initialization
+    local inventory = properties.inventory
+    -- inventory can be invalid during uninit
+    if not inventory.valid then return end
+    local contents = properties.building_contents
+    -- table does not exist in all states
+    if not contents then return end
+
+    for key, entry in pairs(contents) do
+        if entry.count > 0 then
+            ---@diagnostic disable-next-line
+            local inserted_count = inventory.insert(entry)
+            local new_count = entry.count - inserted_count
+            if new_count > 0 then
+                entry.count = new_count
+            else
+                contents[key] = nil
+            end
+        else
+            contents[key] = nil
+        end
+    end
+end
+
 ---Used for on-tick updates of this entity in deconstructing state.
 ---@param properties EntityProperties
 ---@return EntityRegistrySection
 local function deconstructing_state_update(properties)
+    ---Assuming table exists in this state
+    ---@type table<BufferKeyString, ItemBuffer>
+    local contents = properties.building_contents
+    if next(contents) then
+        eject_building_contents(properties)
+    end
 
+    local is_empty = properties.inventory.is_empty()
+    if not next(contents) and is_empty then
+        -- Deconstruction is complete: changing state to idle
+        properties.building_contents = nil
+        properties.assigned_template = nil
+        properties.state = entity_states.idle
+    end
+    return Utilities.registry_sections.active
+end
+
+-------------------------------------------------------------------------------
+------------------------------ OPERATIONAL STATE ------------------------------
+-------------------------------------------------------------------------------
+
+---Used to change entity state from "operational" to "deconstructing"
+---@param properties EntityProperties
+local function from_operational_to_deconstructing(properties)
+    -- Removing crafting power and marking not operational
+    ---@type string checking on initialization
+    local cluster_uuid = properties.first_cluster
+    local unit_number = properties.unit_number
+    ClusterProcessor.remove_member_crafting_power(
+        cluster_uuid,
+        unit_number
+    )
+    ClusterProcessor.mark_member_not_operational(
+        cluster_uuid,
+        unit_number
+    )
+
+    properties.state = entity_states.deconstructing
 end
 
 ---Used for on-tick updates of this entity in operational state.
 ---@param properties EntityProperties
 ---@return EntityRegistrySection
 local function operational_state_update(properties)
-
+    -- Checking for template change in the cluster
+    local current_template = properties.assigned_template
+    local cluster_template = ClusterProcessor.get_assigned_template(
+        properties.first_cluster
+    )
+    if current_template ~= cluster_template then
+        from_operational_to_deconstructing(properties)
+    end
+    return Utilities.registry_sections.active
 end
 
-
+-------------------------------------------------------------------------------
+------------------------- UPDATE AND UNINITIALIZATION -------------------------
+-------------------------------------------------------------------------------
 
 ---Maps entity states to corresponding update functions
 local update_router = {
@@ -337,111 +454,46 @@ function VMainframe.update(properties)
         return Utilities.registry_sections.incorrect
     end
 
+    -- Managing logistic sections
+    ---@type LuaLogisticPoint
+    local log_point = properties.logistic_point
+    log_point.trash_not_requested = true
+    -- removing all sections from logistic point except first
+    local section_count = log_point.sections_count
+    for i = section_count, 2, -1 do
+        log_point.remove_section(i)
+    end
+    -- one section is allowed is "constructing" state
+    if properties.state ~= entity_states.constructing and section_count > 0 then
+        log_point.remove_section(1)
+    end
 
-
+    -- State-specific updater
     local handler = update_router[properties.state]
     return handler(properties)
 end
 
-return VMainframe
-
---[[
-
-
----Checks that all requirements for operation of virtualization mainframe are met.
----If they are, prepares entity properties for on-tick processing.
----@param properties EntityProperties table from entity processor
----@return boolean status true if initialization was successful
-function VMainframe.attempt_entity_initialization(properties)
-    -- 1. First template is selected
-    local first_template = properties.first_template
-    if not first_template then return false end
-    -- 2. Entity is not located on a vsurface
-    local entity = properties.entity
-    if VSurfaceManager.is_vsurface(entity.surface_index) then return false end
-
-    ---All requirements are met. Preparing properties for on-tick processing
-    -- attempting to connect entity to cluster
-    local cluster = ClusterProcessor.add_to_cluster(
-        entity,
-        first_template,
-        weights[properties.entity_name]
-    )
-    if not cluster then return false end
-    properties.first_cluster = cluster
-    -- creating contents and requests tables according to template data
-    prepare_template_construction(properties)
-    -- saving LuaInventory object: assuming it has one
-    properties.inventory = entity.get_inventory(defines.inventory.chest)
-    -- saving LuaLogisticPoint: assuming it gas one (requester type)
-    properties.logistic_point = 
-    return true
-end
-
----Returns all buildings that are currently contained inside given
----virtualization mainframe to its physical inventory.
+---Clears properties of anything assigned on initialization or during on-tick
+---updates. Intended use case: by entity processor when moving properties
+---from "active" or "stalled" to "pending" or "incorrect". Does not clear
+---"status" field from properties.
 ---@param properties EntityProperties
-local function return_buildings_to_inventory(properties)
-    local inventory = properties.inventory
-    -- if entity was not initialized or is invalid, can not do anything
-    if not inventory or not inventory.valid then return end
-
-    ---If properties has cached inventory, contents will also be there
-    ---@type table<BufferKeyString, ItemBuffer>
-    local contents = properties.building_contents
-    for _, buffer in pairs(contents) do
-        if buffer.count > 0 then
-            inventory.insert{
-                name = buffer.name,
-                count = buffer.count,
-                quality = buffer.quality
-            }
-        end
-    end
-end
-
----Clears properties of anything assigned on initialization or during on-tick processing.
----Should be called when stopping on-tick processing of entity to clear fields that were
----assigned on initialization or during on-tick processing
----@param properties EntityProperties table from entity processor
-function VMainframe.on_processing_stopped(properties)
-    properties.operational = nil
-    ClusterProcessor.remove_from_cluster(
+function VMainframe.uninitialize(properties)
+    eject_building_contents(properties)
+    ClusterProcessor.remove_member_from_cluster(
         properties.first_cluster,
         properties.unit_number
     )
-    properties.first_cluster = nil
-    properties.building_requests = nil
-    return_buildings_to_inventory(properties)
-    properties.building_contents = nil
+    properties.capacity = nil
     properties.inventory = nil
     properties.logistic_point = nil
-end
-
-
-
----Used for on-tick processing of virtualization mainframes.
----@param properties EntityProperties
-function VMainframe.process_entity(properties)
-    if not properties.operational then
-        withdraw_building_materials(properties)
-        ---@type table<BufferKeyString, ItemBuffer> assuming table was created on initialization
-        local requests = properties.building_requests
-        if next(requests) then
-            set_logistic_requests(properties)
-        else
-            -- template construction is done, enabling crafting power
-            ClusterProcessor.add_crafting_power(
-                properties.first_cluster,
-                properties.unit_number,
-                crafting_power[properties.entity_name]
-            )
-            clear_logistic_requests(properties)
-            properties.operational = true
-        end
-    end
+    properties.state = nil
+    properties.assigned_template = nil
+    properties.building_requests = nil
+    properties.building_contents = nil
+    properties.logistic_filters = nil
+    properties.filter_lookup = nil
+    properties.logistic_section = nil
 end
 
 return VMainframe
-
---]]
