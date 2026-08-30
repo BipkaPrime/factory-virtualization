@@ -1,328 +1,1265 @@
 --[[
-Entities that are added by this mod have custom GUIs for several reasons.
-Most notably, custom gui are needed to give player the opportunity to manipulate
-entity data in entity registry. Second reason is player QoL. Entity gui will often
-display important information regarding entity. Like current status, current item
-requests of vmainframe, information of cluster entity is connected to, etc.
+Entities added by this mod have custom GUIs that allow player to affect
+entity configuration in the entity-processor. It also displays useful
+entity-related information (status, current flow, etc.) 
 
-Technically entity gui is handled as follows: when player opens an entity from this mod,
-its vanilla gui is closed and this one open instead. For convenience, internal name of
-this window is the same for all entities. Technically it's always the same window, however
-elements displayed depend on entity name. Both alive entities and entity-ghosts are supported.
-Backend is handled by entity processor.
+Technically entity GUI is handled as follows: when player clicks an entity
+from this mod, its "vanilla" GUI is closed and this is opened instead.
+For convenience, internal name of this window is the same among all entities,
+so technically it's always the same window. However displayed elements
+depend on entity name. Both "normal" entities and "ghosts" are supported.
 
-On gui creation, references to all elements that we want to have quick access to are saved in storage.
-As well as several important values like reference to entity, entity name, etc. All data is located
-at storage.entity_gui. For this table key is player index, value is table containing gui data.
+When this window is opened, important data is stored in "gui_data" table.
+It includes fields like "entity", "entity_name", etc. As well as references
+to elements we want to have quick access to. Data is stored separately for
+all players and is located at storage.entity_gui: table<integer, EntityGuiData>
 --]]
 
----Table with references to entity gui elements.
----@class EntityGuiElements: GuiElementsBase
----@field left_frame LuaGuiElement Left column for controls
----@field datafield LuaGuiElement Right column for information display
----@field input_radiobutton LuaGuiElement|nil used for changing IO mode for entities that support it
----@field output_radiobutton LuaGuiElement|nil used for changing IO mode for entities that support it
----@field first_template_selector LuaGuiElement|nil
----@field first_template_search LuaGuiElement|nil
----@field second_template_selector LuaGuiElement|nil
----@field second_template_search LuaGuiElement|nil
----@field choose_item_button LuaGuiElement|nil
----@field choose_fluid_button LuaGuiElement|nil EntityWithFluidSelection
----@field item_mode_radiobutton LuaGuiElement|nil
----@field fluid_mode_radiobutton LuaGuiElement|nil
----@field energy_mode_radiobutton LuaGuiElement|nil
----@field capability_override_textfield LuaGuiElement|nil
----@field capability_override_checkbox LuaGuiElement|nil
+---Elements that can be used for entity GUIs
+---@class EntityGuiElements
+---@field main_window LuaGuiElement root frame that contains all elements
+---@field left_frame LuaGuiElement left side of interface (used for controls)
+---@field right_frame LuaGuiElement right side of interface (used for info display)
+---@field input_radiobtn LuaGuiElement|nil used for "io_mode" configuration
+---@field output_radiobtn LuaGuiElement|nil used for "io_mode" configuration
+---@field item_radiobtn LuaGuiElement|nil used for "operation_mode" configuration
+---@field fluid_radiobtn LuaGuiElement|nil used for "operation_mode" configuration
+---@field energy_radiobtn LuaGuiElement|nil used for "operation_mode" configuration
+---@field item_selection LuaGuiElement|nil choose-elem-button used for
+---"selected_item" configuration
+---@field fluid_selection LuaGuiElement|nil choose-elem-button used for
+---"selected_fluid" configuration
+---@field fc_selector LuaGuiElement|nil "list-box" used for "first_cluster"
+---configuration 
+---@field sc_selector LuaGuiElement|nil "list-box" used for "second_cluster"
+---configuration 
+---@field override_checkbox LuaGuiElement|nil "checkbox" used for
+---"override_capability" configuration
+---@field override_textfield LuaGuiElement|nil "textfield" used for
+---"override_capability" configuration
+---@field template_selector LuaGuiElement|nil "list-box" used for "selected_template"
+---configuration
+---@field status_label LuaGuiElement|nil "label" used to display entity status
 
----Table describing entity GUI state
----@class EntityGuiData: GuiDataBase
+---Contains data related to this window for one player
+---@class EntityGuiData
+---@field opened boolean|nil true if window is currently open
+---@field elements EntityGuiElements
 ---@field entity LuaEntity entity that was opened to create this gui
+---@field unit_number integer unique entity identifier
 ---@field entity_name string name of this entity or ghost-entity
----@field player_index number unique player identifier
----@field first_template_query string|nil user input into first template search
----@field second_template_query string|nil user input into second template search
----@field elements EntityGuiElements|nil
+---@field is_ghost boolean true if opened entity is a ghost
+---@field surface_index integer entity.surface_index
+---@field fc_query string|nil first cluster search query
+---@field sc_query string|nil second cluster search query
+---@field template_query string|nil template search query
+---@field player LuaPlayer for which window is opened
 
+local EntityProcessor = require("src.world.entity-processor")
+local ClusterProcessor = require("src.simulation.cluster-processor")
+local TCCManager = require("src.simulation.tcc-manager")
 local CommonGui = require("src.gui.common")
-local EntityControls = require("src.gui.entity-controls")
 local GuiUpdater = require("src.gui.updater")
-local EntityInfo = require("src.gui.entity-info")
+
 
 local PREFIX = "FV-"
 local EntityGui = {}
 
 -------------------------------------------------------------------------------
--- GUI CONSTRUCTORS
+----------------- LEFT FRAME ELEMENTS (ENTITY CONFIGURATION) ------------------
 -------------------------------------------------------------------------------
 
----Creates a base for entity gui and initializes the entity gui
----section in storage for given player. It's assumed that custom
----entity gui window is not opened when this is called.
+---@enum
+local io_modes = {input = "input", output = "output"}
+---@enum
+local operation_modes = {item = "item", fluid = "fluid", energy = "energy"}
+
+----------------------------------- IO MODE -----------------------------------
+
+---Updates "io_mode" configurator according to entity gui
+---@param gui_data EntityGuiData table with window-related data
+local function update_io_mode_configurator(gui_data)
+    local elements = gui_data.elements
+    local input_btn = elements.input_radiobtn
+    if not input_btn or not input_btn.valid then return end
+    local output_btn = elements.output_radiobtn
+    if not output_btn or not output_btn.valid then return end
+    local io_mode = EntityProcessor.get_io_mode(gui_data.entity)
+    input_btn.state = (io_mode == io_modes.input)
+    output_btn.state = (io_mode == io_modes.output)
+end
+
+---Adds 2 radiobuttons used to configure "io_mode" for entity
+---@param parent LuaGuiElement elements will be added here
+---@param gui_data EntityGuiData table with window-related data
+---@param subtitle LocalisedString caption above radiobuttons
+---@param input_caption LocalisedString caption near "input" button
+---@param output_caption LocalisedString caption near "output" button
+local function add_io_mode_configurator(
+    parent,
+    gui_data,
+    subtitle,
+    input_caption,
+    output_caption
+)
+    local v_flow = parent.add{type = "flow", direction = "vertical"}
+    local title = v_flow.add{type = "label", caption = subtitle}
+
+    -- Input button
+    local row = v_flow.add{type = "flow", direction = "horizontal"}
+    row.style.vertical_align = "center"
+    local button = row.add{
+        type = "radiobutton",
+        name = PREFIX .. "entity-input-radiobtn",
+        state = false
+    }
+    row.add{type = "label", caption = input_caption}
+    gui_data.elements.input_radiobtn = button
+
+    -- Output button
+    row = v_flow.add{type = "flow", direction = "horizontal"}
+    row.style.vertical_align = "center"
+    button = row.add{
+        type = "radiobutton",
+        name = PREFIX .. "entity-output-radiobtn",
+        state = false
+    }
+    row.add{type = "label", caption = output_caption}
+    gui_data.elements.output_radiobtn = button
+
+    update_io_mode_configurator(gui_data)
+end
+
+---Handles input/output radiobutton being pressed
+---@param player_index integer unique player identifier
+---@param io_mode "input"|"output" chosen io mode
+local function handle_io_radiobtn(player_index, io_mode)
+    local gui_data = storage.entity_gui[player_index]
+    EntityProcessor.set_io_mode(gui_data.entity, io_mode)
+    update_io_mode_configurator(gui_data)
+end
+
+---Handles input radiobutton being pressed
+---@param event EventData.on_gui_checked_state_changed
+function EntityGui.handle_input_radiobtn(event)
+    handle_io_radiobtn(event.player_index, io_modes.input)
+end
+
+---Handles output radiobutton being pressed
+---@param event EventData.on_gui_checked_state_changed
+function EntityGui.handle_output_radiobtn(event)
+    handle_io_radiobtn(event.player_index, io_modes.output)
+end
+
+-------------------------------- SELECTED ITEM --------------------------------
+
+---Entities for which item/fluid selection should be enabled only
+---when "operation_mode" is appropriate
+local mode_sensitive_entities = {
+    [PREFIX .. "inter-cluster-bridge-mk1"] = true,
+    [PREFIX .. "inter-cluster-bridge-mk2"] = true,
+    [PREFIX .. "inter-cluster-bridge-mk3"] = true,
+    [PREFIX .. "cluster-overflow-controller-mk1"] = true,
+    [PREFIX .. "cluster-overflow-controller-mk2"] = true,
+    [PREFIX .. "cluster-overflow-controller-mk3"] = true,
+    [PREFIX .. "cluster-storage-unit-mk1"] = true,
+    [PREFIX .. "cluster-storage-unit-mk2"] = true,
+    [PREFIX .. "cluster-storage-unit-mk3"] = true,
+}
+
+---Updates "selected_item" configurator according to gui data
+---@param gui_data EntityGuiData table with window-related data
+local function update_selected_item_configurator(gui_data)
+    local button = gui_data.elements.item_selection
+    if not button or not button.valid then return end
+
+    -- setting elem value for button according to entity processor data
+    local entity = gui_data.entity
+    local name, quality = EntityProcessor.get_selected_item(entity)
+    button.elem_value = name and quality and {name = name, quality = quality} or nil
+
+    -- enabling/disabling the button if necessery
+    local entity_name = gui_data.entity_name
+    if mode_sensitive_entities[entity_name] then
+        local operation_mode = EntityProcessor.get_operation_mode(entity)
+        button.enabled = (operation_mode == operation_modes.item)
+    end
+end
+
+---Adds "choose-elem-button" used to configure "selected_item"
+---@param parent LuaGuiElement elements will be added here
+---@param gui_data EntityGuiData table with window-related data
+local function add_selected_item_configurator(parent, gui_data)
+    local row = parent.add{type = "flow", direction = "horizontal"}
+    row.style.vertical_align = "center"
+    local button = row.add{
+        type = "choose-elem-button",
+        name = PREFIX .. "entity-item-selection",
+        elem_type = "item-with-quality",
+    }
+    row.add{type="label", caption={"entity-gui.select-item"}}
+    gui_data.elements.item_selection = button
+    update_selected_item_configurator(gui_data)
+end
+
+---Handles "selected_item" configurator being changed
+---@param event EventData.on_gui_elem_changed
+function EntityGui.handle_item_selection(event)
+    local gui_data = storage.entity_gui[event.player_index]
+    local selection = event.element.elem_value
+    local name = selection and selection.name
+    local quality = selection and selection.quality
+    ---@diagnostic disable-next-line
+    EntityProcessor.set_selected_item(gui_data.entity, name, quality)
+    update_selected_item_configurator(gui_data)
+end
+
+------------------------------- SELECTED FLUID --------------------------------
+
+---Updates "selected_fluid" configurator according to gui data
+---@param gui_data EntityGuiData
+local function update_selected_fluid_configurator(gui_data)
+    local button = gui_data.elements.fluid_selection
+    if not button or not button.valid then return end
+
+    -- setting elem value for button according to entity processor data
+    local entity = gui_data.entity
+    local fluid_name = EntityProcessor.get_selected_fluid(entity)
+    button.elem_value = fluid_name or nil
+
+    -- enabling/disabling the button if necessery
+    local entity_name = gui_data.entity_name
+    if mode_sensitive_entities[entity_name] then
+        local operation_mode = EntityProcessor.get_operation_mode(entity)
+        button.enabled = (operation_mode == operation_modes.fluid)
+    end
+end
+
+---Adds "choose-elem-button" used to configure "selected_fluid"
+---@param parent LuaGuiElement elements will be added here
+---@param gui_data EntityGuiData table with window-related data
+local function add_selected_fluid_configurator(parent, gui_data)
+    local flow = parent.add{type = "flow", direction = "horizontal"}
+    flow.style.vertical_align = "center"
+    local button = flow.add{
+        type = "choose-elem-button",
+        name = PREFIX .. "entity-fluid-selection",
+        elem_type = "fluid",
+    }
+    flow.add{type = "label", caption = {"entity-gui.select-fluid"}}
+    gui_data.elements.fluid_selection = button
+    update_selected_fluid_configurator(gui_data)
+end
+
+---Handles "selected_fluid" configurator being changed
+---@param event EventData.on_gui_elem_changed
+function EntityGui.handle_fluid_selection(event)
+    local gui_data = storage.entity_gui[event.player_index]
+
+    -- saving selection to entity processor
+    local fluid_name = event.element.elem_value
+    ---@diagnostic disable-next-line: param-type-mismatch
+    EntityProcessor.set_selected_fluid(gui_data.entity, fluid_name)
+    update_selected_fluid_configurator(gui_data)
+end
+
+------------------------------- OPERATION MODE --------------------------------
+
+---Updates "operation_mode" configurator according to gui data
+---@param gui_data EntityGuiData table with window-related data
+local function update_operation_mode_configurator(gui_data)
+    local elements = gui_data.elements
+    local item_btn = elements.item_radiobtn
+    if not item_btn or not item_btn.valid then return end
+    local fluid_btn = elements.fluid_radiobtn
+    if not fluid_btn or not fluid_btn.valid then return end
+    local energy_btn = elements.energy_radiobtn
+    if not energy_btn or not energy_btn.valid then return end
+    local operation_mode = EntityProcessor.get_operation_mode(gui_data.entity)
+    item_btn.state = (operation_mode == operation_modes.item)
+    fluid_btn.state = (operation_mode == operation_modes.fluid)
+    energy_btn.state = (operation_mode == operation_modes.energy)
+end
+
+---Adds 3 radio buttons used to configure "operation_mode"
+---@param parent LuaGuiElement elements will be added here
+---@param gui_data EntityGuiData table with window-related data
+local function add_operation_mode_configurator(parent, gui_data)
+    local flow = parent.add{type = "flow", direction = "vertical"}
+    flow.add{type = "label", caption = {"entity-gui.select-operation-mode"}}
+
+    -- Item mode radiobutton
+    local row = flow.add{type = "flow", direction = "horizontal"}
+    row.style.vertical_align = "center"
+    local button = row.add{
+        type = "radiobutton",
+        name = PREFIX .. "entity-item-radiobtn",
+        state = false
+    }
+    row.add{type = "label", caption = {"entity-gui.item"}}
+    gui_data.elements.item_radiobtn = button
+
+    -- Fluid mode radiobutton
+    row = flow.add{type = "flow", direction = "horizontal"}
+    row.style.vertical_align = "center"
+    button = row.add{
+        type = "radiobutton",
+        name = PREFIX .. "entity-fluid-radiobtn",
+        state = false
+    }
+    row.add{type = "label", caption = {"entity-gui.fluid"}}
+    gui_data.elements.fluid_radiobtn = button
+
+    -- Energy mode radiobutton
+    row = flow.add{type = "flow", direction = "horizontal"}
+    row.style.vertical_align = "center"
+    button = row.add{
+        type = "radiobutton",
+        name = PREFIX .. "entity-energy-radiobtn",
+        state = false
+    }
+    row.add{type = "label", caption = {"entity-gui.energy"}}
+    gui_data.elements.energy_radiobtn = button
+
+    update_operation_mode_configurator(gui_data)
+end
+
+---Handles one of operation mode radiobuttons being pressed
+---@param player_index integer unique player identifier
+---@param operation_mode "item"|"fluid"|"energy"
+local function handle_operation_mode_radiobtn(player_index, operation_mode)
+    local gui_data = storage.entity_gui[player_index]
+    EntityProcessor.set_operation_mode(gui_data.entity, operation_mode)
+    update_operation_mode_configurator(gui_data)
+    update_selected_fluid_configurator(gui_data)
+    update_selected_item_configurator(gui_data)
+end
+
+---Handles item radiobutton being pressed
+---@param event EventData.on_gui_checked_state_changed
+function EntityGui.handle_item_radiobtn(event)
+    handle_operation_mode_radiobtn(event.player_index, operation_modes.item)
+end
+
+---Handles fluid radiobutton being pressed
+---@param event EventData.on_gui_checked_state_changed
+function EntityGui.handle_fluid_radiobtn(event)
+    handle_operation_mode_radiobtn(event.player_index, operation_modes.fluid)
+end
+
+---Handles energy radiobutton being pressed
+---@param event EventData.on_gui_checked_state_changed
+function EntityGui.handle_energy_radiobtn(event)
+    handle_operation_mode_radiobtn(event.player_index, operation_modes.energy)
+end
+
+-------------------------------- FIRST CLUSTER --------------------------------
+
+---For these any cluster can be selected regardless of surface
+local access_interfaces = {
+    [PREFIX .. "template-access-interface-mk1"] = true,
+    [PREFIX .. "template-access-interface-mk2"] = true,
+    [PREFIX .. "template-access-interface-mk3"] = true,
+}
+
+---Updates "first_cluster" configurator according to gui data
+---@param gui_data EntityGuiData table with window-related data
+local function update_first_cluster_configurator(gui_data)
+    local selector = gui_data.elements.fc_selector
+    if not selector or not selector.valid then return end
+
+    -- Gathering displayed options
+    local options
+    if access_interfaces[gui_data.entity_name] then
+        -- All suboptimal clusters for access interfaces
+        options = ClusterProcessor.get_all_clusters(
+            gui_data.fc_query,
+            false
+        )
+    else
+        -- All clusters on the same surface as entity
+        options = ClusterProcessor.get_surface_clusters(
+            gui_data.surface_index,
+            gui_data.fc_query
+        )
+    end
+
+    -- Getting display name of selected cluster
+    local selected_uuid = EntityProcessor.get_first_cluster(gui_data.entity)
+    local selected_name = ClusterProcessor.get_cluster_name(selected_uuid)
+    CommonGui.update_selector(selector, options, selected_name)
+end
+
+---Adds "list-box" used to configure "first_cluster". Also adds "textfield"
+---for searching and caption above it.
+---@param parent LuaGuiElement elements will be added here
+---@param gui_data EntityGuiData table with window-related data
+---@param subtitle LocalisedString caption at the top of "textfield" element
+---@param height number|nil height of "list-box", defaults to 200
+local function add_first_cluster_configurator(
+    parent,
+    gui_data,
+    subtitle,
+    height
+)
+    local search, selector = CommonGui.add_selection_widget(
+        parent,
+        PREFIX .. "entity-fc-search",
+        PREFIX .. "entity-fc-selector",
+        subtitle,
+        height
+    )
+    search.text = gui_data.fc_query or ""
+    gui_data.elements.fc_selector = selector
+    update_first_cluster_configurator(gui_data)
+    CommonGui.scroll_to_selection(selector)
+end
+
+---Handles first cluster search query being changed
+---@param event EventData.on_gui_text_changed
+function EntityGui.handle_first_cluster_search(event)
+    local gui_data = storage.entity_gui[event.player_index]
+    gui_data.fc_query = event.element.text
+    update_first_cluster_configurator(gui_data)
+end
+
+---Handles first cluster selection being changed
+---@param event EventData.on_gui_selection_state_changed
+function EntityGui.handle_first_cluster_selection(event)
+    local gui_data = storage.entity_gui[event.player_index]
+    local entity = gui_data.entity
+    local old_uuid = EntityProcessor.get_first_cluster(entity)
+    local selector = event.element
+    local new_name = selector.get_item(selector.selected_index)
+    ---@diagnostic disable-next-line: param-type-mismatch
+    local new_uuid = ClusterProcessor.get_cluster_uuid(new_name)
+
+    -- Clicking already selected item results in selection being cleared
+    local selection
+    if old_uuid == new_uuid then
+        selection = nil
+    else
+        selection = new_uuid
+    end
+    EntityProcessor.set_first_cluster(entity, selection)
+    update_first_cluster_configurator(gui_data)
+end
+
+------------------------------- SECOND CLUSTER --------------------------------
+
+---Updates "second_cluster" configurator according to gui data
+---@param gui_data EntityGuiData table with window-related data
+local function update_second_cluster_configurator(gui_data)
+    local selector = gui_data.elements.sc_selector
+    if not selector or not selector.valid then return end
+    -- Getting display names for all clusters on entity.surface
+    local options = ClusterProcessor.get_surface_clusters(
+        gui_data.surface_index,
+        gui_data.sc_query
+    )
+    -- Getting display name of selected cluster
+    local selected_uuid = EntityProcessor.get_second_cluster(gui_data.entity)
+    local selected_name = ClusterProcessor.get_cluster_name(selected_uuid)
+    CommonGui.update_selector(selector, options, selected_name)
+end
+
+---Adds "list-box" used to configure "second_cluster". Also adds "textfield"
+---for searching and caption above it.
+---@param parent LuaGuiElement elements will be added here
+---@param gui_data EntityGuiData table with window-related data
+---@param subtitle LocalisedString caption at the top of "textfield" element
+---@param height number|nil height of "list-box", defaults to 200
+local function add_second_cluster_configurator(
+    parent,
+    gui_data,
+    subtitle,
+    height
+)
+    local search, selector = CommonGui.add_selection_widget(
+        parent,
+        PREFIX .. "entity-sc-search",
+        PREFIX .. "entity-sc-selector",
+        subtitle,
+        height
+    )
+    search.text = gui_data.sc_query or ""
+    gui_data.elements.sc_selector = selector
+    update_second_cluster_configurator(gui_data)
+    CommonGui.scroll_to_selection(selector)
+end
+
+---Handles second cluster search query being changed
+---@param event EventData.on_gui_text_changed
+function EntityGui.handle_second_cluster_search(event)
+    local gui_data = storage.entity_gui[event.player_index]
+    gui_data.sc_query = event.element.text
+    update_second_cluster_configurator(gui_data)
+end
+
+---Handles second cluster selection being changed
+---@param event EventData.on_gui_selection_state_changed
+function EntityGui.handle_second_cluster_selection(event)
+    local gui_data = storage.entity_gui[event.player_index]
+    local entity = gui_data.entity
+    local old_uuid = EntityProcessor.get_second_cluster(entity)
+    local selector = event.element
+    local new_name = selector.get_item(selector.selected_index)
+    ---@diagnostic disable-next-line: param-type-mismatch
+    local new_uuid = ClusterProcessor.get_cluster_uuid(new_name)
+
+    -- Clicking already selected item results in selection being cleared
+    local selection
+    if old_uuid == new_uuid then
+        selection = nil
+    else
+        selection = new_uuid
+    end
+    EntityProcessor.set_second_cluster(entity, selection)
+    update_second_cluster_configurator(gui_data)
+end
+
+----------------------------- CAPABILITY OVERRIDE -----------------------------
+
+---Updates "capability_override" configurator according to gui data
+---@param gui_data EntityGuiData table with window-related data
+local function update_capability_override_configurator(gui_data)
+    local elements = gui_data.elements
+    local textfield = elements.override_textfield
+    if not textfield or not textfield.valid then return end
+    local checkbox = elements.override_checkbox
+    if not checkbox or not checkbox.valid then return end
+
+    local state = checkbox.state
+    -- enabling/disabling second row based on checkbox state
+    for _, child in ipairs(textfield.parent.children) do
+        child.enabled = state
+    end
+
+    -- Setting override value according to data from entity processor
+    local override = EntityProcessor.get_capability_override(gui_data.entity)
+    local override_percent = override and override * 100
+    textfield.text = CommonGui.number_to_string(override_percent, 2)
+end
+
+---Adds "textfield" used to configure "capability_override" and
+---a checkbox that enables it.
+---@param parent LuaGuiElement widget will be added here
+---@param gui_data EntityGuiData table with window-related data
+---@param checkbox_caption LocalisedString caption to display by checkbox
+---@param textfield_caption LocalisedString caption to display by textbox
+local function add_capability_override_configurator(
+    parent,
+    gui_data,
+    checkbox_caption,
+    textfield_caption
+)
+    local flow = parent.add{type = "flow", direction = "vertical"}
+
+    -- First row: label and checkbox that enables the second row
+    local row = flow.add{type = "flow", direction = "horizontal"}
+    row.style.vertical_align = "center"
+    local override = EntityProcessor.get_capability_override(gui_data.entity)
+    local checkbox = row.add{
+        type = "checkbox",
+        name = PREFIX .. "entity-override-checkbox",
+        state = not not override
+    }
+    row.add{type = "label", caption = checkbox_caption}
+    gui_data.elements.override_checkbox = checkbox
+
+    -- Second row: override textfield and 2 labels
+    row = flow.add{type = "flow", direction = "horizontal"}
+    row.style.vertical_align = "center"
+    row.add{type = "label", caption = textfield_caption}
+    local textfield = row.add{
+        type = "textfield",
+        name = PREFIX .. "entity-override-textfield",
+        numeric = true,
+        allow_decimal = true,
+        allow_negative = false,
+        lose_focus_on_confirm = true,
+    }
+    row.add{type = "label", caption = "%"}
+    textfield.style.width = 75
+    gui_data.elements.override_textfield = textfield
+    update_capability_override_configurator(gui_data)
+end
+
+---Handles "capability_override" checkbox being pressed
+---@param event EventData.on_gui_checked_state_changed
+function EntityGui.handle_override_checkbox(event)
+    local gui_data = storage.entity_gui[event.player_index]
+    local state = event.element.state
+    -- if checkbox was disabled, clearing capability override
+    if not state then
+        EntityProcessor.set_capability_override(gui_data.entity, nil)
+    end
+    update_capability_override_configurator(gui_data)
+end
+
+---Handles "capability_override" textfield being changed
+---@param event EventData.on_gui_text_changed
+function EntityGui.handle_override_textfield(event)
+    local gui_data = storage.entity_gui[event.player_index]
+    local textfield = event.element
+    local input_text = textfield.text
+    local value = tonumber(input_text)
+
+    -- If provided value is greater than 100, setting it to 100
+    if value and value > 100 then
+        value = 100
+        textfield.text = "100"
+    end
+
+    -- assuming that value cannot be a negative number
+    local override_value = value and value / 100
+    EntityProcessor.set_capability_override(gui_data.entity, override_value)
+end
+
+----------------------------- OVERFLOW THRESHOLD ------------------------------
+
+---Adds "textfield", which is used to configure "overflow_threshold"
+---@param parent LuaGuiElement widget will be added here
+---@param gui_data EntityGuiData table with window-related data
+local function add_overflow_threshold_configurator(parent, gui_data)
+    local flow = parent.add{type = "flow", direction = "horizontal"}
+    flow.style.vertical_align = "center"
+    flow.add{type = "label", caption = {"entity-gui.overflow-threshold"}}
+    local textfield = flow.add{
+        type = "textfield",
+        name = PREFIX .. "entity-overflow-threshold",
+        numeric = true,
+        allow_decimal = true,
+        allow_negative = false,
+        lose_focus_on_confirm = true,
+    }
+    flow.add{type = "label", caption = "%"}
+    textfield.style.width = 75
+
+    -- setting threshold value to match data from entity processor
+    local threshold = EntityProcessor.get_overflow_threshold(gui_data.entity)
+    local percent_value = threshold and (threshold * 100)
+    textfield.text = CommonGui.number_to_string(percent_value, 2)
+end
+
+---Handles "overflow_threshold" being changed
+---@param event EventData.on_gui_text_changed
+function EntityGui.handle_overflow_threshold(event)
+    local gui_data = storage.entity_gui[event.player_index]
+    local textfield = event.element
+    local input_text = textfield.text
+    local value = tonumber(input_text)
+
+    -- if provided value is greater than 100, setting it to 100
+    if value and value > 100 then
+        value = 100
+        textfield.text = "100"
+    end
+
+    -- assuming that value cannot be a negative number
+    local threshold = value and value / 100
+    EntityProcessor.set_overflow_threshold(gui_data.entity, threshold)
+end
+
+------------------------------ SELECTED TEMPLATE ------------------------------
+
+---Updates "selected_template" configurator according to gui data
+---@param gui_data EntityGuiData table with window-related data
+local function update_selected_template_configurator(gui_data)
+    local selector = gui_data.elements.template_selector
+    if not selector or not selector.valid then return end
+    -- Getting display names of all templates
+    local options = TCCManager.get_template_names(gui_data.template_query)
+    -- Getting display name of selected template
+    local uuid = EntityProcessor.get_selected_template(gui_data.entity)
+    local selected_name = TCCManager.get_template_name(uuid)
+    CommonGui.update_selector(selector, options, selected_name)
+end
+
+---Adds "list-box" used to configure "selected_template". Also adds "textfield"
+---for searching and caption above it.
+---@param parent LuaGuiElement elements will be added here
+---@param gui_data EntityGuiData table with window-related data
+local function add_selected_template_configurator(parent, gui_data)
+    local search, selector = CommonGui.add_selection_widget(
+        parent,
+        PREFIX .. "entity-template-search",
+        PREFIX .. "entity-template-selector",
+        {"entity-gui.select-template"},
+        150
+    )
+    search.text = gui_data.template_query or ""
+    gui_data.elements.template_selector = selector
+    update_selected_template_configurator(gui_data)
+    CommonGui.scroll_to_selection(selector)
+end
+
+---Handles "selected_template" search query being changed
+---@param event EventData.on_gui_text_changed
+function EntityGui.handle_selected_template_search(event)
+    local gui_data = storage.entity_gui[event.player_index]
+    gui_data.template_query = event.element.text
+    update_selected_template_configurator(gui_data)
+end
+
+---Handles "selected_template" being changed
+---@param event EventData.on_gui_selection_state_changed
+function EntityGui.handle_selected_template_selection(event)
+    local gui_data = storage.entity_gui[event.player_index]
+    local entity = gui_data.entity
+    local old_uuid = EntityProcessor.get_selected_template(entity)
+    local selector = event.element
+    local new_name = selector.get_item(selector.selected_index)
+    ---@diagnostic disable-next-line: param-type-mismatch
+    local new_uuid = TCCManager.get_template_uuid(new_name)
+
+    -- Clicking already selected item results in selection being cleared
+    local selection
+    if old_uuid == new_uuid then
+        selection = nil
+    else
+        selection = new_uuid
+    end
+    EntityProcessor.set_selected_template(entity, selection)
+    update_selected_template_configurator(gui_data)
+end
+
+-------------------------------------------------------------------------------
+------------------ RIGHT FRAME ELEMENTS (ENTITY INFORMATION) ------------------
+-------------------------------------------------------------------------------
+
+--------------------------- STATUS DISPLAY SECTION ----------------------------
+
+---Gets entity status caption
+---@param gui_data EntityGuiData table with window-related data
+---@return LocalisedString
+local function get_entity_status(gui_data)
+    local entity = gui_data.entity
+    if not entity.valid then
+        return {"entity-status.invalid"}
+    end
+    if gui_data.is_ghost then
+        return {"entity-status.ghost"}
+    end
+    local properties = EntityProcessor.get_entity_properties(
+        gui_data.unit_number
+    )
+    if not properties then
+        return {"entity-status.not-registered"}
+    end
+    return properties.status or {"entity-status.unknown"}
+end
+
+---Adds section used to display entity status
+---@param parent LuaGuiElement section will be added gere
+---@param gui_data EntityGuiData table with window-related data
+local function add_status_section(parent, gui_data)
+    local section = CommonGui.create_info_element_base(
+        parent,
+        {"entity-gui.entity-status"}
+    )
+    local label = section.add{
+        type = "label",
+        caption = get_entity_status(gui_data),
+    }
+    gui_data.elements.status_label = label
+end
+
+---Updates section used to display entity status
+---@param gui_data EntityGuiData table with window-related data
+local function update_status_section(gui_data)
+    local label = gui_data.elements.status_label
+    if not label or not label.valid then return end
+    label.caption = get_entity_status(gui_data)
+end
+
+------------------------- ENTITY PERFORMANCE DISPLAY --------------------------
+
+
+
+-------------------------------------------------------------------------------
+------------------------------ GUI CONSTRUCTION -------------------------------
+-------------------------------------------------------------------------------
+
+---Creates a base for entity GUI window. Also initializes EntityGuiData
+---table in storage for given player. Assuming that this window is not
+---opened when this function is called
 ---@param player LuaPlayer assumed to be valid
 ---@param entity LuaEntity assumed to be valid
 ---@return EntityGuiData
 local function create_entity_gui_base(player, entity)
-    -- initializing entity_gui storage for given player
-    local player_index = player.index
-    storage.entity_gui[player_index] = storage.entity_gui[player.index] or {}
-    local gui_data = storage.entity_gui[player_index]
-    gui_data.opened = true
-    gui_data.entity = entity
+    -- Main window creation
     local entity_name = entity.name
-    if entity_name == "entity-ghost" then entity_name = entity.ghost_name end
-    gui_data.entity_name = entity_name
-    gui_data.player_index = player_index
-    gui_data.elements = {}
-
-    -- creating base window
+    local is_ghost = entity_name == "entity-ghost"
+    if is_ghost then
+        entity_name = entity.ghost_name
+    end
     local title = {"entity-name." .. entity_name}
     local main_window = CommonGui.create_base_window(
         player,
         PREFIX .. "entity-window",
         title
     )
-    gui_data.elements.main_window = main_window
-    player.opened = main_window
 
-    -- invisible container for other frames
+    -- Horizontal flow for other frames
     local main_flow = main_window.add{
-        type="flow",
+        type = "flow",
         direction="horizontal",
     }
+    main_flow.style.height = 600
 
-    -- left half of interface for controls
+    -- Left half of interface: control elements
     local left_frame = main_flow.add{
-        type = "frame",
-        direction = "vertical",
-        style = "inside_shallow_frame_with_padding",
+        type="frame",
+        direction="vertical",
+        style="inside_shallow_frame_with_padding",
     }
     left_frame.style.right_margin = 12
-    -- flow for vertical spacing
-    local left_flow = left_frame.add{type = "flow", direction = "vertical"}
-    left_flow.style.vertical_spacing = 8
-    gui_data.elements.left_frame = left_flow
+    local left_flow = left_frame.add{
+        type = "flow",
+        direction = "vertical"
+    }
+    local style = left_flow.style
+    style.width = 200
+    style.vertically_stretchable = true
+    style.vertical_spacing = 12
 
-    -- right side of interface is for info display
+    -- Right half of interface: info elements
     local right_frame = main_flow.add{
         type = "frame",
         style = "inside_shallow_frame",
         direction = "vertical"
     }
-    local datafield = right_frame.add{
+    local right_pane = right_frame.add{
         type = "scroll-pane",
         vertical_scroll_policy = "always",
     }
-    datafield.style.vertically_stretchable = true
-    gui_data.elements.datafield = datafield
-    GuiUpdater.register_gui("entity", gui_data, player_index)
+    style = right_pane.style
+    style.width = 444
+    style.vertically_stretchable = true
+
+    -- Initializing "gui_data" in storage for given player
+    local player_index = player.index
+    local entity_gui = storage.entity_gui
+    ---@diagnostic disable-next-line: missing-fields
+    if not entity_gui[player_index] then entity_gui[player_index] = {} end
+    local gui_data = entity_gui[player_index]
+    gui_data.opened = true
+    gui_data.elements = {
+        main_window = main_window,
+        left_frame = left_flow,
+        right_frame = right_pane,
+    }
+    gui_data.entity = entity
+    gui_data.unit_number = entity.unit_number
+    gui_data.entity_name = entity_name
+    gui_data.is_ghost = is_ghost
+    gui_data.surface_index = entity.surface_index
+    gui_data.player = player
+
+    player.opened = main_window
+    GuiUpdater.register_gui("entity", gui_data, player)
     return gui_data
 end
 
----Creates cluster energy IO interface
----@param player LuaPlayer assumed to be valid
----@param entity LuaEntity assumed to be valid
-local function create_cluster_energy_io_gui(player, entity)
-    local gui_data = create_entity_gui_base(player, entity)
-    local left_frame = gui_data.elements.left_frame
-    EntityControls.create_first_template_selection_widget(
-        left_frame,
-        gui_data,
-        {"gui-label.select-cluster"}
-    )
-    EntityControls.create_io_mode_selection_widget(left_frame, gui_data)
-end
-
----Creates cluster fluid IO interface
----@param player LuaPlayer assumed to be valid
----@param entity LuaEntity assumed to be valid
-local function create_cluster_fluid_io_gui(player, entity)
-    local gui_data = create_entity_gui_base(player, entity)
-    local left_frame = gui_data.elements.left_frame
-    EntityControls.create_first_template_selection_widget(
-        left_frame,
-        gui_data,
-        {"gui-label.select-cluster"}
-    )
-    EntityControls.create_io_mode_selection_widget(left_frame, gui_data)
-    EntityControls.create_choose_fluid_button(left_frame, gui_data)
-end
-
----Creates cluster item IO interface
----@param player LuaPlayer assumed to be valid
----@param entity LuaEntity assumed to be valid
-local function create_cluster_item_io_gui(player, entity)
-    local gui_data = create_entity_gui_base(player, entity)
-    local left_frame = gui_data.elements.left_frame
-    EntityControls.create_first_template_selection_widget(
-        left_frame,
-        gui_data,
-        {"gui-label.select-cluster"}
-    )
-    EntityControls.create_io_mode_selection_widget(left_frame, gui_data)
-    EntityControls.create_choose_item_button(left_frame, gui_data)
-end
-
----Creates cluster overflow controller interface
----@param player LuaPlayer assumed to be valid
----@param entity LuaEntity assumed to be valid
-local function create_cluster_overflow_controller_gui(player, entity)
-    local gui_data = create_entity_gui_base(player, entity)
-    local left_frame = gui_data.elements.left_frame
-    EntityControls.create_first_template_selection_widget(
-        left_frame,
-        gui_data,
-        {"gui-label.select-cluster"},
-        100
-    )
-    EntityControls.create_operation_mode_selection_widget(left_frame, gui_data)
-    EntityControls.create_choose_item_button(left_frame, gui_data)
-    EntityControls.create_choose_fluid_button(left_frame, gui_data)
-    EntityControls.create_overflow_threshold_widget(left_frame, gui_data)
-    EntityControls.create_capability_override_widget(
-        left_frame,
-        gui_data,
-        {"gui-label.enable-flow-limit-override"},
-        {"gui-label.set-flow-limit-to"}
-    )
-end
-
----Creates cluster storage unit interface
----@param player LuaPlayer assumed to be valid
----@param entity LuaEntity assumed to be valid
-local function create_cluster_storage_unit_gui(player, entity)
-    local gui_data = create_entity_gui_base(player, entity)
-    local left_frame = gui_data.elements.left_frame
-    EntityControls.create_first_template_selection_widget(
-        left_frame,
-        gui_data,
-        {"gui-label.select-cluster"},
-        100
-    )
-    EntityControls.create_io_mode_selection_widget(left_frame, gui_data)
-    EntityControls.create_operation_mode_selection_widget(left_frame, gui_data)
-    EntityControls.create_choose_item_button(left_frame, gui_data)
-    EntityControls.create_choose_fluid_button(left_frame, gui_data)
-    EntityControls.create_capability_override_widget(
-        left_frame,
-        gui_data,
-        {"gui-label.enable-storage-limit-override"},
-        {"gui-label.set-storage-limit-to"}
-    )
-end
-
----Creates inter-cluster bridge interface
 ---@param player LuaPlayer assumed to be valid
 ---@param entity LuaEntity assumed to be valid
 local function create_inter_cluster_bridge_gui(player, entity)
     local gui_data = create_entity_gui_base(player, entity)
+
+    -- Configuration elements
     local left_frame = gui_data.elements.left_frame
-    EntityControls.create_first_template_selection_widget(
+    add_operation_mode_configurator(left_frame, gui_data)
+    add_selected_item_configurator(left_frame, gui_data)
+    add_selected_fluid_configurator(left_frame, gui_data)
+    add_first_cluster_configurator(
         left_frame,
         gui_data,
-        {"gui-label.select-source-cluster"},
-        100
+        {"entity-gui.select-s-cluster"},
+        90
     )
-    EntityControls.create_second_template_selection_widget(
+    add_second_cluster_configurator(
         left_frame,
         gui_data,
-        {"gui-label.select-destination-cluster"},
-        100
+        {"entity-gui.select-d-cluster"},
+        90
     )
-    EntityControls.create_operation_mode_selection_widget(left_frame, gui_data)
-    EntityControls.create_choose_item_button(left_frame, gui_data)
-    EntityControls.create_choose_fluid_button(left_frame, gui_data)
-    EntityControls.create_capability_override_widget(
+    add_capability_override_configurator(
         left_frame,
         gui_data,
-        {"gui-label.enable-flow-limit-override"},
-        {"gui-label.set-flow-limit-to"}
+        {"entity-gui.enable-flow-limit-override"},
+        {"entity-gui.set-flow-limit-to"}
     )
+
+    -- Information elements
+    local right_frame = gui_data.elements.right_frame
+    add_status_section(right_frame, gui_data)
 end
 
----Creates template energy IO interface
+---@param player LuaPlayer assumed to be valid
+---@param entity LuaEntity assumed to be valid
+local function create_cluster_energy_io_gui(player, entity)
+    local gui_data = create_entity_gui_base(player, entity)
+
+    -- Configuration elements
+    local left_frame = gui_data.elements.left_frame
+    add_io_mode_configurator(
+        left_frame,
+        gui_data,
+        {"entity-gui.select-transfer-direction"},
+        {"entity-gui.world-to-cluster"},
+        {"entity-gui.cluster-to-world"}
+    )
+    add_first_cluster_configurator(
+        left_frame,
+        gui_data,
+        {"entity-gui.select-cluster"}
+    )
+    add_capability_override_configurator(
+        left_frame,
+        gui_data,
+        {"entity-gui.enable-flow-limit-override"},
+        {"entity-gui.set-flow-limit-to"}
+    )
+
+    -- Information elements
+    local right_frame = gui_data.elements.right_frame
+    add_status_section(right_frame, gui_data)
+end
+
+---@param player LuaPlayer assumed to be valid
+---@param entity LuaEntity assumed to be valid
+local function create_cluster_fluid_io_gui(player, entity)
+    local gui_data = create_entity_gui_base(player, entity)
+
+    -- Configuration elements
+    local left_frame = gui_data.elements.left_frame
+    add_io_mode_configurator(
+        left_frame,
+        gui_data,
+        {"entity-gui.select-transfer-direction"},
+        {"entity-gui.world-to-cluster"},
+        {"entity-gui.cluster-to-world"}
+    )
+    add_selected_fluid_configurator(left_frame, gui_data)
+    add_first_cluster_configurator(
+        left_frame,
+        gui_data,
+        {"entity-gui.select-cluster"}
+    )
+    add_capability_override_configurator(
+        left_frame,
+        gui_data,
+        {"entity-gui.enable-flow-limit-override"},
+        {"entity-gui.set-flow-limit-to"}
+    )
+
+    -- Information elements
+    local right_frame = gui_data.elements.right_frame
+    add_status_section(right_frame, gui_data)
+end
+
+---@param player LuaPlayer assumed to be valid
+---@param entity LuaEntity assumed to be valid
+local function create_cluster_item_io_gui(player, entity)
+    local gui_data = create_entity_gui_base(player, entity)
+
+    -- Configuration elements
+    local left_frame = gui_data.elements.left_frame
+    add_io_mode_configurator(
+        left_frame,
+        gui_data,
+        {"entity-gui.select-transfer-direction"},
+        {"entity-gui.world-to-cluster"},
+        {"entity-gui.cluster-to-world"}
+    )
+    add_selected_item_configurator(left_frame, gui_data)
+    add_first_cluster_configurator(
+        left_frame,
+        gui_data,
+        {"entity-gui.select-cluster"}
+    )
+    add_capability_override_configurator(
+        left_frame,
+        gui_data,
+        {"entity-gui.enable-flow-limit-override"},
+        {"entity-gui.set-flow-limit-to"}
+    )
+
+    -- Information elements
+    local right_frame = gui_data.elements.right_frame
+    add_status_section(right_frame, gui_data)
+end
+
+---@param player LuaPlayer assumed to be valid
+---@param entity LuaEntity assumed to be valid
+local function create_cluster_overflow_controller_gui(player, entity)
+    local gui_data = create_entity_gui_base(player, entity)
+
+    -- Configuration elements
+    local left_frame = gui_data.elements.left_frame
+    add_operation_mode_configurator(left_frame, gui_data)
+    add_selected_item_configurator(left_frame, gui_data)
+    add_selected_fluid_configurator(left_frame, gui_data)
+    add_first_cluster_configurator(
+        left_frame,
+        gui_data,
+        {"entity-gui.select-cluster"},
+        150
+    )
+    add_overflow_threshold_configurator(left_frame, gui_data)
+    add_capability_override_configurator(
+        left_frame,
+        gui_data,
+        {"entity-gui.enable-flow-limit-override"},
+        {"entity-gui.set-flow-limit-to"}
+    )
+
+    -- Information elements
+    local right_frame = gui_data.elements.right_frame
+    add_status_section(right_frame, gui_data)
+end
+
+---@param player LuaPlayer assumed to be valid
+---@param entity LuaEntity assumed to be valid
+local function create_cluster_storage_unit_gui(player, entity)
+    local gui_data = create_entity_gui_base(player, entity)
+
+    -- Configuration elements
+    local left_frame = gui_data.elements.left_frame
+    add_operation_mode_configurator(left_frame, gui_data)
+    add_selected_item_configurator(left_frame, gui_data)
+    add_selected_fluid_configurator(left_frame, gui_data)
+    add_io_mode_configurator(
+        left_frame,
+        gui_data,
+        {"entity-gui.add-capacity-to"},
+        {"entity-gui.input"},
+        {"entity-gui.output"}
+    )
+    add_first_cluster_configurator(
+        left_frame,
+        gui_data,
+        {"entity-gui.select-cluster"},
+        100
+    )
+    add_capability_override_configurator(
+        left_frame,
+        gui_data,
+        {"entity-gui.enable-capacity-override"},
+        {"entity-gui.set-limit-to"}
+    )
+
+    -- Information elements
+    local right_frame = gui_data.elements.right_frame
+    add_status_section(right_frame, gui_data)
+end
+
+---@param player LuaPlayer assumed to be valid
+---@param entity LuaEntity assumed to be valid
+local function create_template_access_interface_gui(player, entity)
+    local gui_data = create_entity_gui_base(player, entity)
+
+    -- Configuration elements
+    local left_frame = gui_data.elements.left_frame
+    add_io_mode_configurator(
+        left_frame,
+        gui_data,
+        {"entity-gui.select-transfer-mode"},
+        {"entity-gui.receive"},
+        {"entity-gui.transmit"}
+    )
+    add_selected_template_configurator(left_frame, gui_data)
+    add_first_cluster_configurator(
+        left_frame,
+        gui_data,
+        {"entity-gui.select-cluster"},
+        150
+    )
+
+    -- Information elements
+    local right_frame = gui_data.elements.right_frame
+    add_status_section(right_frame, gui_data)
+end
+
+---@param player LuaPlayer assumed to be valid
+---@param entity LuaEntity assumed to be valid
+local function create_template_computation_array_gui(player, entity)
+    local gui_data = create_entity_gui_base(player, entity)
+
+    -- Configuration elements
+    local left_frame = gui_data.elements.left_frame
+    add_capability_override_configurator(
+        left_frame,
+        gui_data,
+        {"entity-gui.enable-computation-override"},
+        {"entity-gui.set-limit-to"}
+    )
+
+    -- Information elements
+    local right_frame = gui_data.elements.right_frame
+    add_status_section(right_frame, gui_data)
+end
+
+---@param player LuaPlayer assumed to be valid
+---@param entity LuaEntity assumed to be valid
+local function create_template_control_center_gui(player, entity)
+    local gui_data = create_entity_gui_base(player, entity)
+
+    -- Information elements
+    local right_frame = gui_data.elements.right_frame
+    add_status_section(right_frame, gui_data)
+end
+
 ---@param player LuaPlayer assumed to be valid
 ---@param entity LuaEntity assumed to be valid
 local function create_template_energy_io_gui(player, entity)
     local gui_data = create_entity_gui_base(player, entity)
+
+    -- Configuration elements
     local left_frame = gui_data.elements.left_frame
-    EntityControls.create_io_mode_selection_widget(left_frame, gui_data)
+    add_io_mode_configurator(
+        left_frame,
+        gui_data,
+        {"entity-gui.select-entity-mode"},
+        {"entity-gui.energy-source"},
+        {"entity-gui.energy-sink"}
+    )
+    add_capability_override_configurator(
+        left_frame,
+        gui_data,
+        {"entity-gui.enable-flow-limit-override"},
+        {"entity-gui.set-flow-limit-to"}
+    )
+
+    -- Information elements
+    local right_frame = gui_data.elements.right_frame
+    add_status_section(right_frame, gui_data)
 end
 
----Creates template fluid IO interface
 ---@param player LuaPlayer assumed to be valid
 ---@param entity LuaEntity assumed to be valid
 local function create_template_fluid_io_gui(player, entity)
     local gui_data = create_entity_gui_base(player, entity)
+
+    -- Configuration elements
     local left_frame = gui_data.elements.left_frame
-    EntityControls.create_io_mode_selection_widget(left_frame, gui_data)
-    EntityControls.create_choose_fluid_button(left_frame, gui_data)
+    add_io_mode_configurator(
+        left_frame,
+        gui_data,
+        {"entity-gui.select-entity-mode"},
+        {"entity-gui.fluid-source"},
+        {"entity-gui.fluid-sink"}
+    )
+    add_selected_fluid_configurator(left_frame, gui_data)
+    add_capability_override_configurator(
+        left_frame,
+        gui_data,
+        {"entity-gui.enable-flow-limit-override"},
+        {"entity-gui.set-flow-limit-to"}
+    )
+
+    -- Information elements
+    local right_frame = gui_data.elements.right_frame
+    add_status_section(right_frame, gui_data)
 end
 
----Creates template item IO interface
 ---@param player LuaPlayer assumed to be valid
 ---@param entity LuaEntity assumed to be valid
 local function create_template_item_io_gui(player, entity)
     local gui_data = create_entity_gui_base(player, entity)
+
+    -- Configuration elements
     local left_frame = gui_data.elements.left_frame
-    EntityControls.create_io_mode_selection_widget(left_frame, gui_data)
-    EntityControls.create_choose_item_button(left_frame, gui_data)
+    add_io_mode_configurator(
+        left_frame,
+        gui_data,
+        {"entity-gui.select-entity-mode"},
+        {"entity-gui.item-source"},
+        {"entity-gui.item-sink"}
+    )
+    add_selected_item_configurator(left_frame, gui_data)
+    add_capability_override_configurator(
+        left_frame,
+        gui_data,
+        {"entity-gui.enable-flow-limit-override"},
+        {"entity-gui.set-flow-limit-to"}
+    )
+
+    -- Information elements
+    local right_frame = gui_data.elements.right_frame
+    add_status_section(right_frame, gui_data)
 end
 
----Creates virtualization mainframe interface
 ---@param player LuaPlayer assumed to be valid
 ---@param entity LuaEntity assumed to be valid
 local function create_virtualization_mainframe_gui(player, entity)
     local gui_data = create_entity_gui_base(player, entity)
+
+    -- Configuration elements
     local left_frame = gui_data.elements.left_frame
-    EntityControls.create_first_template_selection_widget(
+    add_first_cluster_configurator(
         left_frame,
         gui_data,
-        {"gui-label.select-cluster"}
+        {"entity-gui.select-cluster"}
     )
+
+    -- Information elements
+    local right_frame = gui_data.elements.right_frame
+    add_status_section(right_frame, gui_data)
 end
 
 -------------------------------------------------------------------------------
--- OPEN/CLOSE ENTITY GUI
+---------------------------- OPEN/CLOSE ENTITY GUI ----------------------------
 -------------------------------------------------------------------------------
 
 ---Maps entity names to functions used to construct their GUIs
 local entity_gui_router = {
-    [PREFIX .. "template-item-io-mk1"] = create_template_item_io_gui,
-    [PREFIX .. "template-item-io-mk2"] = create_template_item_io_gui,
-    [PREFIX .. "template-item-io-mk3"] = create_template_item_io_gui,
-    [PREFIX .. "template-fluid-io-mk1"] = create_template_fluid_io_gui,
-    [PREFIX .. "template-fluid-io-mk2"] = create_template_fluid_io_gui,
-    [PREFIX .. "template-fluid-io-mk3"] = create_template_fluid_io_gui,
-    [PREFIX .. "template-energy-io-mk1"] = create_template_energy_io_gui,
-    [PREFIX .. "template-energy-io-mk2"] = create_template_energy_io_gui,
-    [PREFIX .. "template-energy-io-mk3"] = create_template_energy_io_gui,
-    [PREFIX .. "cluster-item-io-mk1"] = create_cluster_item_io_gui,
-    [PREFIX .. "cluster-item-io-mk2"] = create_cluster_item_io_gui,
-    [PREFIX .. "cluster-item-io-mk3"] = create_cluster_item_io_gui,
-    [PREFIX .. "cluster-fluid-io-mk1"] = create_cluster_fluid_io_gui,
-    [PREFIX .. "cluster-fluid-io-mk2"] = create_cluster_fluid_io_gui,
-    [PREFIX .. "cluster-fluid-io-mk3"] = create_cluster_fluid_io_gui,
-    [PREFIX .. "cluster-energy-io-mk1"] = create_cluster_energy_io_gui,
-    [PREFIX .. "cluster-energy-io-mk2"] = create_cluster_energy_io_gui,
-    [PREFIX .. "cluster-energy-io-mk3"] = create_cluster_energy_io_gui,
-    [PREFIX .. "virtualization-mainframe-mk1"] = create_virtualization_mainframe_gui,
-    [PREFIX .. "virtualization-mainframe-mk2"] = create_virtualization_mainframe_gui,
-    [PREFIX .. "virtualization-mainframe-mk3"] = create_virtualization_mainframe_gui,
     [PREFIX .. "inter-cluster-bridge-mk1"] = create_inter_cluster_bridge_gui,
     [PREFIX .. "inter-cluster-bridge-mk2"] = create_inter_cluster_bridge_gui,
     [PREFIX .. "inter-cluster-bridge-mk3"] = create_inter_cluster_bridge_gui,
+    [PREFIX .. "cluster-energy-io-mk1"] = create_cluster_energy_io_gui,
+    [PREFIX .. "cluster-energy-io-mk2"] = create_cluster_energy_io_gui,
+    [PREFIX .. "cluster-energy-io-mk3"] = create_cluster_energy_io_gui,
+    [PREFIX .. "cluster-fluid-io-mk1"] = create_cluster_fluid_io_gui,
+    [PREFIX .. "cluster-fluid-io-mk2"] = create_cluster_fluid_io_gui,
+    [PREFIX .. "cluster-fluid-io-mk3"] = create_cluster_fluid_io_gui,
+    [PREFIX .. "cluster-item-io-mk1"] = create_cluster_item_io_gui,
+    [PREFIX .. "cluster-item-io-mk2"] = create_cluster_item_io_gui,
+    [PREFIX .. "cluster-item-io-mk3"] = create_cluster_item_io_gui,
     [PREFIX .. "cluster-overflow-controller-mk1"] = create_cluster_overflow_controller_gui,
     [PREFIX .. "cluster-overflow-controller-mk2"] = create_cluster_overflow_controller_gui,
     [PREFIX .. "cluster-overflow-controller-mk3"] = create_cluster_overflow_controller_gui,
     [PREFIX .. "cluster-storage-unit-mk1"] = create_cluster_storage_unit_gui,
     [PREFIX .. "cluster-storage-unit-mk2"] = create_cluster_storage_unit_gui,
     [PREFIX .. "cluster-storage-unit-mk3"] = create_cluster_storage_unit_gui,
+    [PREFIX .. "template-access-interface-mk1"] = create_template_access_interface_gui,
+    [PREFIX .. "template-access-interface-mk2"] = create_template_access_interface_gui,
+    [PREFIX .. "template-access-interface-mk3"] = create_template_access_interface_gui,
+    [PREFIX .. "template-computation-array-mk1"] = create_template_computation_array_gui,
+    [PREFIX .. "template-computation-array-mk2"] = create_template_computation_array_gui,
+    [PREFIX .. "template-computation-array-mk3"] = create_template_computation_array_gui,
+    [PREFIX .. "template-control-center-mk1"] = create_template_control_center_gui,
+    [PREFIX .. "template-control-center-mk2"] = create_template_control_center_gui,
+    [PREFIX .. "template-control-center-mk3"] = create_template_control_center_gui,
+    [PREFIX .. "template-energy-io-mk1"] = create_template_energy_io_gui,
+    [PREFIX .. "template-energy-io-mk2"] = create_template_energy_io_gui,
+    [PREFIX .. "template-energy-io-mk3"] = create_template_energy_io_gui,
+    [PREFIX .. "template-fluid-io-mk1"] = create_template_fluid_io_gui,
+    [PREFIX .. "template-fluid-io-mk2"] = create_template_fluid_io_gui,
+    [PREFIX .. "template-fluid-io-mk3"] = create_template_fluid_io_gui,
+    [PREFIX .. "template-item-io-mk1"] = create_template_item_io_gui,
+    [PREFIX .. "template-item-io-mk2"] = create_template_item_io_gui,
+    [PREFIX .. "template-item-io-mk3"] = create_template_item_io_gui,
+    [PREFIX .. "virtualization-mainframe-mk1"] = create_virtualization_mainframe_gui,
+    [PREFIX .. "virtualization-mainframe-mk2"] = create_virtualization_mainframe_gui,
+    [PREFIX .. "virtualization-mainframe-mk3"] = create_virtualization_mainframe_gui,
 }
 
 ---Handles gui being opened by the player. If entity from the table above is
 ---opened, closes it's vanilla gui and opens a custom one.
 ---@param event EventData.on_gui_opened
-function EntityGui.process_gui_opened(event)
+function EntityGui.handle_gui_opened(event)
     -- checking opened gui type
     if event.gui_type ~= defines.gui_type.entity then return end
     local entity = event.entity
@@ -334,145 +1271,37 @@ function EntityGui.process_gui_opened(event)
     local handler = entity_gui_router[entity_name]
     if not handler then return end
     local player = game.get_player(event.player_index)
-    if not player then return end
+    if not player or not player.valid then return end
     handler(player, entity)
 end
 
 ---Closes the custom entity gui when player.opened changes from it to something else.
 ---@param event EventData.on_gui_closed
-function EntityGui.process_entity_gui_closed(event)
-    local player_idx = event.player_index
-    local gui_data = storage.entity_gui[player_idx]
-    gui_data.opened = nil
-    gui_data.entity = nil
-    gui_data.elements.main_window.destroy()
-    gui_data.elements = nil
+function EntityGui.handle_entity_gui_closed(event)
+    GuiUpdater.close_window(event.player_index)
 end
 
 -------------------------------------------------------------------------------
--- TIME-BESED ENTITY GUI UPDATES
+------------------------------- ON-TICK UPDATER -------------------------------
 -------------------------------------------------------------------------------
 
----Used for time-based updates of cluster IO GUIs
+---Used for time-based GUI updates
 ---@param gui_data EntityGuiData
-local function update_cluster_io_gui(gui_data)
+---@param update_cycle integer counts number of updates for this window
+local function on_tick_updater(gui_data, update_cycle)
+    -- Checking entity validity
     local entity = gui_data.entity
-    local datafield = gui_data.elements.datafield
-    datafield.clear()
+    if not entity.valid then
+        -- closing window for invalid window
+        local player = gui_data.player
+        if not player.valid then return end
+        player.opened = nil
+        return
+    end
 
-    EntityInfo.create_entity_status_display(datafield, entity)
-    EntityInfo.create_last_second_flow_display(datafield, entity)
-    EntityInfo.create_cluster_information_display(datafield, entity)
+    update_status_section(gui_data)
 end
 
----Used for time-based updates of cluster overflow controller GUIs
----@param gui_data EntityGuiData
-local function update_cluster_overflow_controller_gui(gui_data)
-    local entity = gui_data.entity
-    local datafield = gui_data.elements.datafield
-    datafield.clear()
-
-    EntityInfo.create_entity_status_display(datafield, entity)
-    EntityInfo.create_last_second_flow_display(datafield, entity)
-    EntityInfo.create_cluster_information_display(datafield, entity)
-end
-
----Used for time-based updates of cluster storage unit GUIs
----@param gui_data EntityGuiData
-local function update_cluster_storage_unit_gui(gui_data)
-    local entity = gui_data.entity
-    local datafield = gui_data.elements.datafield
-    datafield.clear()
-
-    EntityInfo.create_entity_status_display(datafield, entity)
-    EntityInfo.create_cluster_information_display(datafield, entity)
-end
-
----Used for time-based updates of inter-cluster bridge GUIs
----@param gui_data EntityGuiData
-local function update_inter_cluster_bridge_gui(gui_data)
-    local entity = gui_data.entity
-    local datafield = gui_data.elements.datafield
-    datafield.clear()
-
-    EntityInfo.create_entity_status_display(datafield, entity)
-    EntityInfo.create_last_second_flow_display(datafield, entity)
-    EntityInfo.create_icb_cluster_info_display(datafield, entity)
-end
-
----Used for time-based updates of template IO GUIs
----@param gui_data EntityGuiData
-local function update_template_io_gui(gui_data)
-    local entity = gui_data.entity
-    local datafield = gui_data.elements.datafield
-    datafield.clear()
-
-    EntityInfo.create_entity_status_display(datafield, entity)
-    EntityInfo.create_last_second_flow_display(datafield, entity)
-end
-
----Used for time-based updates of mainframe GUIs
----@param gui_data EntityGuiData
-local function update_virtualization_mainframe_gui(gui_data)
-    local entity = gui_data.entity
-    local datafield = gui_data.elements.datafield
-    datafield.clear()
-
-    EntityInfo.create_entity_status_display(datafield, entity)
-    EntityInfo.create_mainframe_construction_requests(datafield, entity)
-    EntityInfo.create_mainframe_contained_buildings(datafield, entity)
-    EntityInfo.create_cluster_information_display(datafield, entity)
-end
-
----Maps entity names to functions used to update their GUIs
-local gui_update_router = {
-    [PREFIX .. "cluster-energy-io-mk1"] = update_cluster_io_gui,
-    [PREFIX .. "cluster-energy-io-mk2"] = update_cluster_io_gui,
-    [PREFIX .. "cluster-energy-io-mk3"] = update_cluster_io_gui,
-    [PREFIX .. "cluster-fluid-io-mk1"] = update_cluster_io_gui,
-    [PREFIX .. "cluster-fluid-io-mk2"] = update_cluster_io_gui,
-    [PREFIX .. "cluster-fluid-io-mk3"] = update_cluster_io_gui,
-    [PREFIX .. "cluster-item-io-mk1"] = update_cluster_io_gui,
-    [PREFIX .. "cluster-item-io-mk2"] = update_cluster_io_gui,
-    [PREFIX .. "cluster-item-io-mk3"] = update_cluster_io_gui,
-    [PREFIX .. "cluster-overflow-controller-mk1"] = update_cluster_overflow_controller_gui,
-    [PREFIX .. "cluster-overflow-controller-mk2"] = update_cluster_overflow_controller_gui,
-    [PREFIX .. "cluster-overflow-controller-mk3"] = update_cluster_overflow_controller_gui,
-    [PREFIX .. "cluster-storage-unit-mk1"] = update_cluster_storage_unit_gui,
-    [PREFIX .. "cluster-storage-unit-mk2"] = update_cluster_storage_unit_gui,
-    [PREFIX .. "cluster-storage-unit-mk3"] = update_cluster_storage_unit_gui,
-    [PREFIX .. "inter-cluster-bridge-mk1"] = update_inter_cluster_bridge_gui,
-    [PREFIX .. "inter-cluster-bridge-mk2"] = update_inter_cluster_bridge_gui,
-    [PREFIX .. "inter-cluster-bridge-mk3"] = update_inter_cluster_bridge_gui,
-    [PREFIX .. "template-energy-io-mk1"] = update_template_io_gui,
-    [PREFIX .. "template-energy-io-mk2"] = update_template_io_gui,
-    [PREFIX .. "template-energy-io-mk3"] = update_template_io_gui,
-    [PREFIX .. "template-fluid-io-mk1"] = update_template_io_gui,
-    [PREFIX .. "template-fluid-io-mk2"] = update_template_io_gui,
-    [PREFIX .. "template-fluid-io-mk3"] = update_template_io_gui,
-    [PREFIX .. "template-item-io-mk1"] = update_template_io_gui,
-    [PREFIX .. "template-item-io-mk2"] = update_template_io_gui,
-    [PREFIX .. "template-item-io-mk3"] = update_template_io_gui,
-    [PREFIX .. "virtualization-mainframe-mk1"] = update_virtualization_mainframe_gui,
-    [PREFIX .. "virtualization-mainframe-mk2"] = update_virtualization_mainframe_gui,
-    [PREFIX .. "virtualization-mainframe-mk3"] = update_virtualization_mainframe_gui,
-}
-
----Time-based updater for entity GUI window
----@param gui_data EntityGuiData
-local function time_based_updater(gui_data)
-    -- closing window if entity became invalid
-    local player_index = gui_data.player_index
-    local status = EntityControls.assert_entity_validity(player_index, gui_data)
-    if not status then return end
-
-    -- picking the right handler for entity
-    local entity_name = gui_data.entity_name
-    local handler = gui_update_router[entity_name]
-    if not handler then return end
-    handler(gui_data)
-end
-
-GuiUpdater.add_schema("entity", time_based_updater)
+GuiUpdater.add_schema("entity", on_tick_updater)
 
 return EntityGui

@@ -242,14 +242,14 @@ local function add_template_inputs_section(parent, gui_data)
     local flow = section.add{type = "flow", direction = "vertical"}
     flow.style.vertical_spacing = 0
     -- total energy input label
-    local total_energy = (inputs["electric_energy"] or 0) + energy_drain
+    local total_energy = (inputs.electric_energy or 0) + energy_drain
     local total_fmt = CommonGui.large_number_to_string(total_energy)
     local total_caption = {"cc-templates.input-energy", total_fmt}
     flow.add{type = "label", caption = total_caption}
     -- energy drain label
-    local drain_percent = (total_energy ~= 0) and (energy_drain / total_energy) or 0
+    local drain_fraction = (total_energy ~= 0) and (energy_drain / total_energy) or 0
     local drain_fmt = CommonGui.large_number_to_string(energy_drain)
-    local percent_fmt = CommonGui.number_to_string(drain_percent, 2)
+    local percent_fmt = CommonGui.number_to_string(drain_fraction * 100, 2)
     local drain_caption = {"cc-templates.energy-drain", drain_fmt, percent_fmt}
     flow.add{type = "label", caption = drain_caption}
 end

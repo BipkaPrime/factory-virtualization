@@ -173,6 +173,7 @@ local function from_idle_to_constructing(properties)
     properties.logistic_filters = filters
     properties.filter_lookup = filter_lookup
     properties.state = entity_states.constructing
+    properties.status = Utilities.entity_status.requesting_materials
 end
 
 ---Used for on-tick updates of this entity in idle state.
@@ -283,6 +284,7 @@ local function from_constructing_to_deconstructing(properties)
     properties.logistic_section = nil
 
     properties.state = entity_states.deconstructing
+    properties.status = Utilities.entity_status.deconstructing
 end
 
 ---Used to change entity state from "constructing" to "operational"
@@ -309,6 +311,7 @@ local function from_constructing_to_operational(properties)
     )
 
     properties.state = entity_states.operational
+    properties.status = Utilities.entity_status.operational
 end
 
 ---Used for on-tick updates of this entity in constructing state.
@@ -387,6 +390,7 @@ local function deconstructing_state_update(properties)
         properties.building_contents = nil
         properties.assigned_template = nil
         properties.state = entity_states.idle
+        properties.status = Utilities.entity_status.idle
     end
     return Utilities.registry_sections.active
 end
@@ -412,6 +416,7 @@ local function from_operational_to_deconstructing(properties)
     )
 
     properties.state = entity_states.deconstructing
+    properties.status = Utilities.entity_status.deconstructing
 end
 
 ---Used for on-tick updates of this entity in operational state.

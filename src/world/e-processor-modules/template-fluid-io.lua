@@ -10,6 +10,9 @@ I. Mandatory entity configuration is provided:
     2. selected_fluid. Used to determine the buffer key.
 II. Entity is located on a vsurface.
 
+Optional entity controls this building can have:
+1. capability_override. Used to artificially lower flow limit of this entity.
+
 Properties that are assigned on initialization:
 1. status. Used to display entity status in the gui
 2. is_output. Used to determine entity operation
@@ -75,7 +78,8 @@ function TemplateFluidIO.initialize(properties)
     properties.buffer_key = selected_fluid
     local base_flow = flow_limits[properties.entity_name]
     local quality_mult = 1 + 0.5 * entity.quality.level
-    local flow_limit = base_flow * quality_mult
+    local override = properties.capability_override or 1
+    local flow_limit = base_flow * quality_mult * override
     properties.flow_limit = flow_limit
     properties.io_request = {name = selected_fluid, amount = flow_limit}
     properties.surface_index = entity.surface_index

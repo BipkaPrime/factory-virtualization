@@ -247,6 +247,7 @@ local update_router = {
 
 ---Used for fast time-based control center updates. Called about once a tick
 ---@param gui_data ControlCenterData
+---@param update_cycle integer
 local function on_tick_updater(gui_data, update_cycle)
     local handler = update_router[gui_data.mode]
     if not handler then return end

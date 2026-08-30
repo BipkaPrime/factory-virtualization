@@ -44,6 +44,9 @@ Utilities.entity_status = {
     -- Normal operation
     initialized = {"entity-status.initialized"},
     operational = {"entity-status.operational"},
+    requesting_materials = {"entity-status.requesting-materials"},
+    deconstructing = {"entity-status.deconstructing"},
+    idle = {"entity-status.idle"},
 }
 
 ---Contains names of all sections in entity registry

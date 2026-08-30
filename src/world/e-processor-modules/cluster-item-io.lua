@@ -12,6 +12,9 @@ I. Mandatory entity configuration is provided:
 II. Entity is not located on a vsurface.
 III. Selected cluster exists and this entity can be added to it.
 
+Optional entity controls this building can have:
+1. capability_override. Used to artificially lower flow limit of this entity.
+
 Properties that are assigned on initialization:
 1. status. Used to display entity status in the gui
 2. buffer_key. Used to access a specific cluster buffer entry
@@ -115,7 +118,8 @@ function ClusterItemIO.initialize(properties)
     properties.is_output = (io_mode == "output")
     local base_flow = flow_limits[entity_name]
     local quality_mult = 1 + 0.5 * entity.quality.level
-    properties.flow_limit = base_flow * quality_mult
+    local override = properties.capability_override or 1
+    properties.flow_limit = base_flow * quality_mult * override
     properties.inventory = entity.get_inventory(defines.inventory.chest)
     properties.io_request = {
         name = item_name,

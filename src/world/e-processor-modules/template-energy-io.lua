@@ -9,6 +9,9 @@ I. Mandatory entity configuration is provided:
     1. io_mode. Used to determine the entity operation.
 II. Entity is located on a vsurface.
 
+Optional entity controls this building can have:
+1. capability_override. Used to artificially lower flow limit of this entity.
+
 Properties that are assigned on initialization:
 1. status. Used to display entity status in the gui
 2. is_output. Used to determine entity operation
@@ -63,11 +66,18 @@ function TemplateEnergyIO.initialize(properties)
     -- All requirements are met: preparing properties for on-tick updates
     properties.status = Utilities.entity_status.initialized
     properties.buffer_key = "electric_energy"
-    properties.is_output = (io_mode == "output")
-    -- TODO: configure electric energy priority
+    local is_output = (io_mode == "output")
+    properties.is_output = is_output
+    -- setting up electric priority based on io mode
+    entity.electric_interface_mode = (
+        is_output and
+        defines.electric_interface_mode.primary_input or
+        defines.electric_interface_mode.primary_output
+    )
     local base_flow = flow_limits[properties.entity_name]
     local quality_mult = 1 + 0.5 * entity.quality.level
-    properties.flow_limit = base_flow * quality_mult
+    local override = properties.capability_override or 1
+    properties.flow_limit = base_flow * quality_mult * override
     properties.surface_index = entity.surface_index
     return Utilities.registry_sections.active
 end

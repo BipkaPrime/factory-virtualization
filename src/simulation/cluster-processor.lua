@@ -876,6 +876,14 @@ function ClusterProcessor.get_member_count(cluster_name)
     return cluster.total_members
 end
 
+---Gets cluster name by uuid
+---@param cluster_uuid string|nil unique cluster identifier
+---@return string|nil cluster_name display name
+function ClusterProcessor.get_cluster_name(cluster_uuid)
+    if not cluster_uuid then return end
+    return storage.clusters.uuid_to_name[cluster_uuid]
+end
+
 ------------------------------ BACKEND REQUESTS -------------------------------
 
 ---Gets uuid of a cluster given its name. Intended use case: retrieving

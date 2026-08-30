@@ -643,6 +643,37 @@ function TCCManager.get_template_building_cost(template_name)
     return template.building_cost
 end
 
+---Gets template uuid by display name
+---@param template_name string|nil display name
+---@return string|nil
+function TCCManager.get_template_uuid(template_name)
+    if not template_name then return end
+    return storage.templates.name_to_uuid[template_name]
+end
+
+---Gets template display name by template uuid
+---@param template_uuid string|nil unique template identifier
+---@return string|nil
+function TCCManager.get_template_name(template_uuid)
+    if not template_uuid then return end
+    return storage.templates.uuid_to_name[template_uuid]
+end
+
+---Collects names of all existing templates that match with provided query
+---@param query string|nil search query
+---@return string[]
+function TCCManager.get_template_names(query)
+    local result = {}
+    local has_query = query and string.find(query, "%S", 1, false)
+    for name, _ in pairs(storage.templates.name_to_uuid) do
+        ---@diagnostic disable-next-line: param-type-mismatch
+        if not has_query or string.find(name, query, 1, true) then
+            table.insert(result, name)
+        end
+    end
+    return result
+end
+
 ------------------------------- DEBUG COMMANDS --------------------------------
 
 ---Adds several test templates

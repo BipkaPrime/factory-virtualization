@@ -228,22 +228,23 @@ local function transmitter_update(properties)
     return Utilities.registry_sections.active
 end
 
-
 ---On-tick updater for entity in receiving mode
 ---@param properties EntityProperties
 ---@return EntityRegistrySection
 local function receiver_update(properties)
-    -- Checking TCC proximity
-    local in_proximity = TCCManager.in_proximity_to_tcc(
-        properties.surface_index,
-        properties.pos_x,
-        properties.pos_y
-    )
-    if not in_proximity then
-        -- there is no TCC in proximity: setting entity to not operational
-        switch_receiver_not_operational(properties)
-        properties.status = Utilities.entity_status.no_tcc_in_proximity
-        return Utilities.registry_sections.stalled
+    -- Checking TCC proximity for transmit mode
+    if properties.is_output then
+        local in_proximity = TCCManager.in_proximity_to_tcc(
+            properties.surface_index,
+            properties.pos_x,
+            properties.pos_y
+        )
+        if not in_proximity then
+            -- there is no TCC in proximity: setting entity to not operational
+            switch_receiver_not_operational(properties)
+            properties.status = Utilities.entity_status.no_tcc_in_proximity
+            return Utilities.registry_sections.stalled
+        end
     end
 
     -- Checking cluster existance

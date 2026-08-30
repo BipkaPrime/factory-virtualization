@@ -11,6 +11,9 @@ Initialization requirements for this building:
 I. Entity is located on allowed surface. Currently any surface named "aquilo"
     with space-age mod, or "nauvis" without.
 
+Optional entity controls this building can have:
+1. capability_override. Used to artificially lower flow limit of this entity.
+
 Properties that are assigned on initialization:
 1. flow_limit. maximum amount of computation this entity can provide
 2. computation_cost. entity power usage for one unit of provided computation
@@ -83,7 +86,8 @@ function ComputationArray.initialize(properties)
     local entity_name = properties.entity_name
     local base_flow = computation_limits[entity_name]
     local quality_mult = 1 + 0.5 * entity.quality.level
-    local comp_limit = base_flow * quality_mult
+    local override = properties.capability_override or 1
+    local comp_limit = base_flow * quality_mult * override
     properties.flow_limit = comp_limit
     local comp_cost = computation_costs[entity_name] / quality_mult
     properties.computation_cost = comp_cost

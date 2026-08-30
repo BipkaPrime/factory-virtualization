@@ -4,7 +4,6 @@ local ClusterProcessor = require("src.simulation.cluster-processor")
 local VSurfaceManager = require("src.world.vsurface-manager")
 local CommonGui = require("src.gui.common")
 local EntityGui = require("src.gui.entity")
-local EntityControls = require("src.gui.entity-controls")
 local ControlCenter = require("src.gui.control-center")
 local CCSurfaces = require("src.gui.cc-modules.surfaces")
 local CCTemplates = require("src.gui.cc-modules.templates")
@@ -45,7 +44,7 @@ script.on_init(function()
         uuid_to_name = {}
     }
     -- simulation/tcc-manager
-    local tcc_surface = mods["space-age"] and "aquilo" or "nauvis"
+    local tcc_surface = script.active_mods["space-age"] and "aquilo" or "nauvis"
     ---@type TCCData
     storage.tcc = {allowed_surface = tcc_surface}
     ---@type ComputationStorage
@@ -64,6 +63,7 @@ script.on_init(function()
     ---@type table<integer, ControlCenterData>
     storage.control_center = {}
     -- gui/entity-gui
+    ---@type table<integer, EntityGuiData>
     storage.entity_gui = {}
     -- gui/updater
     storage.gui_updater = {array = {}, lookup = {}, next_index = 1}
@@ -79,7 +79,7 @@ end)
 
 script.on_event(defines.events.on_tick, function(event)
     ClusterProcessor.on_tick(event)
-    EntityProcessor.process_entities(event)
+    EntityProcessor.on_tick(event)
     ChunkProcessor.process_chunks(event)
     VSurfaceManager.on_tick_updater()
     GuiUpdater.on_tick()
@@ -118,7 +118,7 @@ end)
 -------------------------------------------------------------------------------
 
 script.on_event(defines.events.on_gui_opened, function(event)
-    EntityGui.process_gui_opened(event)
+    EntityGui.handle_gui_opened(event)
 end)
 
 local on_lua_shortcut_router = {
@@ -176,7 +176,7 @@ script.on_event(defines.events.on_gui_click, function(event)
 end)
 
 local on_gui_closed_router = {
-    [PREFIX .. "entity-window"] = EntityGui.process_entity_gui_closed,
+    [PREFIX .. "entity-window"] = EntityGui.handle_entity_gui_closed,
     [PREFIX .. "control-center-window"] = ControlCenter.handle_window_closed,
 }
 script.on_event(defines.events.on_gui_closed, function(event)
@@ -184,10 +184,6 @@ script.on_event(defines.events.on_gui_closed, function(event)
 end)
 
 local on_gui_text_changed_router = {
-    [PREFIX .. "first-template-search"] = EntityControls.process_first_template_searchfield,
-    [PREFIX .. "second-template-search"] = EntityControls.process_second_template_searchfield,
-    [PREFIX .. "capability-override-textfield"] = EntityControls.process_capability_override_textfield,
-    [PREFIX .. "overflow-threshold-textfield"] = EntityControls.process_overflow_threshold_textfield,
     [PREFIX .. "cc-idle-surface-search"] = CCSurfaces.handle_idle_surface_search,
     [PREFIX .. "cc-compiling-surface-search"] = CCSurfaces.handle_compiling_surface_search,
     [PREFIX .. "cc-new-vsurface-name"] = CCSurfaces.handle_new_vsurface_name_textfield,
@@ -201,14 +197,17 @@ local on_gui_text_changed_router = {
     [PREFIX .. "cc-optimal-cluster-search"] = CCClusters.handle_optimal_cluster_search,
     [PREFIX .. "cc-new-cluster-name"] = CCClusters.handle_new_cluster_name,
     [PREFIX .. "cc-cluster-rename-textfield"] = CCClusters.handle_cluster_rename_textfield,
+    [PREFIX .. "entity-fc-search"] = EntityGui.handle_first_cluster_search,
+    [PREFIX .. "entity-sc-search"] = EntityGui.handle_second_cluster_search,
+    [PREFIX .. "entity-override-textfield"] = EntityGui.handle_override_textfield,
+    [PREFIX .. "entity-overflow-threshold"] = EntityGui.handle_overflow_threshold,
+    [PREFIX .. "entity-template-search"] = EntityGui.handle_selected_template_search,
 }
 script.on_event(defines.events.on_gui_text_changed, function(event)
     element_name_router(event, on_gui_text_changed_router)
 end)
 
 local on_gui_selection_state_changed_router = {
-    [PREFIX .. "first-template-selector"] = EntityControls.process_first_template_selector,
-    [PREFIX .. "second-template-selector"] = EntityControls.process_second_template_selector,
     [PREFIX .. "cc-idle-surface-selector"] = CCSurfaces.handle_idle_surface_selector,
     [PREFIX .. "cc-compiling-surface-selector"] = CCSurfaces.handle_compiling_surface_selector,
     [PREFIX .. "cc-generate-as-selector"] = CCSurfaces.handle_new_vsurface_generate_as_selector,
@@ -217,26 +216,29 @@ local on_gui_selection_state_changed_router = {
     [PREFIX .. "cc-suboptimal-cluster-selector"] = CCClusters.handle_cluster_selection_change,
     [PREFIX .. "cc-optimal-cluster-selector"] = CCClusters.handle_cluster_selection_change,
     [PREFIX .. "cc-new-cluster-selector"] = CCClusters.handle_new_cluster_surface_selection,
+    [PREFIX .. "entity-fc-selector"] = EntityGui.handle_first_cluster_selection,
+    [PREFIX .. "entity-sc-selector"] = EntityGui.handle_second_cluster_selection,
+    [PREFIX .. "entity-template-selector"] = EntityGui.handle_selected_template_selection,
 }
 script.on_event(defines.events.on_gui_selection_state_changed, function(event)
     element_name_router(event, on_gui_selection_state_changed_router)
 end)
 
 local on_gui_elem_changed_router = {
-    [PREFIX .. "choose-item-button"] = EntityControls.process_choose_item_button,
-    [PREFIX .. "choose-fluid-button"] = EntityControls.process_choose_fluid_button,
+   [PREFIX .. "entity-item-selection"] = EntityGui.handle_item_selection,
+   [PREFIX .. "entity-fluid-selection"] = EntityGui.handle_fluid_selection,
 }
 script.on_event(defines.events.on_gui_elem_changed, function(event)
     element_name_router(event, on_gui_elem_changed_router)
 end)
 
 local on_gui_checked_state_changed_router = {
-    [PREFIX .. "input-radiobutton"] = EntityControls.process_input_chosen,
-    [PREFIX .. "output-radiobutton"] = EntityControls.process_output_chosen,
-    [PREFIX .. "item-mode-radiobutton"] = EntityControls.process_item_mode_radiobutton,
-    [PREFIX .. "fluid-mode-radiobutton"] = EntityControls.process_fluid_mode_radiobutton,
-    [PREFIX .. "energy-mode-radiobutton"] = EntityControls.process_energy_mode_radiobutton,
-    [PREFIX .. "capability-override-checkbox"] = EntityControls.process_capability_override_checkbox,
+    [PREFIX .. "entity-input-radiobtn"] = EntityGui.handle_input_radiobtn,
+    [PREFIX .. "entity-output-radiobtn"] = EntityGui.handle_output_radiobtn,
+    [PREFIX .. "entity-item-radiobtn"] = EntityGui.handle_item_radiobtn,
+    [PREFIX .. "entity-fluid-radiobtn"] = EntityGui.handle_fluid_radiobtn,
+    [PREFIX .. "entity-energy-radiobtn"] = EntityGui.handle_energy_radiobtn,
+    [PREFIX .. "entity-override-checkbox"] = EntityGui.handle_override_checkbox,
 }
 script.on_event(defines.events.on_gui_checked_state_changed, function(event)
     element_name_router(event, on_gui_checked_state_changed_router)
