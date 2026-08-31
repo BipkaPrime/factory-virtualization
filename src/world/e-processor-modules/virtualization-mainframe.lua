@@ -46,6 +46,12 @@ local ClusterProcessor = require("src.simulation.cluster-processor")
 local VSurfaceManager = require("src.world.vsurface-manager")
 local Utilities = require("src.world.e-processor-modules.utilities")
 
+--TODO: make sure clearing assigned template works properly in case
+--this exact same template is reassigned again. Upd: reason is 
+--that all mainframes may not be updated before this template is
+--reassigned. Resulting in mainframe "thinking" that is provides
+--crafting power, when in reality it's not and its crafting power
+--was cleared at the time of template reassignment.
 
 local PREFIX = "FV-"
 local VMainframe = {}

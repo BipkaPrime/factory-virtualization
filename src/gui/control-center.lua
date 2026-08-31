@@ -243,6 +243,7 @@ end
 local update_router = {
     [control_center_modes.surfaces] = CCSurfaces.on_tick_updater,
     [control_center_modes.templates] = CCTemplates.on_tick_updater,
+    [control_center_modes.clusters] = CCClusters.on_tick_updater,
 }
 
 ---Used for fast time-based control center updates. Called about once a tick

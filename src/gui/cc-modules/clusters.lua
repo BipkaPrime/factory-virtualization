@@ -20,6 +20,17 @@ create; rename; delete; clear assigned template.
 ---@field new_cluster_confirm_status LuaGuiElement|nil confirm cluster creation status
 ---@field confirm_cluster_rename_btn LuaGuiElement|nil confirm cluster rename button
 ---@field confirm_cluster_rename_label LuaGuiElement|nil confirm cluster rename status
+---@field cluster_members_table LuaGuiElement|nil "table" for cluster member data
+---@field cluster_members_elems LuaGuiElement[]|nil table with elements that populate
+---cluster members "table" element
+---@field cluster_status_lbl LuaGuiElement|nil "label" displaying cluster status
+---@field assigned_template_lbl LuaGuiElement|nil "label", general cluster info
+---@field cluster_total_members LuaGuiElement|nil "label", general cluster info
+---@field cluster_craft_progressbar LuaGuiElement|nil cluster operation section
+---@field cluster_craft_style LuaStyle|nil cluster operation section
+---@field cluster_energy_demand LuaGuiElement|nil "label", operation section
+---@field cluster_decentr_loss LuaGuiElement|nil "label", operation section
+
 
 ---@class ControlCenterData additional fields used in "clusters" mode
 ---@field cluster_submode string|nil used to handle mutually exclusive gui states
@@ -172,7 +183,7 @@ local function update_suboptimal_cluster_selector(gui_data)
     if not selector or not selector.valid then return end
     local query = gui_data.suboptimal_cluster_query
     -- getting names of all suboptimal clusters
-    local options = ClusterProcessor.get_all_clusters(query, false)
+    local options = ClusterProcessor.get_all_clusters_by_status(query, false)
     table.sort(options)
     local selected_option = gui_data.selected_cluster
     -- if selected cluster is optimal, it's not displayed as selected
@@ -210,7 +221,7 @@ local function update_optimal_cluster_selector(gui_data)
     if not selector or not selector.valid then return end
     local query = gui_data.optimal_cluster_query
     -- getting names of all optimal clusters
-    local options = ClusterProcessor.get_all_clusters(query, true)
+    local options = ClusterProcessor.get_all_clusters_by_status(query, true)
     table.sort(options)
     local selected_option = gui_data.selected_cluster
     -- if selected cluster is suboptimal, it's not displayed as selected
@@ -318,7 +329,7 @@ local function add_new_cluster_section(parent, gui_data)
     local selector_style = selector.style
     selector_style.width = 200
     selector_style.height = 84
-    
+
     -- Second row: confirm cration button and status label
     local confirm_flow = section.add{type = "flow", direction = "vertical"}
     -- needed for right side alignment
@@ -458,7 +469,7 @@ local function add_delete_cluster_section(parent, gui_data)
     general_label.style.single_line = false
 
     -- non empty warning: present when cluster member count is not 0
-    local member_count = ClusterProcessor.get_member_count(cluster_name)
+    local member_count = ClusterProcessor.get_total_member_counts(cluster_name)
     if member_count ~= 0 then
         local non_empty_warning = {
             "cc-clusters.delete-warning-non-empty",
@@ -481,6 +492,352 @@ local function add_delete_cluster_section(parent, gui_data)
         tooltip = {"cc-clusters.confirm-cluster-delete-tooltip"},
     }
 end
+
+------------------------ GENERAL CLUSTER INFO SECTION -------------------------
+
+---Adds section used to display general cluster information
+---@param gui_data ControlCenterData
+local function update_general_info_section(gui_data)
+    local elements = gui_data.elements
+    local cluster_name = gui_data.selected_cluster
+
+    -- Updating cluster status
+    local label = elements.cluster_status_lbl
+    if not label or not label.valid then return end
+    local is_optimal = ClusterProcessor.is_cluster_optimal(cluster_name)
+    label.caption = (
+        is_optimal and
+        {"cc-clusters.cluster-status-ok"} or
+        {"cc-clusters.cluster-status-not-ok"}
+    )
+
+    -- Updaing assigned template
+    label = elements.assigned_template_lbl
+    if not label or not label.valid then return end
+    local template_uuid = ClusterProcessor.get_assigned_template_by_name(
+        cluster_name
+    )
+    local template_name = TCCManager.get_template_name(template_uuid) or "None"
+    local caption = {"cc-clusters.assigned-template", template_name}
+    label.caption = caption
+
+    -- Updating total member count
+    label = elements.cluster_total_members
+    if not label or not label.valid then return end
+    local total_members = ClusterProcessor.get_total_member_counts(
+        cluster_name
+    )
+    caption = {"cc-clusters.total-members", total_members}
+    label.caption = caption
+end
+
+---Adds section used to display general cluster information
+---@param parent LuaGuiElement
+---@param gui_data ControlCenterData
+local function add_general_info_section(parent, gui_data)
+    local section = CommonGui.create_info_element_base(
+        parent,
+        {"cc-clusters.general-info-title"}
+    )
+    local elements = gui_data.elements
+    local cluster_name = gui_data.selected_cluster or "None"
+
+    local flow = section.add{type = "flow", direction = "vertical"}
+    flow.style.vertical_spacing = 0
+    -- Cluster name label: does not need updates
+    local caption = {"cc-clusters.cluster-name", cluster_name}
+    flow.add{type = "label", caption = caption}
+    -- Surface name label: does not need updates
+    local surface_name = ClusterProcessor.get_cluster_surface_name(
+        cluster_name
+    )
+    caption = {"cc-clusters.surface-name", surface_name}
+    flow.add{type = "label", caption = caption}
+    -- Cluster status label: requires updates
+    elements.cluster_status_lbl = flow.add{type = "label"}
+    -- Assigned template label: requires updates
+    elements.assigned_template_lbl = flow.add{type = "label"}
+    -- Cluster total member count: requires updates
+    elements.cluster_total_members = flow.add{type = "label"}
+    update_general_info_section(gui_data)
+end
+
+--------------------------- CLUSTER MEMBERS SECTION ---------------------------
+
+---Updates one row of members table
+---@param member_table LuaGuiElement "table" element to be filled 
+---@param elems table<integer, LuaGuiElement|LuaStyle>
+---@param used_elems integer number of elements already updated
+---@param member_counts NamedMemberCount data to be displayed
+---@return integer used_elems new value
+local function fill_member_table_row(
+    member_table,
+    elems,
+    used_elems,
+    member_counts
+)
+    local member_name = member_counts.name
+    local sprite = "item/" .. member_name
+    local tooltip = {"entity-name." .. member_name}
+    local total = member_counts.total
+    local operational = member_counts.operational
+    local has_problems = total ~= operational
+    local label_color = has_problems and CommonGui.red or CommonGui.green
+    local elems_length = #elems
+
+    if elems_length > used_elems then
+        -- There are enough elements: updating existing
+        local sprite_btn = elems[used_elems + 1]
+        sprite_btn.sprite = sprite
+        sprite_btn.tooltip = tooltip
+        elems[used_elems + 2].caption = total
+        elems[used_elems + 3].font_color = label_color
+        elems[used_elems + 4].caption = operational
+        elems[used_elems + 5].font_color = label_color
+        local problems_btn = elems[used_elems + 6]
+        problems_btn.enabled = has_problems
+        if has_problems then
+            problems_btn.tags = {[PREFIX] = member_name}
+        end
+    else
+        -- There are not enough elements: creating new ones
+        local frame = member_table.add{
+            type = "frame",
+            style = "deep_frame_in_shallow_frame",
+        }
+        elems[elems_length + 1] = frame.add{
+            type = "sprite-button",
+            sprite = sprite,
+            tooltip = tooltip,
+        }
+
+        local total_label = member_table.add{
+            type = "label",
+            caption = total,
+        }
+        local total_style = total_label.style
+        total_style.font_color = label_color
+        elems[elems_length + 2] = total_label
+        ---@diagnostic disable-next-line: assign-type-mismatch
+        elems[elems_length + 3] = total_style
+
+        local op_label = member_table.add{
+            type = "label",
+            caption = operational,
+        }
+        local op_style = op_label.style
+        op_style.font_color = label_color
+        elems[elems_length + 4] = op_label
+        ---@diagnostic disable-next-line: assign-type-mismatch
+        elems[elems_length + 5] = op_style
+
+        local problems_flow = member_table.add{type = "flow"}
+        local problems_btn = problems_flow.add{
+            type = "button",
+            caption = {"cc-clusters.view-problems"},
+            enabled = has_problems,
+            name = PREFIX .. "cc-view-problems",
+        }
+        if has_problems then
+            problems_btn.tags = {[PREFIX] = member_name}
+        end
+        elems[elems_length + 6] = problems_btn
+    end
+    return used_elems + 6
+end
+
+---Comparison function that is used to sort member counts by name.
+---@param a NamedMemberCount
+---@param b NamedMemberCount
+local function member_counts_comparison(a, b)
+    return a.name < b.name
+end
+
+---Updates section used to display cluser member statistics
+---@param gui_data ControlCenterData
+local function update_member_info_section(gui_data)
+    local members_table = gui_data.elements.cluster_members_table
+    if not members_table or not members_table.valid then return end
+    -- all elements are considered valid as long as members table is
+    ---@type table<integer, LuaGuiElement|LuaStyle>
+    local elems = gui_data.elements.cluster_members_elems
+    local used_elems = 0
+
+    local counts = ClusterProcessor.get_member_counts(gui_data.selected_cluster)
+    table.sort(counts, member_counts_comparison)
+    for i = 1, #counts do
+        used_elems = fill_member_table_row(
+            members_table,
+            elems,
+            used_elems,
+            counts[i]
+        )
+    end
+    -- destoying any unwanted rows in case "table" got smaller
+    for i = #elems, used_elems + 1, -6 do
+        -- "view problems" button (destroying parent flow)
+        elems[i].parent.destroy()
+        elems[i] = nil
+        -- "op_label" style
+        elems[i - 1] = nil
+        -- "op_label"
+        elems[i - 2].destroy()
+        elems[i - 2] = nil
+        -- "total_label" style
+        elems[i - 3] = nil
+        -- "total_label"
+        elems[i - 4].destroy()
+        elems[i - 4] = nil
+        -- "sprite button"
+        elems[i - 5].parent.destroy()
+        elems[i - 5] = nil
+    end
+end
+
+---Adds section used to display cluser member statistics
+---@param parent LuaGuiElement
+---@param gui_data ControlCenterData
+local function add_member_info_section(parent, gui_data)
+    local section = CommonGui.create_info_element_base(
+        parent,
+        {"cc-clusters.members-section-title"}
+    )
+
+    local members_table = section.add{
+        type = "table",
+        column_count = 4,
+        style = "cluster_members_table",
+    }
+    -- table header
+    members_table.add{
+        type = "label",
+        caption = {"cc-clusters.member"},
+        style = "bold_label"
+    }
+    members_table.add{
+        type = "label",
+        caption = {"cc-clusters.total"},
+        style = "bold_label"
+    }
+    members_table.add{
+        type = "label",
+        caption = {"cc-clusters.operational"},
+        style = "bold_label"
+    }
+    members_table.add{
+        type = "label",
+        caption = {"cc-clusters.problems"},
+        style = "bold_label"
+    }
+    gui_data.elements.cluster_members_table = members_table
+    gui_data.elements.cluster_members_elems = {}
+    update_member_info_section(gui_data)
+end
+
+-------------------------- CLUSTER OPERATION SECTION --------------------------
+
+---Updates section used to display current cluster operation
+---@param gui_data ControlCenterData
+local function update_cluster_operation_section(gui_data)
+    local elements = gui_data.elements
+    local cluster_name = gui_data.selected_cluster
+
+    -- Updating progressbar
+    local progressbar = elements.cluster_craft_progressbar
+    if not progressbar or not progressbar.valid then return end
+    ---@type LuaStyle assuming its valid as long as progressbar is valid
+    local style = elements.cluster_craft_style
+    local max_power, usage = ClusterProcessor.get_crafting_power_values(
+        cluster_name
+    )
+    local caption = {
+        "cc-clusters.craft-progressbar-text",
+        CommonGui.large_number_to_string(usage),
+        CommonGui.large_number_to_string(max_power),
+    }
+    progressbar.caption = caption
+    local value = (max_power ~= 0) and usage / max_power or 0
+    progressbar.value = value
+    if value <= 0.5 then
+        style.color = CommonGui.red
+    elseif value <= 0.999 then
+        style.color = CommonGui.yellow
+    else
+        style.color = CommonGui.green
+    end
+
+    -- Updating max energy demand label
+    local max_demand, mult = ClusterProcessor.get_cluster_energy_demand(
+        cluster_name
+    )
+    local label = elements.cluster_energy_demand
+    if not label or not label.valid then return end
+    caption = {
+        "cc-clusters.max-energy-demand",
+        CommonGui.large_number_to_string(max_demand * mult)
+    }
+    label.caption = caption
+
+    -- Updating decentalization loss label
+    label = elements.cluster_decentr_loss
+    if not label or not label.valid then return end
+    local loss = max_demand * (mult - 1)
+    local percent = (mult - 1) / mult * 100
+    caption = {
+        "cc-clusters.decentr-loss",
+        CommonGui.large_number_to_string(loss),
+        CommonGui.number_to_string(percent, 2)
+    }
+    label.caption = caption
+end
+
+---Adds section used to display current cluster operation
+---@param parent LuaGuiElement
+---@param gui_data ControlCenterData
+local function add_cluster_operation_section(parent, gui_data)
+    local section = CommonGui.create_info_element_base(
+        parent,
+        {"cc-clusters.operation-section-title"}
+    )
+    local elements = gui_data.elements
+
+    -- Crafting power utilization progressbar (ls_crafts/total)
+    local progressbar = section.add{
+        type = "progressbar",
+        style = "electric_statistics_progressbar",
+    }
+    local style = progressbar.style
+    style.horizontally_stretchable = true
+    elements.cluster_craft_progressbar = progressbar
+    ---@diagnostic disable-next-line: assign-type-mismatch
+    elements.cluster_craft_style = style
+
+    -- Energy demand labels
+    local flow = section.add{type = "flow", direction = "vertical"}
+    flow.style.vertical_spacing = 0
+    elements.cluster_energy_demand = flow.add{type = "label"}
+    elements.cluster_decentr_loss = flow.add{type = "label"}
+    update_cluster_operation_section(gui_data)
+end
+
+------------------------- CLUSTER IO BUFFER SECTIONS --------------------------
+
+---Updates 2 sections used to display cluster IO buffers
+---@param gui_data ControlCenterData
+local function update_cluster_io_sections(gui_data)
+
+end
+
+
+---Adds 2 sections used to display cluster IO buffers
+---@param parent LuaGuiElement
+---@param gui_data ControlCenterData
+local function add_cluster_io_sections(parent, gui_data)
+
+
+
+end
+
 
 -------------------------------------------------------------------------------
 ------------------------ GUI CONSTRUCTION AND UPDATES -------------------------
@@ -513,7 +870,9 @@ local submode_constructors = {
 function CCClusters.construct_right_side(gui_data)
     local right_frame = gui_data.elements.right_frame
     if gui_data.selected_cluster then
-        -- TODO: add cluster info
+        add_general_info_section(right_frame, gui_data)
+        add_member_info_section(right_frame, gui_data)
+        add_cluster_operation_section(right_frame, gui_data)
     end
 
     ---If sumbode is selected, displaying corresponding section
@@ -530,7 +889,13 @@ end
 ---@param gui_data ControlCenterData
 ---@param update_cycle integer
 function CCClusters.on_tick_updater(gui_data, update_cycle)
-    -- TODO: add
+    if gui_data.selected_cluster then
+        if update_cycle % 30 == 0 then
+            update_general_info_section(gui_data)
+            update_member_info_section(gui_data)
+            update_cluster_operation_section(gui_data)
+        end
+    end
 end
 
 -------------------------------------------------------------------------------
@@ -795,6 +1160,42 @@ function CCClusters.handle_confirm_cluster_delete_btn(event)
     gui_data.cluster_submode = nil
     gui_data.selected_cluster = nil
     update_left_rebuild_right(gui_data)
+end
+
+--------------------------- CLUSTER MEMBERS SECTION ---------------------------
+
+---Handles "view_problems" button being pressed
+---@param event EventData.on_gui_click
+function CCClusters.handle_view_problems_btn(event)
+    local player_index = event.player_index
+    local gui_data = storage.control_center[player_index]
+    -- getting position of "not operational" member
+    local surface_index, pos_x, pos_y = ClusterProcessor.get_not_operational_position(
+        gui_data.selected_cluster,
+        ---@diagnostic disable-next-line: param-type-mismatch
+        event.element.tags[PREFIX]
+    )
+    -- Problem was not found: return
+    if not surface_index then return end
+
+    -- Problem was found: moving camera to it
+    local player = game.get_player(player_index)
+    if not player then return end
+    local surface = game.get_surface(surface_index)
+    if not surface then return end
+
+    -- closing the window
+    player.opened = nil
+    local zoom = player.zoom
+    -- moving player camera
+    player.set_controller{
+        type = defines.controllers.remote,
+        surface = surface,
+        position = {pos_x, pos_y},
+    }
+    player.zoom = zoom
+    -- printing location in chat (cheating ping)
+    player.print(string.format("[gps=%f,%f,%s]", pos_x, pos_y, surface.name))
 end
 
 

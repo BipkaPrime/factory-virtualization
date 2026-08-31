@@ -371,13 +371,10 @@ local function update_first_cluster_configurator(gui_data)
     -- Gathering displayed options
     local options
     if access_interfaces[gui_data.entity_name] then
-        -- All suboptimal clusters for access interfaces
-        options = ClusterProcessor.get_all_clusters(
-            gui_data.fc_query,
-            false
-        )
+        -- All clusters for access interfaces
+        options = ClusterProcessor.get_all_clusters(gui_data.fc_query)
     else
-        -- All clusters on the same surface as entity
+        -- All clusters on the same surface as entity for other entities
         options = ClusterProcessor.get_surface_clusters(
             gui_data.surface_index,
             gui_data.fc_query

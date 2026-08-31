@@ -34,3 +34,22 @@ data.raw["gui-style"]["default"]["template_routing_table"] = {
       {column = 3, width = 60}
     },
 }
+
+-- Cluster members table style
+data.raw["gui-style"]["default"]["cluster_members_table"] = {
+    type = "table_style",
+    parent = "bordered_table",
+    right_cell_padding = 8,
+    column_alignments = {
+        {column = 1, alignment = "center"},
+        {column = 2, alignment = "center"},
+        {column = 3, alignment = "center"},
+        {column = 4, alignment = "center"},
+    },
+    column_widths = {
+      {column = 1, width = 50},
+      {column = 2, width = 70},
+      {column = 3, width = 70},
+      {column = 4, width = 126}
+    },
+}

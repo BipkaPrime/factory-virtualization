@@ -759,10 +759,8 @@ function ClusterProcessor.void_overflow(buffer_entry, max_amount, threshold)
 end
 
 -------------------------------------------------------------------------------
------------------------------- GENERAL REQUESTS -------------------------------
+------------------------ CLUSTER INFORMATION REQUESTS -------------------------
 -------------------------------------------------------------------------------
-
--------------------------------- GUI REQUESTS --------------------------------
 
 ---Decides if given cluster is ok or requires attention
 ---@param cluster ClusterData
@@ -781,23 +779,49 @@ local function is_cluster_optimal(cluster)
     return true
 end
 
+---Gets cluster data from storage by name
+---@param cluster_name string|nil
+---@return ClusterData|nil
+local function get_cluster_by_name(cluster_name)
+    if not cluster_name then return end
+    local clusters = storage.clusters
+    local uuid = clusters.name_to_uuid[cluster_name]
+    if not uuid then return end
+    return clusters.lookup[uuid]
+end
+
+------------------------------ GENERAL REQUESTS -------------------------------
+
 ---Collects names of all clusters that match with given query.
----Can get all optimal clusters or all suboptimal.
----Intended use case: control center gui in "clusters" mode.
 ---@param query string|nil search query
----@param get_optimal boolean optimal filtering
 ---@return string[]
-function ClusterProcessor.get_all_clusters(query, get_optimal)
+function ClusterProcessor.get_all_clusters(query)
+    local has_query = query and string.find(query, "%S", 1, false)
+    local result = {}
+    for _, name in pairs(storage.clusters.uuid_to_name) do
+        ---@diagnostic disable-next-line
+        if not has_query or string.find(name, query, 1, true) then
+            table.insert(result, name)
+        end
+    end
+    return result
+end
+
+---Collects names of all clusters that match with given query.
+---Collects either all optimal clusters or all suboptimal
+---@param query string|nil search query
+---@param is_optimal boolean true to get all optimal clusters
+---@return string[]
+function ClusterProcessor.get_all_clusters_by_status(query, is_optimal)
     local clusters = storage.clusters
     local lookup = clusters.lookup
     local has_query = query and string.find(query, "%S", 1, false)
-
     local result = {}
     for uuid, name in pairs(clusters.uuid_to_name) do
         ---@diagnostic disable-next-line
         if not has_query or string.find(name, query, 1, true) then
             local cluster = lookup[uuid]
-            if is_cluster_optimal(cluster) == get_optimal then
+            if is_cluster_optimal(cluster) == is_optimal then
                 table.insert(result, name)
             end
         end
@@ -827,26 +851,14 @@ function ClusterProcessor.get_surface_clusters(surface_index, query)
     return result
 end
 
----Converts an array of cluster uuids to an array of cluster names in place.
----Intended use case: control center gui in "templates" mode.
----@param cluster_uuids string[]
-function ClusterProcessor.convert_to_cluster_names(cluster_uuids)
-    local uuid_to_name = storage.clusters.uuid_to_name
-    for i, uuid in ipairs(cluster_uuids) do
-        local name = uuid_to_name[uuid]
-        if name then cluster_uuids[i] = name end
-    end
-end
+-------------------------- REQUESTS BY DISPLAY NAME ---------------------------
 
----Gets cluster data from storage by name
----@param cluster_name string|nil
----@return ClusterData|nil
-local function get_cluster_by_name(cluster_name)
+---Gets cluster uuid by cluster name
+---@param cluster_name string|nil cluster display name
+---@return string|nil cluster_uuid
+function ClusterProcessor.get_cluster_uuid(cluster_name)
     if not cluster_name then return end
-    local clusters = storage.clusters
-    local uuid = clusters.name_to_uuid[cluster_name]
-    if not uuid then return end
-    return clusters.lookup[uuid]
+    return storage.clusters.name_to_uuid[cluster_name]
 end
 
 ---Checks if given cluster exists in storage and is optimal
@@ -867,14 +879,103 @@ function ClusterProcessor.is_cluster_suboptimal(cluster_name)
     return not is_cluster_optimal(cluster)
 end
 
----Gets total number of members for a given cluster
+---Gets total and operational numbers of members for a given cluster
 ---@param cluster_name string|nil
----@return integer
-function ClusterProcessor.get_member_count(cluster_name)
+---@return integer total, integer operational
+function ClusterProcessor.get_total_member_counts(cluster_name)
     local cluster = get_cluster_by_name(cluster_name)
-    if not cluster then return 0 end
-    return cluster.total_members
+    if not cluster then return 0, 0 end
+    return cluster.total_members, cluster.operational_members
 end
+
+---@class NamedMemberCount
+---@field name string name of entity
+---@field total integer total number of members with this name
+---@field operational integer number of operational members with this name
+
+---Gets total and operational counts for all cluster members
+---@return NamedMemberCount[]
+function ClusterProcessor.get_member_counts(cluster_name)
+    local cluster = get_cluster_by_name(cluster_name)
+    if not cluster then return {} end
+
+    ---@type NamedMemberCount[]
+    local result = {}
+    local member_counts = cluster.member_counts
+    for name, counts in pairs(member_counts) do
+        result[#result + 1] = {
+            name = name,
+            total = counts.total,
+            operational = counts.operational
+        }
+    end
+    return result
+end
+
+---Gets surface and position of not operational member of given cluster
+---@param cluster_name string|nil display name of cluster
+---@param entity_name string name of problematic entity
+---@return integer|nil surface_index
+---@return number|nil pos_x
+---@return number|nil pos_y
+function ClusterProcessor.get_not_operational_position(cluster_name, entity_name)
+    local cluster = get_cluster_by_name(cluster_name)
+    -- cluster not found or name was not provided
+    if not cluster then return end
+    local entry = cluster.member_counts[entity_name]
+    -- no cluster members with provided name found
+    if not entry then return end
+    local unit_number = next(entry.problems)
+    -- no problems found
+    if not unit_number then return end
+    local member_data = cluster.members[unit_number]
+    return cluster.surface_index, member_data.x_pos, member_data.y_pos
+end
+
+---Gets surface index of given cluster
+---@param cluster_name string|nil display name of cluster
+---@return string surface_name
+function ClusterProcessor.get_cluster_surface_name(cluster_name)
+    local cluster = get_cluster_by_name(cluster_name)
+    -- cluster not found or name was not provided
+    if not cluster then return "None" end
+    local surface = game.get_surface(cluster.surface_index)
+    if not surface then return "None" end
+    return surface.name
+end
+
+---Gets template_uuid assigned to given cluster
+---@param cluster_name string|nil cluster display name
+---@return string|nil template_uuid unique template identifier
+function ClusterProcessor.get_assigned_template_by_name(cluster_name)
+    local cluster = get_cluster_by_name(cluster_name)
+    if not cluster then return end
+    return cluster.template_uuid
+end
+
+---Gets cluster energy demand and decentralization loss multiplier
+---@param cluster_name string|nil cluster display name
+---@return number max_energy_per_craft before applying the loss
+---@return number decentr_mult decentalization cost multiplier
+function ClusterProcessor.get_cluster_energy_demand(cluster_name)
+    local cluster = get_cluster_by_name(cluster_name)
+    if not cluster then return 0, 1 end
+    local max_energy = cluster.energy_per_craft * cluster.crafting_power
+    local mult = cluster.decentralization_loss + 1
+    return max_energy, mult
+end
+
+---Gets maximum crafting power and last second crafts for given cluster
+---@param cluster_name string|nil cluster display name
+---@return number max_power cluster crafting_power
+---@return number utilization cluster ls_crafts
+function ClusterProcessor.get_crafting_power_values(cluster_name)
+    local cluster = get_cluster_by_name(cluster_name)
+    if not cluster then return 0, 0 end
+    return cluster.crafting_power, cluster.ls_crafts
+end
+
+------------------------------ REQUESTS BY UUID -------------------------------
 
 ---Gets cluster name by uuid
 ---@param cluster_uuid string|nil unique cluster identifier
@@ -884,15 +985,15 @@ function ClusterProcessor.get_cluster_name(cluster_uuid)
     return storage.clusters.uuid_to_name[cluster_uuid]
 end
 
------------------------------- BACKEND REQUESTS -------------------------------
-
----Gets uuid of a cluster given its name. Intended use case: retrieving
----cluster uuid by name when saving entity configuration in entity processor.
----@param cluster_name string|nil string cluster display name
----@return string|nil cluster_uuid
-function ClusterProcessor.get_cluster_uuid(cluster_name)
-    if not cluster_name then return end
-    return storage.clusters.name_to_uuid[cluster_name]
+---Converts an array of cluster uuids to an array of cluster names in place.
+---Intended use case: control center gui in "templates" mode.
+---@param cluster_uuids string[] this array is modified in-place
+function ClusterProcessor.convert_to_cluster_names(cluster_uuids)
+    local uuid_to_name = storage.clusters.uuid_to_name
+    for i, uuid in ipairs(cluster_uuids) do
+        local name = uuid_to_name[uuid]
+        if name then cluster_uuids[i] = name end
+    end
 end
 
 ---Checks if cluster with given uuid exists. Intended use case: checking
