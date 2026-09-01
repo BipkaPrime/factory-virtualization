@@ -46,13 +46,6 @@ local ClusterProcessor = require("src.simulation.cluster-processor")
 local VSurfaceManager = require("src.world.vsurface-manager")
 local Utilities = require("src.world.e-processor-modules.utilities")
 
---TODO: make sure clearing assigned template works properly in case
---this exact same template is reassigned again. Upd: reason is 
---that all mainframes may not be updated before this template is
---reassigned. Resulting in mainframe "thinking" that is provides
---crafting power, when in reality it's not and its crafting power
---was cleared at the time of template reassignment.
-
 local PREFIX = "FV-"
 local VMainframe = {}
 
@@ -434,7 +427,15 @@ local function operational_state_update(properties)
     local cluster_template = ClusterProcessor.get_assigned_template(
         properties.first_cluster
     )
-    if current_template ~= cluster_template then
+    if current_template == cluster_template then
+        -- this is required to prevent problems in case template is
+        -- "dropped" when it is assigned to the cluster
+        ClusterProcessor.assign_member_crafting_power(
+            properties.first_cluster,
+            properties.unit_number,
+            properties.capacity
+        )
+    else
         from_operational_to_deconstructing(properties)
     end
     return Utilities.registry_sections.active

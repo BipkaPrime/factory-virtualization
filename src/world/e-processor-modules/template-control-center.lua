@@ -13,9 +13,6 @@ I. Entity is located on allowed surface. Currently any surface named "aquilo"
 Properties that are assigned on initialization:
 1. status. Used to display entity status in the gui
 2. capacity. Used to store tcc proximity stat
-3. surface_index. Used to make calls to tcc-manager
-4. pos_x. Used to make calls to tcc-manager
-5. pos_y. Used to make calls to tcc-manager
 -------------------------------------------------------------------------------
 -- ON-TICK UPDATES
 -------------------------------------------------------------------------------
@@ -65,10 +62,6 @@ function TemplateCC.initialize(properties)
     local proximity_base = proximity[properties.entity_name]
     local quality_mult = 1 + 0.5 * entity.quality.level
     properties.capacity = proximity_base * quality_mult
-    properties.surface_index = entity.surface_index
-    local position = entity.position
-    properties.pos_x = position.x
-    properties.pos_y = position.y
     return Utilities.registry_sections.active
 end
 
@@ -100,10 +93,7 @@ function TemplateCC.update(properties)
         if not properties.operational then
             -- attempting to register this control center
             local status = TCCManager.register_control_center(
-                properties.unit_number,
-                properties.surface_index,
-                properties.pos_x,
-                properties.pos_y,
+                entity,
                 properties.capacity
             )
             properties.operational = status

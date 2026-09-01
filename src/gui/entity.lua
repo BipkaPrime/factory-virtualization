@@ -40,6 +40,12 @@ all players and is located at storage.entity_gui: table<integer, EntityGuiData>
 ---@field template_selector LuaGuiElement|nil "list-box" used for "selected_template"
 ---configuration
 ---@field status_label LuaGuiElement|nil "label" used to display entity status
+---@field entity_performance_bar LuaGuiElement|nil "progressbar" performance section
+---@field entity_performance_style LuaStyle|nil style of progressbar above
+---@field mainf_requests_table LuaGuiElement|nil "table" mainframe requests section
+---@field mainf_requests_btns LuaGuiElement[]|nil "sprite-buttons" requests section
+---@field mainf_contents_table LuaGuiElement|nil "table" mainframe contents section
+---@field mainf_contents_btns LuaGuiElement[]|nil "sprite-buttons" contents section
 
 ---Contains data related to this window for one player
 ---@class EntityGuiData
@@ -721,6 +727,37 @@ function EntityGui.handle_selected_template_selection(event)
     update_selected_template_configurator(gui_data)
 end
 
+--------------------------- TOGGLE PROXIMITY RADIUS ---------------------------
+
+---Adds button used to show TCC proximity radius
+---@param parent LuaGuiElement elements will be added here
+local function add_proximity_radius_buttons(parent)
+    local button = parent.add{
+        type = "button",
+        name = PREFIX .. "entity-proximity-chart",
+        caption = {"entity-gui.render-proximity-chart"}
+    }
+    button.style.horizontally_stretchable = true
+    button = parent.add{
+        type = "button",
+        name = PREFIX .. "entity-proximity-world",
+        caption = {"entity-gui.render-proximity-world"}
+    }
+    button.style.horizontally_stretchable = true
+end
+
+---Handles "render proximity (chart)" button being pressed
+---@param event EventData.on_gui_click
+function EntityGui.handle_proximity_chart_btn(event)
+    TCCManager.toggle_proximity_render_chart()
+end
+
+---Handles "render proximity (world)" button being pressed
+---@param event EventData.on_gui_click
+function EntityGui.handle_proximity_world_btn(event)
+    TCCManager.toggle_proximity_render_game()
+end
+
 -------------------------------------------------------------------------------
 ------------------ RIGHT FRAME ELEMENTS (ENTITY INFORMATION) ------------------
 -------------------------------------------------------------------------------
@@ -747,21 +784,6 @@ local function get_entity_status(gui_data)
     return properties.status or {"entity-status.unknown"}
 end
 
----Adds section used to display entity status
----@param parent LuaGuiElement section will be added gere
----@param gui_data EntityGuiData table with window-related data
-local function add_status_section(parent, gui_data)
-    local section = CommonGui.create_info_element_base(
-        parent,
-        {"entity-gui.entity-status"}
-    )
-    local label = section.add{
-        type = "label",
-        caption = get_entity_status(gui_data),
-    }
-    gui_data.elements.status_label = label
-end
-
 ---Updates section used to display entity status
 ---@param gui_data EntityGuiData table with window-related data
 local function update_status_section(gui_data)
@@ -770,9 +792,177 @@ local function update_status_section(gui_data)
     label.caption = get_entity_status(gui_data)
 end
 
-------------------------- ENTITY PERFORMANCE DISPLAY --------------------------
+---Adds section used to display entity status
+---@param parent LuaGuiElement section will be added gere
+---@param gui_data EntityGuiData table with window-related data
+local function add_status_section(parent, gui_data)
+    local section = CommonGui.create_info_element_base(
+        parent,
+        {"entity-gui.entity-status"}
+    )
+    gui_data.elements.status_label = section.add{type = "label"}
+    update_status_section(gui_data)
+end
 
+------------------------- ENTITY PERFORMANCE SECTION --------------------------
 
+---Updates section used to display entity performance (ls_flow/flow_limit)
+---@param gui_data EntityGuiData table with window-related data
+local function update_entity_performance_section(gui_data)
+    local elements = gui_data.elements
+    local bar = elements.entity_performance_bar
+    if not bar or not bar.valid then return end
+    ---@type LuaStyle
+    local style = elements.entity_performance_style
+
+    local properties = EntityProcessor.get_entity_properties(
+        gui_data.unit_number
+    )
+    local current, maximum
+    if properties then
+        current = properties.ls_flow or 0
+        maximum = properties.flow_limit or 0
+    else
+        current = 0
+        maximum = 0
+    end
+    local bar_caption = {
+        "entity-gui.bar-text",
+        CommonGui.large_number_to_string(current),
+        CommonGui.large_number_to_string(maximum)
+    }
+
+    local bar_value = (maximum ~= 0) and current / maximum or 0
+    local bar_color
+    if bar_value < 0.75 then
+        bar_color = CommonGui.green
+    else
+        bar_color = CommonGui.orange
+    end
+
+    bar.value = bar_value
+    bar.caption = bar_caption
+    style.color = bar_color
+end
+
+---Adds section used to display entity performance (ls_flow/flow_limit)
+---@param parent LuaGuiElement section will be added gere
+---@param gui_data EntityGuiData table with window-related data
+local function add_entity_performance_section(parent, gui_data)
+    local section = CommonGui.create_info_element_base(
+        parent,
+        {"entity-gui.entity-performance"}
+    )
+    local elements = gui_data.elements
+    local progressbar = section.add{
+        type = "progressbar",
+        style = "electric_statistics_progressbar",
+    }
+    local style = progressbar.style
+    style.horizontally_stretchable = true
+    elements.entity_performance_bar = progressbar
+    ---@diagnostic disable-next-line: assign-type-mismatch
+    elements.entity_performance_style = style
+    update_entity_performance_section(gui_data)
+end
+
+----------------------- MAINFRAME CONTENTS AND REQUESTS -----------------------
+
+---Collects sprite button data from mainframe requests or contents table
+---@param mainframe_table table<BufferKeyString, ItemBuffer>
+---@param buttons_data SpriteButtonData[]
+---@return SpriteButtonData[]
+local function collect_sprite_button_data(mainframe_table, buttons_data)
+    for _, entry in pairs(mainframe_table) do
+        local count = entry.count
+        if count > 0 then
+            local name = entry.name
+            buttons_data[#buttons_data + 1] = {
+                sprite = "item/" .. name,
+                -- items can only have localization as entities
+                ---@diagnostic disable-next-line
+                tooltip = {"?", {"item-name." .. name}, {"entity-name." .. name}},
+                count = count,
+                quality = entry.quality
+            }
+        end
+    end
+    return buttons_data
+end
+
+---Adds 2 section used to display mainframe requests and contents
+---@param gui_data EntityGuiData table with window-related data
+local function update_mainframe_tables(gui_data)
+    local elements = gui_data.elements
+    local properties = EntityProcessor.get_entity_properties(gui_data.unit_number)
+
+    -- Updating missing materials table
+    local btn_table = elements.mainf_requests_table
+    if not btn_table or not btn_table.valid then return end
+    ---@type LuaGuiElement[] 
+    local buttons = elements.mainf_requests_btns
+    local buttons_data = {}
+    if properties then
+        local requests = properties.building_requests
+        if requests then
+            collect_sprite_button_data(
+                requests,
+                buttons_data
+            )
+        end
+    end
+    CommonGui.update_sprite_button_table(
+        btn_table,
+        buttons,
+        buttons_data
+    )
+
+    -- Updating collected materials table
+    btn_table = elements.mainf_contents_table
+    if not btn_table or not btn_table.valid then return end
+    ---@type LuaGuiElement[] 
+    buttons = elements.mainf_contents_btns
+    buttons_data = {}
+    if properties then
+        local contents = properties.building_contents
+        if contents then
+            collect_sprite_button_data(
+                contents,
+                buttons_data
+            )
+        end
+    end
+    CommonGui.update_sprite_button_table(
+        btn_table,
+        buttons,
+        buttons_data
+    )
+end
+
+---Adds 2 section used to display mainframe requests and contents
+---@param parent LuaGuiElement section will be added gere
+---@param gui_data EntityGuiData table with window-related data
+local function add_mainframe_tables(parent, gui_data)
+    local elements = gui_data.elements
+
+    -- Requests section
+    local section = CommonGui.create_info_element_base(
+        parent,
+        {"entity-gui.missing-materials"}
+    )
+    elements.mainf_requests_table = CommonGui.add_sprite_button_table(section)
+    elements.mainf_requests_btns = {}
+
+    -- Contents section
+    section = CommonGui.create_info_element_base(
+        parent,
+        {"entity-gui.collected-materials"}
+    )
+    elements.mainf_contents_table = CommonGui.add_sprite_button_table(section)
+    elements.mainf_contents_btns = {}
+
+    update_mainframe_tables(gui_data)
+end
 
 -------------------------------------------------------------------------------
 ------------------------------ GUI CONSTRUCTION -------------------------------
@@ -891,6 +1081,7 @@ local function create_inter_cluster_bridge_gui(player, entity)
     -- Information elements
     local right_frame = gui_data.elements.right_frame
     add_status_section(right_frame, gui_data)
+    add_entity_performance_section(right_frame, gui_data)
 end
 
 ---@param player LuaPlayer assumed to be valid
@@ -922,6 +1113,7 @@ local function create_cluster_energy_io_gui(player, entity)
     -- Information elements
     local right_frame = gui_data.elements.right_frame
     add_status_section(right_frame, gui_data)
+    add_entity_performance_section(right_frame, gui_data)
 end
 
 ---@param player LuaPlayer assumed to be valid
@@ -954,6 +1146,7 @@ local function create_cluster_fluid_io_gui(player, entity)
     -- Information elements
     local right_frame = gui_data.elements.right_frame
     add_status_section(right_frame, gui_data)
+    add_entity_performance_section(right_frame, gui_data)
 end
 
 ---@param player LuaPlayer assumed to be valid
@@ -986,6 +1179,7 @@ local function create_cluster_item_io_gui(player, entity)
     -- Information elements
     local right_frame = gui_data.elements.right_frame
     add_status_section(right_frame, gui_data)
+    add_entity_performance_section(right_frame, gui_data)
 end
 
 ---@param player LuaPlayer assumed to be valid
@@ -1015,6 +1209,7 @@ local function create_cluster_overflow_controller_gui(player, entity)
     -- Information elements
     local right_frame = gui_data.elements.right_frame
     add_status_section(right_frame, gui_data)
+    add_entity_performance_section(right_frame, gui_data)
 end
 
 ---@param player LuaPlayer assumed to be valid
@@ -1096,12 +1291,15 @@ local function create_template_computation_array_gui(player, entity)
     -- Information elements
     local right_frame = gui_data.elements.right_frame
     add_status_section(right_frame, gui_data)
+    add_entity_performance_section(right_frame, gui_data)
 end
 
 ---@param player LuaPlayer assumed to be valid
 ---@param entity LuaEntity assumed to be valid
 local function create_template_control_center_gui(player, entity)
     local gui_data = create_entity_gui_base(player, entity)
+    local left_frame = gui_data.elements.left_frame
+    add_proximity_radius_buttons(left_frame)
 
     -- Information elements
     local right_frame = gui_data.elements.right_frame
@@ -1132,6 +1330,7 @@ local function create_template_energy_io_gui(player, entity)
     -- Information elements
     local right_frame = gui_data.elements.right_frame
     add_status_section(right_frame, gui_data)
+    add_entity_performance_section(right_frame, gui_data)
 end
 
 ---@param player LuaPlayer assumed to be valid
@@ -1159,6 +1358,7 @@ local function create_template_fluid_io_gui(player, entity)
     -- Information elements
     local right_frame = gui_data.elements.right_frame
     add_status_section(right_frame, gui_data)
+    add_entity_performance_section(right_frame, gui_data)
 end
 
 ---@param player LuaPlayer assumed to be valid
@@ -1186,6 +1386,7 @@ local function create_template_item_io_gui(player, entity)
     -- Information elements
     local right_frame = gui_data.elements.right_frame
     add_status_section(right_frame, gui_data)
+    add_entity_performance_section(right_frame, gui_data)
 end
 
 ---@param player LuaPlayer assumed to be valid
@@ -1204,6 +1405,7 @@ local function create_virtualization_mainframe_gui(player, entity)
     -- Information elements
     local right_frame = gui_data.elements.right_frame
     add_status_section(right_frame, gui_data)
+    add_mainframe_tables(right_frame, gui_data)
 end
 
 -------------------------------------------------------------------------------
@@ -1297,6 +1499,12 @@ local function on_tick_updater(gui_data, update_cycle)
     end
 
     update_status_section(gui_data)
+    if update_cycle % 30 == 0 then
+        update_entity_performance_section(gui_data)
+    end
+    if update_cycle % 60 == 0 then
+        update_mainframe_tables(gui_data)
+    end
 end
 
 GuiUpdater.add_schema("entity", on_tick_updater)

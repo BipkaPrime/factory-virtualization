@@ -36,13 +36,15 @@ local TCCManager = {}
 ---@class TCCData
 ---@field allowed_surface string name of surface tcc can work on
 ---@field registered boolean|nil true if tcc is currently registered
+---@field entity LuaEntity|nil reference to TCC entity
 ---@field unit_number integer|nil unit number of registered tcc
 ---@field surface_index integer|nil identifier of the surface tcc is located on
 ---@field pos_x number|nil x-coordinate of template control center entity
 ---@field pos_y number|nil y-coordinate of template control center entity
 ---@field proximity_dist number|nil maximum distance from which entities
 ---that require tcc proximity to work can interact with it.
-
+---@field game_render LuaRenderObject|nil proximity radius render (in game)
+---@field chart_render LuaRenderObject|nil proximity radius render (on the map)
 
 ---Gets name of surface allowed for operation of template control center
 ---and all buildings related to it.
@@ -53,29 +55,22 @@ end
 ---Attempts to register template control center.
 ---Registration will fail only when there is another registered tcc.
 ---Assuming that surface is allowed (must be checked by function above).
----@param unit_number integer unique entity identifier
----@param surface_index integer unique surface identifier
----@param entity_x number x-coordinate of entity
----@param entity_y number y-coordinate of entity
+---@param entity LuaEntity reference to TCC entity
 ---@param proximity_dist number maximum distance
 ---@return boolean status true if entity was registered
-function TCCManager.register_control_center(
-    unit_number,
-    surface_index,
-    entity_x,
-    entity_y,
-    proximity_dist
-)
+function TCCManager.register_control_center(entity, proximity_dist)
     local tcc = storage.tcc
     -- another tcc is already registered: return
     if tcc.registered then return false end
 
     -- everything is ok: registering
     tcc.registered = true
-    tcc.unit_number = unit_number
-    tcc.surface_index = surface_index
-    tcc.pos_x = entity_x
-    tcc.pos_y = entity_y
+    tcc.entity = entity
+    tcc.unit_number = entity.unit_number
+    tcc.surface_index = entity.surface_index
+    local position = entity.position
+    tcc.pos_x = position.x
+    tcc.pos_y = position.y
     tcc.proximity_dist = proximity_dist * proximity_dist
     return true
 end
@@ -88,6 +83,7 @@ function TCCManager.unregister_control_center(unit_number)
     if tcc.unit_number ~= unit_number then return end
 
     tcc.registered = nil
+    tcc.entity = nil
     tcc.unit_number = nil
     tcc.surface_index = nil
     tcc.pos_x = nil
@@ -109,6 +105,60 @@ function TCCManager.in_proximity_to_tcc(surface_index, x, y)
     -- checking distance from given point to tcc
     local dist = (tcc.pos_x - x)^2 + (tcc.pos_y - y)^2
     return dist <= tcc.proximity_dist
+end
+
+local render_color = {r = 0.2, g = 0.2, b = 0.2, a = 0.1}
+
+---Toggles proximity render for currently registered TCC on chart
+function TCCManager.toggle_proximity_render_chart()
+    local tcc = storage.tcc
+
+    -- destroying current render if it exists
+    local render = tcc.chart_render
+    if render and render.valid then
+        render.destroy()
+        tcc.chart_render = nil
+        return
+    end
+
+    -- rendering proximity radius
+    local entity = tcc.entity
+    if not entity or not entity.valid then return end
+    tcc.chart_render = rendering.draw_circle{
+        color = render_color,
+        radius = math.sqrt(tcc.proximity_dist),
+        filled = true,
+        target = entity,
+        surface = entity.surface_index,
+        draw_on_ground = true,
+        render_mode = "chart",
+    }
+end
+
+---Toggles proximity render for currently registered TCC in world
+function TCCManager.toggle_proximity_render_game()
+    local tcc = storage.tcc
+
+    -- destroying current render if it exists
+    local render = tcc.game_render
+    if render and render.valid then
+        render.destroy()
+        tcc.game_render = nil
+        return
+    end
+
+    -- rendering proximity radius
+    local entity = tcc.entity
+    if not entity or not entity.valid then return end
+    tcc.game_render = rendering.draw_circle{
+        color = render_color,
+        radius = math.sqrt(tcc.proximity_dist),
+        filled = true,
+        target = entity,
+        surface = entity.surface_index,
+        draw_on_ground = true,
+        render_mode = "game",
+    }
 end
 
 ---Checks if template control center is currently registered

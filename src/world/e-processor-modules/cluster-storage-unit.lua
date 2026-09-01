@@ -146,8 +146,9 @@ function StorageUnit.initialize(properties)
     properties.status = Utilities.entity_status.initialized
     properties.buffer_key = Utilities.generate_multimode_buffer_key(properties)
     local base_capacity = capacity_limits[entity_name][operation_mode]
+    local quality_mult = 1 + 0.5 * entity.quality.level
     local override = (properties.capability_override or 1)
-    properties.capacity = base_capacity * override
+    properties.capacity = base_capacity * quality_mult * override
     return Utilities.registry_sections.active
 end
 

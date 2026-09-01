@@ -130,6 +130,8 @@ end
 ---@return EntityRegistrySection
 function ComputationArray.update(properties)
     properties.ls_flow = 0
+    local entity = properties.entity
+    local idle_power = idle_power_consumption[properties.entity_name]
 
     -- Checking TCC proximity
     local in_proximity = TCCManager.in_proximity_to_tcc(
@@ -140,12 +142,12 @@ function ComputationArray.update(properties)
     if not in_proximity then
         -- there is no TCC in proximity: setting entity to not operational
         switch_to_not_operational(properties)
+        entity.power_usage = idle_power
         properties.status = Utilities.entity_status.no_tcc_in_proximity
         return Utilities.registry_sections.stalled
     end
 
     -- TCC found in proximity: attempting to turn on the entity
-    local entity = properties.entity
     local current_energy = entity.energy
     ---@type number assigned on initialization
     local comp_limit = properties.flow_limit
@@ -162,7 +164,6 @@ function ComputationArray.update(properties)
         local requested = comp_limit * demand_ratio
         properties.ls_flow = requested
         -- calculating target power consumption according to requested computation
-        local idle_power = idle_power_consumption[properties.entity_name]
         local required_power = requested * properties.computation_cost + idle_power
         if current_energy > required_power then
             -- there is enough energy: working

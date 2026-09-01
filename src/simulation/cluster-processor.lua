@@ -59,6 +59,8 @@ All cluster data is located at storage.clusters (see ClusterStorage class).
 ---@field cs_flow number amount that entered(input buffer)/exited(output buffer)
 ---from the time of last craft
 ---@field type "item"|"fluid"|"energy"
+---@field sprite string used for displaying entry information in the GUI
+---@field tooltip LocalisedString used for displaying entry information in the GUI
 ---@field item_id table|nil {name = name, quality = quality} only present for items
 ---@field fluid_name string|nil only present for fluids
 
@@ -975,6 +977,16 @@ function ClusterProcessor.get_crafting_power_values(cluster_name)
     return cluster.crafting_power, cluster.ls_crafts
 end
 
+---Gets input and output buffers for given cluster
+---@param cluster_name string|nil cluster display name
+---@return table<string, ClusterBufferEntry> input
+---@return table<string, ClusterBufferEntry> output
+function ClusterProcessor.get_cluster_io_buffers(cluster_name)
+    local cluster = get_cluster_by_name(cluster_name)
+    if not cluster then return {}, {} end
+    return cluster.input, cluster.output
+end
+
 ------------------------------ REQUESTS BY UUID -------------------------------
 
 ---Gets cluster name by uuid
@@ -1050,18 +1062,24 @@ local function create_buffer_entry(cluster, io_mode, buffer_key, per_craft)
         local name = string.sub(buffer_key, 1, start_idx - 1)
         local quality = string.sub(buffer_key, stop_idx + 1)
         entry.item_id = {name = name, quality = quality}
+        entry.sprite = "item/" .. name
+        -- vanilla items can only have localization as entities
+        entry.tooltip = {"?", {"item-name." .. name}, {"entity-name." .. name}}
         entry.type = "item"
     elseif buffer_key == "electric_energy" then
         -- energy key 
+        entry.sprite = "virtual-signal/signal-lightning"
+        entry.tooltip = {"description.energy"}
         entry.type = "energy"
     else
         -- fluid key "name"
         entry.fluid_name = buffer_key
+        entry.sprite = "fluid/" .. buffer_key
+        entry.tooltip = {"fluid-name." .. buffer_key}
         entry.type = "fluid"
     end
     cluster[io_mode][buffer_key] = entry
 end
-
 
 ---Used when template for given cluster needs to change.
 ---Called during on-tick cluster update if template change is detected.

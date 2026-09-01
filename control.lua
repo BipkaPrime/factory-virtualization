@@ -171,6 +171,8 @@ local on_gui_click_router = {
     [PREFIX .. "cc-confirm-cluster-delete"] = CCClusters.handle_confirm_cluster_delete_btn,
     [PREFIX .. "cc-confirm-cluster-rename"] = CCClusters.handle_confirm_cluster_rename,
     [PREFIX .. "cc-view-problems"] = CCClusters.handle_view_problems_btn,
+    [PREFIX .. "entity-proximity-chart"] = EntityGui.handle_proximity_chart_btn,
+    [PREFIX .. "entity-proximity-world"] = EntityGui.handle_proximity_world_btn,
 }
 script.on_event(defines.events.on_gui_click, function(event)
     element_name_router(event, on_gui_click_router)
@@ -255,10 +257,3 @@ commands.add_command("save_template_data", "Saves all compiled template data to 
     helpers.write_file("compiled_templates.json", serpent.block(storage.templates), false)
     game.print("Template data saved to compiled_templates.json")
 end)
-
---[[
-script.on_event(defines.events.on_entity_settings_pasted, function(event)
-    game.print("123")
-
-end)
---]]

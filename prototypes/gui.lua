@@ -53,3 +53,22 @@ data.raw["gui-style"]["default"]["cluster_members_table"] = {
       {column = 4, width = 126}
     },
 }
+
+-- Cluster IO table style
+data.raw["gui-style"]["default"]["cluster_io_table"] = {
+    type = "table_style",
+    parent = "bordered_table",
+    right_cell_padding = 8,
+    column_alignments = {
+        {column = 1, alignment = "center"},
+        {column = 2, alignment = "center"},
+        {column = 3, alignment = "center"},
+        {column = 4, alignment = "center"},
+    },
+    column_widths = {
+      {column = 1, width = 32},
+      {column = 2, width = 204},
+      {column = 3, width = 40},
+      {column = 4, width = 40}
+    },
+}

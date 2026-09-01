@@ -21,8 +21,8 @@ create; rename; delete; clear assigned template.
 ---@field confirm_cluster_rename_btn LuaGuiElement|nil confirm cluster rename button
 ---@field confirm_cluster_rename_label LuaGuiElement|nil confirm cluster rename status
 ---@field cluster_members_table LuaGuiElement|nil "table" for cluster member data
----@field cluster_members_elems LuaGuiElement[]|nil table with elements that populate
----cluster members "table" element
+---@field cluster_members_elems table<integer, LuaGuiElement|LuaStyle>|nil table
+---with elements that populate cluster members "table" element
 ---@field cluster_status_lbl LuaGuiElement|nil "label" displaying cluster status
 ---@field assigned_template_lbl LuaGuiElement|nil "label", general cluster info
 ---@field cluster_total_members LuaGuiElement|nil "label", general cluster info
@@ -30,6 +30,10 @@ create; rename; delete; clear assigned template.
 ---@field cluster_craft_style LuaStyle|nil cluster operation section
 ---@field cluster_energy_demand LuaGuiElement|nil "label", operation section
 ---@field cluster_decentr_loss LuaGuiElement|nil "label", operation section
+---@field cluster_input_table LuaGuiElement|nil "table", used for input section
+---@field cluster_input_elems table<integer, LuaGuiElement|LuaStyle>|nil
+---@field cluster_output_table LuaGuiElement|nil "table", used for output section
+---@field cluster_output_elems table<integer, LuaGuiElement|LuaStyle>|nil
 
 
 ---@class ControlCenterData additional fields used in "clusters" mode
@@ -514,11 +518,20 @@ local function update_general_info_section(gui_data)
     -- Updaing assigned template
     label = elements.assigned_template_lbl
     if not label or not label.valid then return end
-    local template_uuid = ClusterProcessor.get_assigned_template_by_name(
+    local assigned_uuid = ClusterProcessor.get_assigned_template_by_name(
         cluster_name
     )
-    local template_name = TCCManager.get_template_name(template_uuid) or "None"
-    local caption = {"cc-clusters.assigned-template", template_name}
+    local assigned_name = TCCManager.get_template_name(assigned_uuid) or "None"
+    local caption = {"", {"cc-clusters.assigned-template", assigned_name}}
+    -- checking if this template is reachable
+    local reachable_uuid
+    local cluster_uuid = ClusterProcessor.get_cluster_uuid(cluster_name)
+    if cluster_uuid then
+        reachable_uuid = TCCManager.get_assigned_template(cluster_uuid)
+    end
+    if reachable_uuid ~= assigned_uuid then
+        table.insert(caption, {"cc-clusters.no-connection"})
+    end
     label.caption = caption
 
     -- Updating total member count
@@ -564,6 +577,10 @@ end
 
 --------------------------- CLUSTER MEMBERS SECTION ---------------------------
 
+
+local view_problems = {"cc-clusters.view-problems"}
+local no_problems = {"cc-clusters.no-problems"}
+
 ---Updates one row of members table
 ---@param member_table LuaGuiElement "table" element to be filled 
 ---@param elems table<integer, LuaGuiElement|LuaStyle>
@@ -583,6 +600,7 @@ local function fill_member_table_row(
     local operational = member_counts.operational
     local has_problems = total ~= operational
     local label_color = has_problems and CommonGui.red or CommonGui.green
+    local bnt_caption = has_problems and view_problems or no_problems
     local elems_length = #elems
 
     if elems_length > used_elems then
@@ -595,6 +613,7 @@ local function fill_member_table_row(
         elems[used_elems + 4].caption = operational
         elems[used_elems + 5].font_color = label_color
         local problems_btn = elems[used_elems + 6]
+        problems_btn.caption = bnt_caption
         problems_btn.enabled = has_problems
         if has_problems then
             problems_btn.tags = {[PREFIX] = member_name}
@@ -634,10 +653,11 @@ local function fill_member_table_row(
         local problems_flow = member_table.add{type = "flow"}
         local problems_btn = problems_flow.add{
             type = "button",
-            caption = {"cc-clusters.view-problems"},
+            caption = bnt_caption,
             enabled = has_problems,
             name = PREFIX .. "cc-view-problems",
         }
+        problems_btn.style.width = 120
         if has_problems then
             problems_btn.tags = {[PREFIX] = member_name}
         end
@@ -822,22 +842,218 @@ end
 
 ------------------------- CLUSTER IO BUFFER SECTIONS --------------------------
 
+---Updates one row of cluster io table
+---@param io_table LuaGuiElement "table" element to be filled 
+---@param elems table<integer, LuaGuiElement|LuaStyle>
+---@param used_elems integer number of elements already updated
+---@param buffer_entry ClusterBufferEntry data to be displayed
+---@param crafting_power number crafting power of a cluster
+---@return integer used_elems new value
+local function fill_cluster_io_row(
+    io_table,
+    elems,
+    used_elems,
+    buffer_entry,
+    crafting_power
+)
+    local current = buffer_entry.current
+    local maximum = buffer_entry.maximum
+    local bar_value = (maximum ~= 0) and current / maximum or 0
+    local bar_caption = {
+        "cc-clusters.bar-text",
+        CommonGui.large_number_to_string(current),
+        CommonGui.large_number_to_string(maximum),
+    }
+    -- deciding progressbar color
+    local bar_color
+    if crafting_power == 0 then
+        bar_color = CommonGui.grey
+    else
+        local utilization = buffer_entry.ls_possible_crafts / crafting_power
+        if utilization < 0.33 then
+            bar_color = CommonGui.red
+        elseif utilization < 1 then
+            bar_color = CommonGui.yellow
+        else
+            bar_color = CommonGui.green
+        end
+    end
+    local ls_input = CommonGui.large_number_to_string(buffer_entry.ls_input_flow)
+    local ls_output = CommonGui.large_number_to_string(buffer_entry.ls_output_flow)
+    local elems_length = #elems
+
+    if elems_length > used_elems then
+        -- There are enough elements: updating existing
+        local sprite_btn = elems[used_elems + 1]
+        sprite_btn.sprite = buffer_entry.sprite
+        sprite_btn.tooltip = buffer_entry.tooltip
+        -- progressbar
+        local progressbar = elems[used_elems + 2]
+        progressbar.caption = bar_caption
+        progressbar.value = bar_value
+        -- progressbar style
+        elems[used_elems + 3].color = bar_color
+        -- input last second flow
+        elems[used_elems + 4].caption = ls_input
+        -- output last second flow
+        elems[used_elems + 5].caption = ls_output
+    else
+        -- There are not enough elements: creating new ones
+        local frame = io_table.add{
+            type = "frame",
+            style = "deep_frame_in_shallow_frame",
+        }
+        elems[elems_length + 1] = frame.add{
+            type = "sprite-button",
+            sprite = buffer_entry.sprite,
+            tooltip = buffer_entry.tooltip,
+        }
+        -- progressbar and its style
+        local progressbar = io_table.add{
+            type = "progressbar",
+            style = "electric_statistics_progressbar",
+            caption = bar_caption,
+            value = bar_value,
+        }
+        elems[elems_length + 2] = progressbar
+        local style = progressbar.style
+        style.color = bar_color
+        ---@diagnostic disable-next-line: assign-type-mismatch
+        elems[elems_length + 3] = style
+        -- last section input label
+        elems[elems_length + 4] = io_table.add{
+            type = "label",
+            caption = ls_input
+        }
+        -- last section output label
+        elems[elems_length + 5] = io_table.add{
+            type = "label",
+            caption = ls_output
+        }
+    end
+    return used_elems + 5
+end
+
+---Clears all unwanted rows from cluster io table
+---@param elems table<integer, LuaGuiElement|LuaStyle>
+---@param used_elems integer number of elements already updated
+local function clear_io_table_unwanded_rows(elems, used_elems)
+    for i = #elems, used_elems + 1, -5 do
+        -- last section output label
+        elems[i].destroy()
+        elems[i] = nil
+        -- last section input label
+        elems[i - 1].destroy()
+        elems[i - 1] = nil
+        -- progressbar style
+        elems[i - 2] = nil
+        -- progressbar
+        elems[i - 3].destroy()
+        elems[i - 3] = nil
+        -- sprite button (inside deep frame)
+        elems[i - 4].parent.destroy()
+        elems[i - 4] = nil
+    end
+end
+
 ---Updates 2 sections used to display cluster IO buffers
 ---@param gui_data ControlCenterData
 local function update_cluster_io_sections(gui_data)
+    local elements = gui_data.elements
+    local cluster_name = gui_data.selected_cluster
+    local crafting_power = ClusterProcessor.get_crafting_power_values(
+        cluster_name
+    )
+    local input, output = ClusterProcessor.get_cluster_io_buffers(
+        cluster_name
+    )
 
+    -- Updating input table
+    local io_table = elements.cluster_input_table
+    if not io_table or not io_table.valid then return end
+    ---@type table<integer, LuaGuiElement|LuaStyle>
+    local elems = elements.cluster_input_elems
+    local used_elems = 0
+    for _, entry in pairs(input) do
+        used_elems = fill_cluster_io_row(
+            io_table,
+            elems,
+            used_elems,
+            entry,
+            crafting_power
+        )
+    end
+    clear_io_table_unwanded_rows(elems, used_elems)
+
+    -- Updating output table
+    io_table = elements.cluster_output_table
+    if not io_table or not io_table.valid then return end
+    ---@type table<integer, LuaGuiElement|LuaStyle>
+    elems = elements.cluster_output_elems
+    used_elems = 0
+    for _, entry in pairs(output) do
+        used_elems = fill_cluster_io_row(
+            io_table,
+            elems,
+            used_elems,
+            entry,
+            crafting_power
+        )
+    end
+    clear_io_table_unwanded_rows(elems, used_elems)
 end
 
+---Captions used for io table headers
+local io_table_header = {
+    {"cc-clusters.entry"},
+    {"cc-clusters.current"},
+    {"cc-clusters.in"},
+    {"cc-clusters.out"},
+}
+---Adds io table to given parent element and fills its header
+---@return LuaGuiElement -- created "table" element
+local function construct_io_table_header(parent)
+    local io_table = parent.add{
+        type = "table",
+        column_count = 4,
+        style = "cluster_io_table",
+    }
+    -- table header
+    for _, caption in ipairs(io_table_header) do
+        io_table.add{
+            type = "label",
+            caption = caption,
+            style = "bold_label"
+        }
+    end
+    return io_table
+end
 
 ---Adds 2 sections used to display cluster IO buffers
 ---@param parent LuaGuiElement
 ---@param gui_data ControlCenterData
 local function add_cluster_io_sections(parent, gui_data)
+    local elements = gui_data.elements
 
+    -- Cluster inputs section
+    local section = CommonGui.create_info_element_base(
+        parent,
+        {"cc-clusters.input-buffer"}
+    )
+    local io_table = construct_io_table_header(section)
+    elements.cluster_input_table = io_table
+    elements.cluster_input_elems = {}
 
-
+    -- Cluster outputs section
+    section = CommonGui.create_info_element_base(
+        parent,
+        {"cc-clusters.output-buffer"}
+    )
+    io_table = construct_io_table_header(section)
+    elements.cluster_output_table = io_table
+    elements.cluster_output_elems = {}
+    update_cluster_io_sections(gui_data)
 end
-
 
 -------------------------------------------------------------------------------
 ------------------------ GUI CONSTRUCTION AND UPDATES -------------------------
@@ -873,6 +1089,7 @@ function CCClusters.construct_right_side(gui_data)
         add_general_info_section(right_frame, gui_data)
         add_member_info_section(right_frame, gui_data)
         add_cluster_operation_section(right_frame, gui_data)
+        add_cluster_io_sections(right_frame, gui_data)
     end
 
     ---If sumbode is selected, displaying corresponding section
@@ -890,6 +1107,7 @@ end
 ---@param update_cycle integer
 function CCClusters.on_tick_updater(gui_data, update_cycle)
     if gui_data.selected_cluster then
+        update_cluster_io_sections(gui_data)
         if update_cycle % 30 == 0 then
             update_general_info_section(gui_data)
             update_member_info_section(gui_data)
@@ -1197,6 +1415,5 @@ function CCClusters.handle_view_problems_btn(event)
     -- printing location in chat (cheating ping)
     player.print(string.format("[gps=%f,%f,%s]", pos_x, pos_y, surface.name))
 end
-
 
 return CCClusters

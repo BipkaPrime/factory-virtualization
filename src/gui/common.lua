@@ -8,6 +8,7 @@ CommonGui.red = {r = 0.8, g = 0.2, b = 0.2}
 CommonGui.yellow = {r = 0.85, g = 0.85, b = 0.4}
 CommonGui.green = {r = 0.2, g = 0.8, b = 0.2}
 CommonGui.grey = {r = 0.5, g = 0.5, b = 0.5}
+CommonGui.orange = {r = 0.98, g = 0.53, b = 0.06}
 
 
 ---Prints given message for given player
