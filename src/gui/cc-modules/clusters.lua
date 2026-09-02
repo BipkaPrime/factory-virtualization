@@ -511,8 +511,8 @@ local function update_general_info_section(gui_data)
     local is_optimal = ClusterProcessor.is_cluster_optimal(cluster_name)
     label.caption = (
         is_optimal and
-        {"cc-clusters.cluster-status-ok"} or
-        {"cc-clusters.cluster-status-not-ok"}
+        {"cc-clusters.perfect-operation"} or
+        {"cc-clusters.attention-required"}
     )
 
     -- Updaing assigned template
@@ -522,7 +522,7 @@ local function update_general_info_section(gui_data)
         cluster_name
     )
     local assigned_name = TCCManager.get_template_name(assigned_uuid) or "None"
-    local caption = {"", {"cc-clusters.assigned-template", assigned_name}}
+    local caption = {"", assigned_name}
     -- checking if this template is reachable
     local reachable_uuid
     local cluster_uuid = ClusterProcessor.get_cluster_uuid(cluster_name)
@@ -540,8 +540,7 @@ local function update_general_info_section(gui_data)
     local total_members = ClusterProcessor.get_total_member_counts(
         cluster_name
     )
-    caption = {"cc-clusters.total-members", total_members}
-    label.caption = caption
+    label.caption = tostring(total_members)
 end
 
 ---Adds section used to display general cluster information
@@ -552,31 +551,76 @@ local function add_general_info_section(parent, gui_data)
         parent,
         {"cc-clusters.general-info-title"}
     )
-    local elements = gui_data.elements
-    local cluster_name = gui_data.selected_cluster or "None"
+    local info_table = section.add{
+        type = "table",
+        column_count = 2,
+        style = "cluster_info_table",
+    }
 
-    local flow = section.add{type = "flow", direction = "vertical"}
-    flow.style.vertical_spacing = 0
-    -- Cluster name label: does not need updates
-    local caption = {"cc-clusters.cluster-name", cluster_name}
-    flow.add{type = "label", caption = caption}
-    -- Surface name label: does not need updates
+    local elements = gui_data.elements
+    local cluster_name = gui_data.selected_cluster
+
+    -- Cluster name row: does not need updates
+    info_table.add{
+        type = "label",
+        caption = {"cc-clusters.cluster-name"},
+        style = "bold_label",
+    }
+    local label = info_table.add{
+        type = "label",
+        caption = cluster_name or "None"
+    }
+    label.style.maximal_width = 220
+    -- Surface name row: does not need updates
     local surface_name = ClusterProcessor.get_cluster_surface_name(
         cluster_name
     )
-    caption = {"cc-clusters.surface-name", surface_name}
-    flow.add{type = "label", caption = caption}
-    -- Cluster status label: requires updates
-    elements.cluster_status_lbl = flow.add{type = "label"}
-    -- Assigned template label: requires updates
-    elements.assigned_template_lbl = flow.add{type = "label"}
-    -- Cluster total member count: requires updates
-    elements.cluster_total_members = flow.add{type = "label"}
+    info_table.add{
+        type = "label",
+        caption = {"cc-clusters.surface-name"},
+        style = "bold_label",
+    }
+    label = info_table.add{type = "label", caption = surface_name}
+    label.style.maximal_width = 220
+    -- Cluster status row: requires updates
+    info_table.add{
+        type = "label",
+        caption = {"cc-clusters.cluster-status"},
+        style = "bold_label",
+    }
+    elements.cluster_status_lbl = info_table.add{type = "label"}
+    -- Assigned template row: requires updates
+    info_table.add{
+        type = "label",
+        caption = {"cc-clusters.assigned-template"},
+        style = "bold_label",
+    }
+    label = info_table.add{type = "label"}
+    label.style.maximal_width = 220
+    elements.assigned_template_lbl = label
+    -- Cluster total members row: requires updates
+    info_table.add{
+        type = "label",
+        caption = {"cc-clusters.total-members"},
+        style = "bold_label",
+    }
+    elements.cluster_total_members = info_table.add{type = "label"}
+    -- Cluster center of mass row: does not need updates
+    info_table.add{
+        type = "label",
+        caption = {"cc-clusters.center-of-mass"},
+        style = "bold_label",
+    }
+    info_table.add{
+        type = "button",
+        name = PREFIX .. "cc-view-cluster",
+        caption = {"cc-clusters.view"},
+    }
+
     update_general_info_section(gui_data)
 end
 
 --------------------------- CLUSTER MEMBERS SECTION ---------------------------
-
 
 local view_problems = {"cc-clusters.view-problems"}
 local no_problems = {"cc-clusters.no-problems"}
@@ -1098,6 +1142,7 @@ function CCClusters.construct_right_side(gui_data)
         local constructor = submode_constructors[submode]
         if constructor then
             constructor(right_frame, gui_data)
+            right_frame.scroll_to_bottom()
         end
     end
 end
@@ -1380,6 +1425,24 @@ function CCClusters.handle_confirm_cluster_delete_btn(event)
     update_left_rebuild_right(gui_data)
 end
 
+------------------------ GENERAL CLUSTER INFO SECTION -------------------------
+
+---Handles "view" cluster center button being pressed
+---@param event EventData.on_gui_click
+function CCClusters.handle_view_cluster_btn(event)
+    local player_index = event.player_index
+    local gui_data = storage.control_center[player_index]
+    -- getting the position of selected cluster
+    local surface_index, pos_x, pos_y = ClusterProcessor.get_cluster_center(
+        gui_data.selected_cluster
+    )
+    -- cluster not found / not selected: return
+    if not surface_index then return end
+    ---@cast pos_x number
+    ---@cast pos_y number
+    CommonGui.move_player_camera(player_index, surface_index, pos_x, pos_y)
+end
+
 --------------------------- CLUSTER MEMBERS SECTION ---------------------------
 
 ---Handles "view_problems" button being pressed
@@ -1395,25 +1458,10 @@ function CCClusters.handle_view_problems_btn(event)
     )
     -- Problem was not found: return
     if not surface_index then return end
-
     -- Problem was found: moving camera to it
-    local player = game.get_player(player_index)
-    if not player then return end
-    local surface = game.get_surface(surface_index)
-    if not surface then return end
-
-    -- closing the window
-    player.opened = nil
-    local zoom = player.zoom
-    -- moving player camera
-    player.set_controller{
-        type = defines.controllers.remote,
-        surface = surface,
-        position = {pos_x, pos_y},
-    }
-    player.zoom = zoom
-    -- printing location in chat (cheating ping)
-    player.print(string.format("[gps=%f,%f,%s]", pos_x, pos_y, surface.name))
+    ---@cast pos_x number
+    ---@cast pos_y number
+    CommonGui.move_player_camera(player_index, surface_index, pos_x, pos_y)
 end
 
 return CCClusters

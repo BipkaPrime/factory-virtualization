@@ -51,6 +51,7 @@ It also orchestrates vsurface compilation and handles start/stop compilation req
 
 local ChunkProcessor = require("src.world.vsurface-chunk-processor")
 local TCCManager = require("src.simulation.tcc-manager")
+local CommonGui = require("src.gui.common")
 
 local VSurfaceManager = {}
 
@@ -72,23 +73,11 @@ function VSurfaceManager.get_compiling_computation_demand(vsurface_config)
     local width = vsurface_config.width or 0
     local height = vsurface_config.height or 0
     local area = width * height
-    local demand = 0
+    local demand = 0.5 * area^1.3 + 1e-12 * area^4
 
-    -- computation demand scales with area
-    if area <= 4096 then
-        -- smaller then [64x64]
-        demand = area * 6
-    elseif area <= 65536 then
-        -- from [64x64] to [256x256]
-        demand = 24576 + (area - 4096) * 1500
-    else
-        -- from [256x256] to [1024x1024]
-        demand = 92184576 + (area - 65536) * 100000
-    end
-
-    -- computation demand is greater for surfaces, which have generate_as option
+    -- demand is greater for surfaces, which use "generate_as" option
     if vsurface_config.generate_as then
-        demand = demand * 2
+        demand = demand * 2 + 1e5
     end
 
     return demand
@@ -101,10 +90,11 @@ function VSurfaceManager.get_vsurface_energy_drain(vsurface_config)
     local width = vsurface_config.width or 0
     local height = vsurface_config.height or 0
     local area = width * height
-    local drain = 1e8 + 2500*(area)^(1.09)
+    local drain = 5e7 + 5000 * area^1.1 + 1e-12 * area^3.73
+
     -- energy drain is greater for surfaces, which have generate_as option
     if vsurface_config.generate_as then
-        drain = drain * 2
+        drain = drain * 2 + 4e8
     end
     return drain
 end
@@ -143,14 +133,23 @@ function VSurfaceManager.can_create_vsurface(vsurface_config)
     if not height or type(height) ~= "number" or height < 1 or height > 1024 then
         return false, {"vsurface-manager.surface-height-incorrect"}
     end
+    -- checking that TCC max template drain is sufficient
+    local template_drain = VSurfaceManager.get_vsurface_energy_drain(
+        vsurface_config
+    )
+    if template_drain > TCCManager.get_max_template_drain() then
+        local max_tier = TCCManager.get_max_template_tier()
+        return false, {
+            "vsurface-manager.template-tier-too-high",
+            CommonGui.number_to_string(max_tier, 2)
+        }
+    end
     -- checking that computation amount is sufficient
     local computation_demand = VSurfaceManager.get_idle_computation_demand(vsurface_config)
     local available_computation = TCCManager.get_available_computation()
     if computation_demand > available_computation then
         return false, {"vsurface-manager.not-enough-computation"}
     end
-
-    -- TODO: control center entity tier?
     return true
 end
 

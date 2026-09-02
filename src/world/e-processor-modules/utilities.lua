@@ -27,6 +27,7 @@ Utilities.entity_status = {
     vsurface_only_work = {"entity-status.vsurface-only-work"},
     transmit_surface_mismatch = {"entity-status.transmit-surface-mismatch"},
     works_only_on = {"entity-status.works-only-on"},
+    template_too_complex={"entity-status.template-too-complex"},
     -- Update warnings/errors
     not_enough_power = {"entity-status.not-enough-power"},
     entry_not_found = {"entity-status.entry-not-found"},

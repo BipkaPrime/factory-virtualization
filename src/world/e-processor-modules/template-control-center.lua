@@ -13,6 +13,7 @@ I. Entity is located on allowed surface. Currently any surface named "aquilo"
 Properties that are assigned on initialization:
 1. status. Used to display entity status in the gui
 2. capacity. Used to store tcc proximity stat
+3. flow_limit. Used to store maximum template drain supported
 -------------------------------------------------------------------------------
 -- ON-TICK UPDATES
 -------------------------------------------------------------------------------
@@ -37,9 +38,16 @@ TemplateCC.configuration = {}
 
 ---Maps entity name to their proximity stat
 local proximity = {
-    [PREFIX .. "template-control-center-mk1"] = 256,
-    [PREFIX .. "template-control-center-mk2"] = 512,
-    [PREFIX .. "template-control-center-mk3"] = 1024,
+    [PREFIX .. "template-control-center-mk1"] = 250,
+    [PREFIX .. "template-control-center-mk2"] = 500,
+    [PREFIX .. "template-control-center-mk3"] = 1000,
+}
+
+---Maps entity name to their max template drain stat
+local max_drain = {
+    [PREFIX .. "template-control-center-mk1"] = 5e8,
+    [PREFIX .. "template-control-center-mk2"] = 5e9,
+    [PREFIX .. "template-control-center-mk3"] = 5e10,
 }
 
 ---Attemps entity initialization: checks that all requirments are met.
@@ -60,8 +68,10 @@ function TemplateCC.initialize(properties)
     -- All requirements are met: preparing properties for on-tick updates
     properties.status = Utilities.entity_status.initialized
     local proximity_base = proximity[properties.entity_name]
-    local quality_mult = 1 + 0.5 * entity.quality.level
+    local quality_mult = 1 + 0.2 * entity.quality.level
     properties.capacity = proximity_base * quality_mult
+    local max_drain_base = max_drain[properties.entity_name]
+    properties.flow_limit = max_drain_base * quality_mult
     return Utilities.registry_sections.active
 end
 
@@ -94,7 +104,8 @@ function TemplateCC.update(properties)
             -- attempting to register this control center
             local status = TCCManager.register_control_center(
                 entity,
-                properties.capacity
+                properties.capacity,
+                properties.flow_limit
             )
             properties.operational = status
             if status then

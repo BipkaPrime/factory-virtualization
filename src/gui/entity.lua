@@ -63,6 +63,7 @@ all players and is located at storage.entity_gui: table<integer, EntityGuiData>
 
 local EntityProcessor = require("src.world.entity-processor")
 local ClusterProcessor = require("src.simulation.cluster-processor")
+local ControlCenter = require("src.gui.control-center")
 local TCCManager = require("src.simulation.tcc-manager")
 local CommonGui = require("src.gui.common")
 local GuiUpdater = require("src.gui.updater")
@@ -727,7 +728,7 @@ function EntityGui.handle_selected_template_selection(event)
     update_selected_template_configurator(gui_data)
 end
 
---------------------------- TOGGLE PROXIMITY RADIUS ---------------------------
+----------------------------- TCC ENTITY BUTTONS ------------------------------
 
 ---Adds button used to show TCC proximity radius
 ---@param parent LuaGuiElement elements will be added here
@@ -744,6 +745,12 @@ local function add_proximity_radius_buttons(parent)
         caption = {"entity-gui.render-proximity-world"}
     }
     button.style.horizontally_stretchable = true
+    button = parent.add{
+        type = "button",
+        name = PREFIX .. "entity-open-cc",
+        caption = {"entity-gui.open-cc"}
+    }
+    button.style.horizontally_stretchable = true
 end
 
 ---Handles "render proximity (chart)" button being pressed
@@ -756,6 +763,16 @@ end
 ---@param event EventData.on_gui_click
 function EntityGui.handle_proximity_world_btn(event)
     TCCManager.toggle_proximity_render_game()
+end
+
+---Handles "open CC GUI" button being pressed
+---@param event EventData.on_gui_click
+function EntityGui.handle_open_cc_btn(event)
+    -- Opening control center GUI window
+    ---@diagnostic disable-next-line: missing-fields
+    ControlCenter.handle_hotkey{
+        player_index = event.player_index
+    }
 end
 
 -------------------------------------------------------------------------------

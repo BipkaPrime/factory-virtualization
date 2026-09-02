@@ -28,6 +28,20 @@ in order for it to craft. So template storage also has template routing tables.
 
 local TCCManager = {}
 
+
+local tier_0_log = math.log(5e7, 10)
+local tier_10_log = math.log(1e11, 10)
+---Calculates template tier based on its energy drain. Tier is based
+---only on template "energy_drain" (additional energy per craft).
+---It's introduced because it's much easier to understand for the player.
+---Tier 0 is 50MJ, which corresponds to surface with 0 area without ores
+---Tier 10 is 100GJ, which is slightly above max size surface with ore.
+---@param energy_drain number
+function TCCManager.get_template_tier(energy_drain)
+    local drain_log = math.log(energy_drain, 10)
+    return 10 * (drain_log - tier_0_log) / (tier_10_log - tier_0_log)
+end
+
 -------------------------------------------------------------------------------
 --------------------------- CONTROL CENTER MANAGER ----------------------------
 -------------------------------------------------------------------------------
@@ -43,6 +57,7 @@ local TCCManager = {}
 ---@field pos_y number|nil y-coordinate of template control center entity
 ---@field proximity_dist number|nil maximum distance from which entities
 ---that require tcc proximity to work can interact with it.
+---@field max_template_drain number|nil maximum template drain this TCC allows
 ---@field game_render LuaRenderObject|nil proximity radius render (in game)
 ---@field chart_render LuaRenderObject|nil proximity radius render (on the map)
 
@@ -56,9 +71,14 @@ end
 ---Registration will fail only when there is another registered tcc.
 ---Assuming that surface is allowed (must be checked by function above).
 ---@param entity LuaEntity reference to TCC entity
----@param proximity_dist number maximum distance
+---@param proximity_dist number TCC proximity radius
+---@param max_drain number maximum template energy drain supported
 ---@return boolean status true if entity was registered
-function TCCManager.register_control_center(entity, proximity_dist)
+function TCCManager.register_control_center(
+    entity,
+    proximity_dist,
+    max_drain
+)
     local tcc = storage.tcc
     -- another tcc is already registered: return
     if tcc.registered then return false end
@@ -72,6 +92,7 @@ function TCCManager.register_control_center(entity, proximity_dist)
     tcc.pos_x = position.x
     tcc.pos_y = position.y
     tcc.proximity_dist = proximity_dist * proximity_dist
+    tcc.max_template_drain = max_drain
     return true
 end
 
@@ -89,6 +110,17 @@ function TCCManager.unregister_control_center(unit_number)
     tcc.pos_x = nil
     tcc.pos_y = nil
     tcc.proximity_dist = nil
+    tcc.max_template_drain = nil
+    local game_render = tcc.game_render
+    if game_render and game_render.valid then
+        game_render.destroy()
+        tcc.game_render = nil
+    end
+    local chart_render = tcc.chart_render
+    if chart_render and chart_render.valid then
+        chart_render.destroy()
+        tcc.chart_render = nil
+    end
 end
 
 ---Checks if given point on a surface is in close proximity to tcc.
@@ -161,10 +193,33 @@ function TCCManager.toggle_proximity_render_game()
     }
 end
 
+---Gets maximum template tier current TCC can support
+---@return number
+function TCCManager.get_max_template_tier()
+    local max_drain = storage.tcc.max_template_drain
+    if not max_drain then return -1 end
+    return TCCManager.get_template_tier(max_drain)
+end
+
+---Gets surface and position of currently registered tcc
+---@return integer|nil surface_index
+---@return number|nil pos_x
+---@return number|nil pos_y
+function TCCManager.get_tcc_position()
+    local tcc = storage.tcc
+    return tcc.surface_index, tcc.pos_x, tcc.pos_y
+end
+
+---Gets maximum supported template drain
+---@return number max_drain
+function TCCManager.get_max_template_drain()
+    return storage.tcc.max_template_drain or 0
+end
+
 ---Checks if template control center is currently registered
 ---@return boolean true if tcc is available
-local function is_tcc_registered()
-    return storage.tcc.registered
+function TCCManager.is_tcc_registered()
+    return not not storage.tcc.registered
 end
 
 -------------------------------------------------------------------------------
@@ -203,7 +258,7 @@ end
 ---@return boolean status true if computation is sufficient
 function TCCManager.is_computation_sufficient()
     -- computation cannot be sufficient if tcc is not registered
-    if not is_tcc_registered() then return false end
+    if not TCCManager.is_tcc_registered() then return false end
     local computation = storage.computation
     return computation.curr_demand < computation.max_available
 end
@@ -519,7 +574,7 @@ end
 ---@return template_uuid|nil template_uuid id of assigned template
 ---@return TemplateData|nil template assigned template data
 function TCCManager.get_assigned_template(cluster_uuid)
-    if not is_tcc_registered() then return end
+    if not TCCManager.is_tcc_registered() then return end
     ---@type TemplateStorage
     local templates = storage.templates
     local transmit_inv = templates.transmit_inv
@@ -531,6 +586,15 @@ function TCCManager.get_assigned_template(cluster_uuid)
     if transmit_uuid == receive_uuid then
         return transmit_uuid, templates.template_lookup[transmit_uuid]
     end
+end
+
+---Gets energy drain of given template
+---@param template_uuid string unique template identifier
+---@return number energy_drain
+function TCCManager.get_template_energy_drain(template_uuid)
+    local template = storage.templates.template_lookup[template_uuid]
+    if not template then return 0 end
+    return template.energy_drain
 end
 
 ------------------------------------- GUI -------------------------------------

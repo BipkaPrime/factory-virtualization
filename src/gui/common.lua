@@ -20,6 +20,32 @@ function CommonGui.print_message(player_index, message)
     player.print(message)
 end
 
+---Moves player camera to given position on given surface and creates ping
+---@param player_index integer unique player identifier
+---@param surface_index integer unique surface identifier
+---@param pos_x number x-coordinate of position
+---@param pos_y number y-coordinate of position
+function CommonGui.move_player_camera(player_index, surface_index, pos_x, pos_y)
+    local player = game.get_player(player_index)
+    if not player then return end
+    local surface = game.get_surface(surface_index)
+    if not surface then return end
+
+    -- Moving player camera to given position
+    local zoom = player.zoom
+    player.set_controller{
+        type = defines.controllers.remote,
+        surface = surface,
+        position = {pos_x, pos_y},
+    }
+    player.zoom = zoom
+    -- printing location in chat (creating ping)
+    player.print(string.format("[gps=%f,%f,%s]", pos_x, pos_y, surface.name))
+
+    -- closing any opened window
+    player.opened = nil
+end
+
 -------------------------------------------------------------------------------
 ------------------------------ NUMBER FORMATING -------------------------------
 -------------------------------------------------------------------------------

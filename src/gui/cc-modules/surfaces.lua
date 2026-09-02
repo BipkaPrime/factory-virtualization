@@ -14,7 +14,8 @@ Create, delete, start compilation, stop compilation, view information
 ---@field compiling_surface_selector LuaGuiElement|nil selector displaying compiling vsurfaces
 ---@field start_compilation_btn LuaGuiElement|nil start compilation button on the left
 ---@field stop_compilation_btn LuaGuiElement|nil stop compilation button on the left
----@field computation_progressbar LuaGuiElement|nil displays demand/max computation
+---@field comp_progressbar LuaGuiElement|nil displays demand/max computation
+---@field comp_style LuaStyle|nil style of computation progressbar
 ---@field new_vsurface_confirm_btn LuaGuiElement|nil button to confirm vsurface creation
 ---@field new_vsurface_confirm_status LuaGuiElement|nil status label above confirm vsurface creation btn
 ---@field new_vsurface_info_label LuaGuiElement|nil info label showing for new vsurface creation element
@@ -24,7 +25,9 @@ Create, delete, start compilation, stop compilation, view information
 ---@field vsurface_info_demand LuaGuiElement|nil vsurface info section computation demand label
 ---@field compilation_progress_label LuaGuiElement|nil compilation info progress label
 ---@field compilation_progressbar LuaGuiElement|nil compilation info progressbar
-
+---@field tcc_status LuaGuiElement|nil "label", TCC entity info section
+---@field tcc_max_tier LuaGuiElement|nil "label", TCC entity info section
+---@field view_tcc_btn LuaGuiElement|nil "button", TCC entity info section
 
 ---@class ControlCenterData additional fields that can be used in "surfaces" mode
 ---@field surface_submode string|nil used to handle mutually exclusive gui states
@@ -246,41 +249,105 @@ end
 ---------------------------- RIGHT FRAME ELEMENTS -----------------------------
 -------------------------------------------------------------------------------
 
+------------------------------- TCC ENTITY INFO -------------------------------
+
+local tcc_registered = {"cc-surfaces.tcc-registered"}
+local tcc_not_registered = {"cc-surfaces.tcc-not-registered"}
+
+---Updates section used to display info about registered TCC entity
+---@param gui_data ControlCenterData
+local function update_tcc_entity_info(gui_data)
+    local elements = gui_data.elements
+
+    -- Updating TCC entity status label
+    local label = elements.tcc_status
+    if not label or not label.valid then return end
+    local is_reg = TCCManager.is_tcc_registered()
+    label.caption = is_reg and tcc_registered or tcc_not_registered
+
+    -- Updating max template tier label
+    label = elements.tcc_max_tier
+    if not label or not label.valid then return end
+    local max_tier = TCCManager.get_max_template_tier()
+    local caption = {
+        "cc-surfaces.tcc-max-tier",
+        CommonGui.number_to_string(max_tier, 2)
+    }
+    label.caption = caption
+
+    -- Updating view TCC button
+    local btn = elements.view_tcc_btn
+    if not btn or not btn.valid then return end
+    btn.enabled = is_reg
+end
+
+---Adds section used to display info about registered TCC entity
+---@param parent LuaGuiElement element will be added here
+---@param gui_data ControlCenterData
+local function add_tcc_entity_info(parent, gui_data)
+    local section = CommonGui.create_info_element_base(
+        parent,
+        {"cc-surfaces.tcc-entity-info"}
+    )
+    local elements = gui_data.elements
+    local h_flow = section.add{type = "flow", direction = "horizontal"}
+    h_flow.style.vertical_align = "center"
+    local v_flow = h_flow.add{type = "flow", direction = "vertical"}
+    v_flow.style.vertical_spacing = 0
+    -- TCC entity status label
+    elements.tcc_status = v_flow.add{type = "label"}
+    -- Max template tier
+    elements.tcc_max_tier = v_flow.add{type = "label"}
+
+    -- View tcc entity button
+    local spacer = h_flow.add{type = "flow"}
+    spacer.style.horizontally_stretchable = true
+    local btn = h_flow.add{
+        type = "button",
+        name = PREFIX .. "cc-view-tcc",
+        caption = {"cc-surfaces.view-tcc-entity"},
+    }
+    btn.style.width = 200
+    elements.view_tcc_btn = btn
+    update_tcc_entity_info(gui_data)
+end
+
 ----------------------------- COMPUTATION DISPLAY -----------------------------
 
 ---Updates section used to display current computation state
 ---@param gui_data ControlCenterData
 local function update_computation_display_section(gui_data)
-    local progressbar = gui_data.elements.computation_progressbar
-    if not progressbar or not progressbar.valid then return end
+    local elements = gui_data.elements
+    local bar = elements.comp_progressbar
+    if not bar or not bar.valid then return end
+    ---@type LuaStyle assuming it's in sync with progressbar
+    local style = elements.comp_style
 
     local demand = TCCManager.get_computation_curr_demand()
     local max_available = TCCManager.get_computation_max_available()
-
-    -- assembling progressbar caption
-    local demand_fmt = CommonGui.large_number_to_string(demand)
-    local max_fmt = CommonGui.large_number_to_string(max_available)
-    local bar_caption = {"cc-surfaces.progressbar-text", demand_fmt, max_fmt}
-    progressbar.caption = bar_caption
-
-    -- calculating progressbar value and color
-    if max_available == 0 then
-        if demand == 0 then
-            progressbar.value = 0
-        else
-            progressbar.value = 1
-        end
+    -- progressbar caption
+    local caption = {
+        "cc-surfaces.progressbar-text",
+        CommonGui.large_number_to_string(demand),
+        CommonGui.large_number_to_string(max_available),
+    }
+    bar.caption = caption
+    -- progressbar value
+    local bar_value = (
+        (max_available ~= 0) and (demand / max_available) or
+        (demand > 0) and 1 or 0
+    )
+    bar.value = bar_value
+    -- progressbar color
+    local bar_color
+    if bar_value <= 0.5 then
+        bar_color = CommonGui.green
+    elseif bar_value <= 0.85 then
+        bar_color = CommonGui.yellow
     else
-        local value = math.min(demand / max_available, 1)
-        progressbar.value = value
-        if value <= 0.5 then
-            progressbar.style.color = CommonGui.green
-        elseif value <= 0.85 then
-            progressbar.style.color = CommonGui.yellow
-        else
-            progressbar.style.color = CommonGui.red
-        end
+        bar_color = CommonGui.red
     end
+    style.color = bar_color
 end
 
 ---Adds information element displaying computation resource demand/max.
@@ -295,8 +362,12 @@ local function add_computation_display_section(parent, gui_data)
         type = "progressbar",
         style = "electric_statistics_progressbar",
     }
-    gui_data.elements.computation_progressbar = progressbar
-    progressbar.style.horizontally_stretchable = true
+    local style = progressbar.style
+    style.horizontally_stretchable = true
+    local elements = gui_data.elements
+    elements.comp_progressbar = progressbar
+    ---@diagnostic disable-next-line: assign-type-mismatch
+    elements.comp_style = style
     update_computation_display_section(gui_data)
 end
 
@@ -383,21 +454,21 @@ local function update_new_surface_info_label(gui_data)
     local idle_demand = VSurfaceManager.get_idle_computation_demand(
         vsurface_config
     )
-    local idle_fmt = CommonGui.large_number_to_string(idle_demand)
     ---Compiling computation demand
     local comp_demand = VSurfaceManager.get_compiling_computation_demand(
         vsurface_config
     )
-    local comp_fmt = CommonGui.large_number_to_string(comp_demand)
     ---Template energy drain
     local energy_drain = VSurfaceManager.get_vsurface_energy_drain(vsurface_config)
-    local drain_fmt = CommonGui.large_number_to_string(energy_drain)
+    -- Template tier
+    local tier = TCCManager.get_template_tier(energy_drain)
 
     local caption = {
         "cc-surfaces.new-vsurface-info-label",
-        idle_fmt,
-        comp_fmt,
-        drain_fmt
+        CommonGui.large_number_to_string(idle_demand),
+        CommonGui.large_number_to_string(comp_demand),
+        CommonGui.large_number_to_string(energy_drain),
+        CommonGui.number_to_string(tier, 2)
     }
     label.caption = caption
 end
@@ -516,6 +587,8 @@ end
 
 --------------------------- SELECTED VSURFACE INFO ----------------------------
 
+--TODO: make a "table" from this section
+
 ---Updates vsurface info section
 ---@param gui_data ControlCenterData
 local function update_vsurface_info_section(gui_data)
@@ -541,6 +614,10 @@ end
 ---@param parent LuaGuiElement
 ---@param gui_data ControlCenterData
 local function add_vsurface_info_labels(parent, gui_data)
+
+
+
+
     -- this is needed to override default vertical spacing
     local flow = parent.add{type = "flow", direction="vertical"}
     flow.style.vertical_spacing = 0
@@ -579,6 +656,9 @@ local function add_vsurface_info_section(parent, gui_data)
         parent,
         {"cc-surfaces.vsurface-info-subtitle"}
     )
+    
+
+
     add_vsurface_info_labels(section, gui_data)
     -- wiev vsurface button
     local button = section.add{
@@ -840,7 +920,9 @@ local submode_gui_constructors = {
 ---@param gui_data ControlCenterData
 function CCSurfaces.construct_right_side(gui_data)
     local right_frame = gui_data.elements.right_frame
-    ---Computation section is always displayed
+
+    -- Computation section and tcc info are always displayed
+    add_tcc_entity_info(right_frame, gui_data)
     add_computation_display_section(right_frame, gui_data)
 
     ---Displaying vsurface information if it's selected
@@ -867,22 +949,25 @@ end
 ---@param gui_data ControlCenterData
 ---@param update_cycle integer
 function CCSurfaces.on_tick_updater(gui_data, update_cycle)
-    update_computation_display_section(gui_data)
-
-    -- Updating vsurface information if it's selected
-    if gui_data.selected_vsurface then
-        update_vsurface_info_section(gui_data)
-        update_compilation_info_section(gui_data)
-    end
-
-    -- Updating surface submode section
     if update_cycle % 30 == 0 then
+        update_tcc_entity_info(gui_data)
+        update_computation_display_section(gui_data)
+        -- Updating surface submode section
         local submode = gui_data.surface_submode
         if submode == surface_submodes.new_surface then
             update_new_vsurface_confirm_button(gui_data)
         elseif submode == surface_submodes.start_compilation then
             update_confirm_compilation_start_section(gui_data)
         end
+        -- updating vsurface info section
+        if gui_data.selected_vsurface then
+            update_vsurface_info_section(gui_data)
+        end
+    end
+
+    -- updating vsurface compilation progress
+    if gui_data.selected_vsurface then
+        update_compilation_info_section(gui_data)
     end
 end
 
@@ -1038,6 +1123,21 @@ end
 -------------------------------------------------------------------------------
 ------------------- RIGHT FRAME CONTROL ELEMENTS: HANDLERS --------------------
 -------------------------------------------------------------------------------
+
+------------------------------- TCC ENTITY INFO -------------------------------
+
+---Handles "view TCC entity" button being pressed
+---@param event EventData.on_gui_click
+function CCSurfaces.handle_view_tcc_button(event)
+    local player_index = event.player_index
+    local surface_index, pos_x, pos_y = TCCManager.get_tcc_position()
+    -- TCC not registed: return
+    if not surface_index then return end
+    -- TCC is registered: moving player camera to it
+    ---@cast pos_x number
+    ---@cast pos_y number
+    CommonGui.move_player_camera(player_index, surface_index, pos_x, pos_y)
+end
 
 ------------------------- NEW VSURFACE CONFIGURATION --------------------------
 

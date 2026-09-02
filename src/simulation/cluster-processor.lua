@@ -987,6 +987,20 @@ function ClusterProcessor.get_cluster_io_buffers(cluster_name)
     return cluster.input, cluster.output
 end
 
+---Gets surface and position of given cluster
+---@param cluster_name string|nil display name of cluster
+---@return integer|nil surface_index
+---@return number|nil pos_x
+---@return number|nil pos_y
+function ClusterProcessor.get_cluster_center(cluster_name)
+    local cluster = get_cluster_by_name(cluster_name)
+    if not cluster then return end
+    local weight = cluster.total_weight
+    local pos_x = cluster.sum_x / weight
+    local pos_y = cluster.sum_y / weight
+    return cluster.surface_index, pos_x, pos_y
+end
+
 ------------------------------ REQUESTS BY UUID -------------------------------
 
 ---Gets cluster name by uuid

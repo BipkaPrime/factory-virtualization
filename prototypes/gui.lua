@@ -72,3 +72,33 @@ data.raw["gui-style"]["default"]["cluster_io_table"] = {
       {column = 4, width = 40}
     },
 }
+
+-- Cluster IO table style
+data.raw["gui-style"]["default"]["cluster_info_table"] = {
+    type = "table_style",
+    parent = "bordered_table",
+    right_cell_padding = 8,
+    column_alignments = {
+        {column = 1, alignment = "left"},
+        {column = 2, alignment = "left"},
+    },
+    column_widths = {
+      {column = 1, width = 120},
+      {column = 2, width = 236},
+    },
+}
+
+-- Vsurface info table style
+data.raw["gui-style"]["default"]["vsurface_info_table"] = {
+    type = "table_style",
+    parent = "bordered_table",
+    right_cell_padding = 8,
+    column_alignments = {
+        {column = 1, alignment = "left"},
+        {column = 2, alignment = "left"},
+    },
+    column_widths = {
+      {column = 1, width = 140},
+      {column = 2, width = 216},
+    },
+}

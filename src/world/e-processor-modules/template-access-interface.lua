@@ -13,7 +13,7 @@ I. Mandatory entity configuration is provided:
     1. first_cluster. Used to determine the cluster entity will work with
     2. selected_template. Used to determine the template entity will work with
     3. io_mode ("output" = transmit, "input" = receive). Determines operation
-II. Selected template must exist
+II. Selected template must exist and entity can work with it (complexity)
 III. In transmit mode entity must be located on surface allowed for tcc.
 IV. Selected cluster must exist and entity can be connected in receive mode.
 
@@ -58,6 +58,13 @@ local weights = {
     [PREFIX .. "template-access-interface-mk3"] = 0.1,
 }
 
+---Maps entity name to their max template drain stat
+local entity_max_drain = {
+    [PREFIX .. "template-access-interface-mk1"] = 5e8,
+    [PREFIX .. "template-access-interface-mk2"] = 5e9,
+    [PREFIX .. "template-access-interface-mk3"] = 5e10,
+}
+
 ---Attemps entity initialization: checks that all requirments are met.
 ---If they are, prepares entity properties for on-tick processing.
 ---@param properties EntityProperties table from entity processor
@@ -86,9 +93,18 @@ function TemplateAccess.initialize(properties)
         properties.status = Utilities.entity_status.template_not_found
         return Utilities.registry_sections.incorrect
     end
+    -- II. Checking that template complexity is not too high
+    local entity = properties.entity
+    local max_drain_base = entity_max_drain[properties.entity_name]
+    local quality_mult = 1 + 0.2 * entity.quality.level
+    local max_drain = max_drain_base * quality_mult
+    local drain = TCCManager.get_template_energy_drain(template_uuid)
+    if drain > max_drain then
+        properties.status = Utilities.entity_status.template_too_complex
+        return Utilities.registry_sections.incorrect
+    end
     -- III. Checking that surface is allowed for TCC (transmit mode)
     local is_transmit = (io_mode == "output")
-    local entity = properties.entity
     local allowed_surface = TCCManager.get_allowed_surface()
     if is_transmit and allowed_surface ~= entity.surface.name then
         properties.status = Utilities.entity_status.transmit_surface_mismatch

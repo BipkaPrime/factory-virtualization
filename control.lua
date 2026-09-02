@@ -173,6 +173,9 @@ local on_gui_click_router = {
     [PREFIX .. "cc-view-problems"] = CCClusters.handle_view_problems_btn,
     [PREFIX .. "entity-proximity-chart"] = EntityGui.handle_proximity_chart_btn,
     [PREFIX .. "entity-proximity-world"] = EntityGui.handle_proximity_world_btn,
+    [PREFIX .. "cc-view-tcc"] = CCSurfaces.handle_view_tcc_button,
+    [PREFIX .. "entity-open-cc"] = EntityGui.handle_open_cc_btn,
+    [PREFIX .. "cc-view-cluster"] = CCClusters.handle_view_cluster_btn,
 }
 script.on_event(defines.events.on_gui_click, function(event)
     element_name_router(event, on_gui_click_router)

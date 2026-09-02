@@ -179,6 +179,33 @@ end
 ---------------------------- RIGHT FRAME ELEMENTS -----------------------------
 -------------------------------------------------------------------------------
 
+---------------------------- TEMPLATE GENERAL INFO ----------------------------
+
+---Adds section containing template general information
+---@param parent LuaGuiElement
+---@param gui_data ControlCenterData
+local function add_general_info_section(parent, gui_data)
+    local section = CommonGui.create_info_element_base(
+        parent,
+        {"cc-templates.general-info"}
+    )
+    local template_name = gui_data.selected_template
+
+    local flow = section.add{type = "flow", direction = "vertical"}
+    flow.style.vertical_spacing = 0
+    -- Template name caption
+    local caption = {"cc-templates.template-name", template_name}
+    flow.add{type = "label", caption = caption}
+    -- Template complexity caption
+    local _, drain = TCCManager.get_template_inputs(template_name)
+    local tier = TCCManager.get_template_tier(drain)
+    caption = {
+        "cc-templates.complexity",
+        CommonGui.number_to_string(tier, 2)
+    }
+    flow.add{type = "label", caption = caption}
+end
+
 ------------------------------- TEMPLATE INPUTS -------------------------------
 
 ---Constructs a table with sprite button data from template buffer entry.
@@ -604,6 +631,7 @@ end
 function CCTemplates.construct_right_side(gui_data)
     local right_frame = gui_data.elements.right_frame
     if gui_data.selected_template then
+        add_general_info_section(right_frame, gui_data)
         add_template_inputs_section(right_frame, gui_data)
         add_template_outputs_section(right_frame, gui_data)
         add_template_build_cost_section(right_frame, gui_data)
