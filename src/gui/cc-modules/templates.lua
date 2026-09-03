@@ -626,6 +626,12 @@ function CCTemplates.construct_left_side(gui_data)
     add_active_template_selection_widget(left_frame, gui_data)
 end
 
+---Maps submodes to functions used to construct corresponding sections
+local submode_constructors = {
+    [template_submodes.delete_template] = add_delete_template_section,
+    [template_submodes.rename_template] = add_rename_template_section,
+}
+
 ---Constructs right side of templates mode interface
 ---@param gui_data ControlCenterData
 function CCTemplates.construct_right_side(gui_data)
@@ -635,15 +641,16 @@ function CCTemplates.construct_right_side(gui_data)
         add_template_inputs_section(right_frame, gui_data)
         add_template_outputs_section(right_frame, gui_data)
         add_template_build_cost_section(right_frame, gui_data)
-        if TCCManager.is_template_active(gui_data.selected_template) then
-            add_template_routing_table(right_frame, gui_data)
-        end
+        add_template_routing_table(right_frame, gui_data)
     end
+    ---If sumbode is selected, displaying corresponding section
     local submode = gui_data.template_submode
-    if submode == template_submodes.rename_template then
-        add_rename_template_section(right_frame, gui_data)
-    elseif submode == template_submodes.delete_template then
-        add_delete_template_section(right_frame, gui_data)
+    if submode then
+        local constructor = submode_constructors[submode]
+        if constructor then
+            constructor(right_frame, gui_data)
+            right_frame.scroll_to_bottom()
+        end
     end
 end
 

@@ -118,7 +118,7 @@ function TemplateItemIO.update(properties)
         ---@diagnostic disable-next-line
         delta = properties.inventory.remove(properties.io_request)
         if delta > 0 then
-            VSurfaceManager.add_to_venv_output(
+            VSurfaceManager.add_to_vsurface_output(
                 properties.surface_index,
                 properties.buffer_key,
                 delta
@@ -128,7 +128,7 @@ function TemplateItemIO.update(properties)
         ---@diagnostic disable-next-line
         delta = properties.inventory.insert(properties.io_request)
         if delta > 0 then
-            VSurfaceManager.add_to_venv_input(
+            VSurfaceManager.add_to_vsurface_input(
                 properties.surface_index,
                 properties.buffer_key,
                 delta

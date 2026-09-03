@@ -29,9 +29,9 @@ data.raw["gui-style"]["default"]["template_routing_table"] = {
         {column = 3, alignment = "center"},
     },
     column_widths = {
-      {column = 1, width = 216},
-      {column = 2, width = 60},
-      {column = 3, width = 60}
+        {column = 1, width = 216},
+        {column = 2, width = 60},
+        {column = 3, width = 60}
     },
 }
 
@@ -47,10 +47,10 @@ data.raw["gui-style"]["default"]["cluster_members_table"] = {
         {column = 4, alignment = "center"},
     },
     column_widths = {
-      {column = 1, width = 50},
-      {column = 2, width = 70},
-      {column = 3, width = 70},
-      {column = 4, width = 126}
+        {column = 1, width = 50},
+        {column = 2, width = 70},
+        {column = 3, width = 70},
+        {column = 4, width = 126}
     },
 }
 
@@ -66,10 +66,10 @@ data.raw["gui-style"]["default"]["cluster_io_table"] = {
         {column = 4, alignment = "center"},
     },
     column_widths = {
-      {column = 1, width = 32},
-      {column = 2, width = 204},
-      {column = 3, width = 40},
-      {column = 4, width = 40}
+        {column = 1, width = 32},
+        {column = 2, width = 204},
+        {column = 3, width = 40},
+        {column = 4, width = 40}
     },
 }
 
@@ -83,8 +83,8 @@ data.raw["gui-style"]["default"]["cluster_info_table"] = {
         {column = 2, alignment = "left"},
     },
     column_widths = {
-      {column = 1, width = 120},
-      {column = 2, width = 236},
+        {column = 1, width = 120},
+        {column = 2, width = 236},
     },
 }
 
@@ -98,7 +98,47 @@ data.raw["gui-style"]["default"]["vsurface_info_table"] = {
         {column = 2, alignment = "left"},
     },
     column_widths = {
-      {column = 1, width = 140},
-      {column = 2, width = 216},
+        {column = 1, width = 140},
+        {column = 2, width = 216},
+    },
+}
+
+-- Compilation io table style
+data.raw["gui-style"]["default"]["compilation_io_table"] = {
+    type = "table_style",
+    parent = "bordered_table",
+    right_cell_padding = 8,
+    column_alignments = {
+        {column = 1, alignment = "center"},
+        {column = 2, alignment = "center"},
+        {column = 3, alignment = "center"},
+        {column = 4, alignment = "center"},
+        {column = 5, alignment = "center"},
+    },
+    column_widths = {
+        {column = 1, width = 32},
+        {column = 2, width = 66},
+        {column = 3, width = 66},
+        {column = 4, width = 66},
+        {column = 5, width = 66},
+    },
+}
+
+-- Validation report table style
+data.raw["gui-style"]["default"]["validation_report_table"] = {
+    type = "table_style",
+    parent = "bordered_table",
+    right_cell_padding = 8,
+    column_alignments = {
+        {column = 1, alignment = "center"},
+        {column = 2, alignment = "center"},
+        {column = 3, alignment = "center"},
+        {column = 4, alignment = "center"},
+    },
+    column_widths = {
+        {column = 1, width = 32},
+        {column = 2, width = 80},
+        {column = 3, width = 80},
+        {column = 4, width = 124},
     },
 }

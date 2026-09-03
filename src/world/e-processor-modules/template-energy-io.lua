@@ -107,7 +107,7 @@ function TemplateEnergyIO.update(properties)
         delta = math.min(current_energy, flow_limit)
         if delta > 0 then
             entity.energy = current_energy - delta
-            VSurfaceManager.add_to_venv_output(
+            VSurfaceManager.add_to_vsurface_output(
                 properties.surface_index,
                 properties.buffer_key,
                 delta
@@ -120,7 +120,7 @@ function TemplateEnergyIO.update(properties)
         )
         if delta > 0 then
             entity.energy = current_energy + delta
-            VSurfaceManager.add_to_venv_input(
+            VSurfaceManager.add_to_vsurface_input(
                 properties.surface_index,
                 properties.buffer_key,
                 delta

@@ -414,7 +414,6 @@ function TCCManager.rename_template(old_name, new_name)
     ---@cast old_name string
     ---@cast new_name string
 
-    ---@type TemplateStorage
     local templates = storage.templates
     local name_to_uuid = templates.name_to_uuid
     local uuid = name_to_uuid[old_name]

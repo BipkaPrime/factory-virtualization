@@ -7,27 +7,34 @@ Control center gui in "surfaces" mode can be used to manage virtualization surfa
 Create, delete, start compilation, stop compilation, view information
 --]]
 
----@class ControlCenterElements additional LuaGuiElements that can be used in "surfaces" mode
----@field new_surface_btn LuaGuiElement|nil button that is used to open vsurface creation interface
----@field delete_surface_btn LuaGuiElement|nil button that is used to delete selected idle vsurface
----@field idle_surface_selector LuaGuiElement|nil selector displaying idle vsurfaces
----@field compiling_surface_selector LuaGuiElement|nil selector displaying compiling vsurfaces
----@field start_compilation_btn LuaGuiElement|nil start compilation button on the left
----@field stop_compilation_btn LuaGuiElement|nil stop compilation button on the left
+---@class ControlCenterElements additional LuaGuiElements used in this mode
+---@field new_surface_btn LuaGuiElement|nil toggles "new_surface" submode
+---@field delete_surface_btn LuaGuiElement|nil toggles "delete_surface" submode
+---@field idle_surface_selector LuaGuiElement|nil "list-box" for idle surfaces
+---@field compiling_surface_selector LuaGuiElement|nil "list-box" for compiling
+---@field start_compilation_btn LuaGuiElement|nil toggles "start_compilation" submode
+---@field stop_compilation_btn LuaGuiElement|nil toggles "stop_compilation" submode
 ---@field comp_progressbar LuaGuiElement|nil displays demand/max computation
 ---@field comp_style LuaStyle|nil style of computation progressbar
 ---@field new_vsurface_confirm_btn LuaGuiElement|nil button to confirm vsurface creation
----@field new_vsurface_confirm_status LuaGuiElement|nil status label above confirm vsurface creation btn
----@field new_vsurface_info_label LuaGuiElement|nil info label showing for new vsurface creation element
----@field confirm_compile_btn LuaGuiElement|nil button used to start compilation of a vsurface
----@field confirm_compile_label LuaGuiElement|nil label above confirm compilation button
----@field vsurface_info_status LuaGuiElement|nil vsurface info section status label
----@field vsurface_info_demand LuaGuiElement|nil vsurface info section computation demand label
+---@field new_vsurface_confirm_status LuaGuiElement|nil confirm vsurface creation status
+---@field new_vsurface_info_label LuaGuiElement|nil "new_surface" submode
+---@field confirm_compile_btn LuaGuiElement|nil "start_compilation" submode
+---@field confirm_compile_label LuaGuiElement|nil "start_compilation" submode
+---@field vsurface_info_status LuaGuiElement|nil vsurface info section
+---@field vsurface_info_demand LuaGuiElement|nil vsurface info section
 ---@field compilation_progress_label LuaGuiElement|nil compilation info progress label
 ---@field compilation_progressbar LuaGuiElement|nil compilation info progressbar
 ---@field tcc_status LuaGuiElement|nil "label", TCC entity info section
 ---@field tcc_max_tier LuaGuiElement|nil "label", TCC entity info section
 ---@field view_tcc_btn LuaGuiElement|nil "button", TCC entity info section
+---@field comp_input_table LuaGuiElement|nil "table", compilation input section
+---@field comp_input_elems LuaGuiElement[]|nil "labels", compilation input section
+---@field comp_output_table LuaGuiElement|nil "table", compilation output section
+---@field comp_output_elems LuaGuiElement[]|nil "labels", compilation output section
+---@field val_report_table LuaGuiElement|nil "table", validation report section
+---@field val_report_elems table<integer, LuaGuiElement|LuaStyle>|nil
+
 
 ---@class ControlCenterData additional fields that can be used in "surfaces" mode
 ---@field surface_submode string|nil used to handle mutually exclusive gui states
@@ -53,7 +60,7 @@ local surface_submodes = {
     start_compilation = "start_compilation",
     stop_compilation = "stop_compilation",
 }
-
+--TODO: add rename surface submode
 -------------------------------------------------------------------------------
 ----------- LEFT FRAME CONTROL ELEMENTS: CREATION AND CONFIGURATION -----------
 -------------------------------------------------------------------------------
@@ -587,86 +594,102 @@ end
 
 --------------------------- SELECTED VSURFACE INFO ----------------------------
 
---TODO: make a "table" from this section
-
 ---Updates vsurface info section
 ---@param gui_data ControlCenterData
 local function update_vsurface_info_section(gui_data)
     local surface_name = gui_data.selected_vsurface
+    local elements = gui_data.elements
 
-    -- updating vsurface status label
-    local status_label = gui_data.elements.vsurface_info_status
-    if not status_label or not status_label.valid then return end
-    local status = VSurfaceManager.get_vsurface_status_by_name(surface_name)
-    local status_caption = {"cc-surfaces.vsurface-info-status", status}
-    status_label.caption = status_caption
+    -- Updating vsurface status row
+    local label = elements.vsurface_info_status
+    if not label or not label.valid then return end
+    local status = VSurfaceManager.get_vsurface_status(surface_name)
+    label.caption = status
 
-    -- updating vsurface demand label
-    local demand_label = gui_data.elements.vsurface_info_demand
-    if not demand_label or not demand_label.valid then return end
+    -- Updating computation demand row
+    label = elements.vsurface_info_demand
+    if not label or not label.valid then return end
     local demand = VSurfaceManager.get_current_computation_demand(surface_name)
-    local demand_fmt = CommonGui.large_number_to_string(demand)
-    local demand_caption = {"cc-surfaces.vsurface-info-current-demand", demand_fmt}
-    demand_label.caption = demand_caption
-end
-
----Adds vsurface info labels to given parent element
----@param parent LuaGuiElement
----@param gui_data ControlCenterData
-local function add_vsurface_info_labels(parent, gui_data)
-
-
-
-
-    -- this is needed to override default vertical spacing
-    local flow = parent.add{type = "flow", direction="vertical"}
-    flow.style.vertical_spacing = 0
-
-    local surface_name = gui_data.selected_vsurface
-
-    ---Vsurface name label
-    local name_caption = {"cc-surfaces.vsurface-info-name", surface_name}
-    flow.add{type = "label", caption = name_caption}
-
-    ---Vsurface dimensions label
-    local width, height = VSurfaceManager.get_vsurface_dimensions_by_name(surface_name)
-    local dim_caption = {"cc-surfaces.vsurface-info-dimensions", width, height}
-    flow.add{type = "label", caption = dim_caption}
-
-    ---Vsurface status label
-    local status_label = flow.add{type = "label"}
-    gui_data.elements.vsurface_info_status = status_label
-
-    ---Current computation demand
-    local demand_label = flow.add{type = "label"}
-    gui_data.elements.vsurface_info_demand = demand_label
-
-    ---Template energy drain
-    local drain = VSurfaceManager.get_energy_drain_by_name(surface_name)
-    local drain_fmt = CommonGui.large_number_to_string(drain)
-    local drain_caption = {"cc-surfaces.vsurface-info-energy-drain", drain_fmt}
-    flow.add{type = "label", caption = drain_caption}
+    label.caption = CommonGui.large_number_to_string(demand)
 end
 
 ---Adds section displaying information about selected vsurface
 ---@param parent LuaGuiElement
 ---@param gui_data ControlCenterData
 local function add_vsurface_info_section(parent, gui_data)
+    local elements = gui_data.elements
+    local surface_name = gui_data.selected_vsurface
+
     local section = CommonGui.create_info_element_base(
         parent,
         {"cc-surfaces.vsurface-info-subtitle"}
     )
-    
+    local info_table = section.add{
+        type = "table",
+        column_count = 2,
+        style = "vsurface_info_table",
+    }
+
+    -- Vsurface name row: does not require updates
+    info_table.add{
+        type = "label",
+        caption = {"cc-surfaces.surface-name"},
+        style = "bold_label",
+    }
+    local label = info_table.add{
+        type = "label",
+        caption = surface_name or "None"
+    }
+    label.style.maximal_width = 200
+    -- Vsurface dimensions row: does not require updates
+    info_table.add{
+        type = "label",
+        caption = {"cc-surfaces.dimensions"},
+        style = "bold_label",
+    }
+    local width, height = VSurfaceManager.get_vsurface_dimensions(
+        surface_name
+    )
+    local caption = {"cc-surfaces.dimensions-value", width, height}
+    info_table.add{type = "label", caption = caption}
+    -- Vsurface status row: requires updated
+    info_table.add{
+        type = "label",
+        caption = {"cc-surfaces.surface-status"},
+        style = "bold_label",
+    }
+    elements.vsurface_info_status = info_table.add{type = "label"}
+    -- Vsurface computation demand: requires updated
+    info_table.add{
+        type = "label",
+        caption = {"cc-surfaces.computation-demand"},
+        style = "bold_label",
+    }
+    gui_data.elements.vsurface_info_demand = info_table.add{type = "label"}
+    -- Per-craft overhead: does not require updates
+    info_table.add{
+        type = "label",
+        caption = {"cc-surfaces.per-craft-overhead"},
+        style = "bold_label",
+    }
+    local drain = VSurfaceManager.get_energy_drain_by_name(surface_name)
+    local drain_fmt = CommonGui.large_number_to_string(drain)
+    caption = {"cc-surfaces.overhead-value", drain_fmt}
+    info_table.add{type = "label", caption = caption}
+    -- TODO: add template complexity here
 
 
-    add_vsurface_info_labels(section, gui_data)
-    -- wiev vsurface button
-    local button = section.add{
+    -- View surface row: does not require updates
+    info_table.add{
+        type = "label",
+        caption = {"cc-surfaces.view-surface"},
+        style = "bold_label",
+    }
+    info_table.add{
         type = "button",
         name = PREFIX .. "cc-view-surface-btn",
-        caption = {"cc-surfaces.vsurface-info-view-button"}
+        caption = {"cc-surfaces.view"}
     }
-    button.style.width = 200
     update_vsurface_info_section(gui_data)
 end
 
@@ -738,7 +761,7 @@ local function add_confirm_vsurface_delete_section(parent, gui_data)
         {"cc-surfaces.vsurface-deletion-subtitle"}
     )
     local surface_name = gui_data.selected_vsurface
-    local idle_demand = VSurfaceManager.get_computation_demands_by_name(surface_name)
+    local idle_demand = VSurfaceManager.get_computation_demands(surface_name)
     local demand_fmt = CommonGui.large_number_to_string(idle_demand)
     local caption = {
         "cc-surfaces.vsurface-deletion-warning",
@@ -769,7 +792,7 @@ end
 ---@param gui_data ControlCenterData
 local function add_confirm_compilation_start_warning(parent, gui_data)
     local surface_name = gui_data.selected_vsurface
-    local idle_demand, compiling_demand = VSurfaceManager.get_computation_demands_by_name(
+    local idle_demand, compiling_demand = VSurfaceManager.get_computation_demands(
         surface_name
     )
     local delta_compute = compiling_demand - idle_demand
@@ -867,7 +890,7 @@ local function add_confirm_compilation_stop_section(parent, gui_data)
 
     ---Warning label
     local surface_name = gui_data.selected_vsurface
-    local idle_demand, compiling_demand = VSurfaceManager.get_computation_demands_by_name(
+    local idle_demand, compiling_demand = VSurfaceManager.get_computation_demands(
         surface_name
     )
     local delta_compute = compiling_demand - idle_demand
@@ -888,6 +911,416 @@ local function add_confirm_compilation_stop_section(parent, gui_data)
         style = "red_confirm_button",
         tooltip = {"cc-surfaces.compilation-stop-tooltip"},
     }
+end
+
+------------------------- COMPILATION IO SECTIONS --------------------------
+
+---Picks sprite, tooltip and quality for a buffer key
+---@param buffer_key BufferKeyString
+---@return string sprite
+---@return LocalisedString tooltip
+---@return string|nil quality
+local function get_sprite_button_data(buffer_key)
+    local sprite, tooltip, quality
+    -- looking for "//" seperator in buffer key
+    local start_idx, stop_idx = string.find(buffer_key, "//", 1, true)
+    if start_idx then
+        -- item key "name//quality"
+        local name = string.sub(buffer_key, 1, start_idx - 1)
+        quality = string.sub(buffer_key, stop_idx + 1)
+        sprite = "item/" .. name
+        -- vanilla items can only have localization as entities
+        tooltip = {"?", {"item-name." .. name}, {"entity-name." .. name}}
+    elseif buffer_key == "electric_energy" then
+        -- energy key
+        sprite = "virtual-signal/signal-lightning"
+        tooltip = {"description.energy"}
+    else
+        -- fluid key "name"
+        sprite = "fluid/" .. buffer_key
+        tooltip = {"fluid-name." .. buffer_key}
+    end
+    return sprite, tooltip, quality
+end
+
+---Updates one row of compilation io table
+---@param io_table LuaGuiElement 
+---@param elems LuaGuiElement[]
+---@param used_elems integer
+---@param buffer_key BufferKeyString
+---@param amount number io amount
+---@param time number compilation time (can be zero)
+---@return integer used_elems new value
+local function fill_compilation_io_row(
+    io_table,
+    elems,
+    used_elems,
+    buffer_key,
+    amount,
+    time
+)
+    local sprite, tooltip, quality = get_sprite_button_data(buffer_key)
+    local total_caption = CommonGui.large_number_to_string(amount)
+    local per_tick = (
+        (time ~= 0) and
+        CommonGui.large_number_to_string(amount / time) or
+        "—"
+    )
+    local per_second = (
+        (time ~= 0) and
+        CommonGui.large_number_to_string(amount / time * 60) or
+        "—"
+    )
+    local per_minute = (
+        (time ~= 0) and
+        CommonGui.large_number_to_string(amount / time * 3600) or
+        "—"
+    )
+
+    local elems_length = #elems
+    if elems_length > used_elems then
+        -- There are enough elements: updating existing
+        local sprite_btn = elems[used_elems + 1]
+        sprite_btn.sprite = sprite
+        sprite_btn.tooltip = tooltip
+        sprite_btn.quality = quality
+        elems[used_elems + 2].caption = total_caption
+        elems[used_elems + 3].caption = per_tick
+        elems[used_elems + 4].caption = per_second
+        elems[used_elems + 5].caption = per_minute
+    else
+        -- There are not enough elements: creating new ones
+        local frame = io_table.add{
+            type = "frame",
+            style = "deep_frame_in_shallow_frame",
+        }
+        elems[elems_length + 1] = frame.add{
+            type = "sprite-button",
+            sprite = sprite,
+            tooltip = tooltip,
+            quality = quality
+        }
+        -- Total amount label
+        elems[elems_length + 2] = io_table.add{
+            type = "label",
+            caption = total_caption,
+        }
+        -- Per tick label
+        elems[elems_length + 3] = io_table.add{
+            type = "label",
+            caption = per_tick
+        }
+        -- Per second label
+        elems[elems_length + 4] = io_table.add{
+            type = "label",
+            caption = per_second
+        }
+        -- Per minute label
+        elems[elems_length + 5] = io_table.add{
+            type = "label",
+            caption = per_minute
+        }
+    end
+    return used_elems + 5
+end
+
+---Clears all unwanted rows from compilation io table
+---@param elems LuaGuiElement[]
+---@param used_elems integer number of elements already updated
+local function clear_io_table_unwanded_rows(elems, used_elems)
+    for i = #elems, used_elems + 1, -5 do
+        -- per minute label
+        elems[i].destroy()
+        elems[i] = nil
+        -- per second label
+        elems[i - 1].destroy()
+        elems[i - 1] = nil
+        -- per tick label
+        elems[i - 2].destroy()
+        elems[i - 2] = nil
+        -- total label
+        elems[i - 3].destroy()
+        elems[i - 3] = nil
+        -- sprite button (inside deep frame)
+        elems[i - 4].parent.destroy()
+        elems[i - 4] = nil
+    end
+end
+
+---Updates one given io table
+---@param vsurface_table table<BufferKeyString, number>
+---@param io_table LuaGuiElement|nil "table" to be updated
+---@param elems LuaGuiElement[]
+---@param comp_time any
+local function update_compilation_io_table(
+    vsurface_table,
+    io_table,
+    elems,
+    comp_time
+)
+    if not io_table or not io_table.valid then return end
+    local used_elems = 0
+    for key, amount in pairs(vsurface_table) do
+        used_elems = fill_compilation_io_row(
+            io_table,
+            elems,
+            used_elems,
+            key,
+            amount,
+            comp_time
+        )
+    end
+    clear_io_table_unwanded_rows(elems, used_elems)
+end
+
+---Updates compilation input and output sections
+---@param gui_data ControlCenterData
+local function update_compilation_io_sections(gui_data)
+    local surface_name = gui_data.selected_vsurface
+    local elements = gui_data.elements
+    local input, output = VSurfaceManager.get_vsurface_io_tables(surface_name)
+    local comp_time = VSurfaceManager.get_compilation_progress(surface_name)
+
+    -- Updating compilation input table
+    update_compilation_io_table(
+        input,
+        elements.comp_input_table,
+        elements.comp_input_elems,
+        comp_time
+    )
+
+    -- Updating compilation output table
+    update_compilation_io_table(
+        output,
+        elements.comp_output_table,
+        elements.comp_output_elems,
+        comp_time
+    )
+end
+
+---Adds header to compilation io table
+---@param io_table LuaGuiElement "table" to be filled
+local function add_compilation_io_header(io_table)
+    io_table.add{
+        type = "label",
+        caption = {"cc-surfaces.entry"},
+        style = "bold_label",
+    }
+    io_table.add{
+        type = "label",
+        caption = {"cc-surfaces.total"},
+        style = "bold_label",
+    }
+    io_table.add{
+        type = "label",
+        caption = {"cc-surfaces.per-tick"},
+        style = "bold_label",
+    }
+    io_table.add{
+        type = "label",
+        caption = {"cc-surfaces.per-second"},
+        style = "bold_label",
+    }
+    io_table.add{
+        type = "label",
+        caption = {"cc-surfaces.per-minute"},
+        style = "bold_label",
+    }
+end
+
+---Adds compilation input and output sections
+---@param parent LuaGuiElement
+---@param gui_data ControlCenterData
+local function add_compilation_io_sections(parent, gui_data)
+    local elements = gui_data.elements
+
+    --Compilation input section
+    local section = CommonGui.create_info_element_base(
+        parent,
+        {"cc-surfaces.compilation-inputs"}
+    )
+    local io_table = section.add{
+        type = "table",
+        column_count = 5,
+        style = "compilation_io_table",
+    }
+    add_compilation_io_header(io_table)
+    elements.comp_input_table = io_table
+    elements.comp_input_elems = {}
+
+    --Compilation output section
+    section = CommonGui.create_info_element_base(
+        parent,
+        {"cc-surfaces.compilation-outputs"}
+    )
+    io_table = section.add{
+        type = "table",
+        column_count = 5,
+        style = "compilation_io_table",
+    }
+    add_compilation_io_header(io_table)
+    elements.comp_output_table = io_table
+    elements.comp_output_elems = {}
+
+    update_compilation_io_sections(gui_data)
+end
+
+-------------------------- VALIDATION REPORT SECTION --------------------------
+
+---Updates one row in validation report table
+---@param report_table LuaGuiElement "table" element to be updated
+---@param elems table<integer, LuaGuiElement|LuaStyle>
+---@param used_elems integer
+---@param validation_entry ValidationEntry
+---@return integer used_elems new value
+local function fill_validation_report_row(
+    report_table,
+    elems,
+    used_elems,
+    buffer_key,
+    validation_entry
+)
+    local sprite, tooltip, quality = get_sprite_button_data(buffer_key)
+    local in_sum = validation_entry.input + validation_entry.produced
+    local in_caption = CommonGui.large_number_to_string(in_sum)
+    local out_sum = validation_entry.output + validation_entry.consumed
+    local out_caption = CommonGui.large_number_to_string(out_sum)
+    local dev_color = (
+        validation_entry.acceptable and CommonGui.green or CommonGui.red
+    )
+    local dev_caption = {
+        "cc-surfaces.dev-value",
+        CommonGui.number_to_string(validation_entry.deviation_rel * 100, 3),
+        CommonGui.large_number_to_string(validation_entry.deviation_abs),
+    }
+
+    local elems_length = #elems
+    if elems_length > used_elems then
+        -- There are enough elements: updating existing
+        local sprite_btn = elems[used_elems + 1]
+        sprite_btn.sprite = sprite
+        sprite_btn.tooltip = tooltip
+        sprite_btn.quality = quality
+        elems[used_elems + 2].caption = in_caption
+        elems[used_elems + 3].caption = out_caption
+        elems[used_elems + 4].caption = dev_caption
+        elems[used_elems + 5].font_color = dev_color
+    else
+        -- There are not enough elements: creating new ones
+        local frame = report_table.add{
+            type = "frame",
+            style = "deep_frame_in_shallow_frame",
+        }
+        elems[elems_length + 1] = frame.add{
+            type = "sprite-button",
+            sprite = sprite,
+            tooltip = tooltip,
+            quality = quality,
+        }
+        -- Input sum label
+        elems[elems_length + 2] = report_table.add{
+            type = "label",
+            caption = in_caption
+        }
+        -- Output sum label
+        elems[elems_length + 3] = report_table.add{
+            type = "label",
+            caption = out_caption
+        }
+        -- Deviation label and style
+        local dev_label = report_table.add{
+            type = "label",
+            caption = dev_caption
+        }
+        local style = dev_label.style
+        style.font_color = dev_color
+        elems[elems_length + 4] = dev_label
+        ---@diagnostic disable-next-line: assign-type-mismatch
+        elems[elems_length + 5] = style
+    end
+    return used_elems + 5
+end
+
+
+---Updates section used to display compilation validation report
+---@param gui_data ControlCenterData
+local function update_validation_report_section(gui_data)
+    local elements = gui_data.elements
+    local report_table = elements.val_report_table
+    if not report_table or not report_table.valid then return end
+    ---@type table<integer, LuaGuiElement|LuaStyle>
+    local elems = elements.val_report_elems
+
+    local used_elems = 0
+    local report = VSurfaceManager.get_validation_report(
+        gui_data.selected_vsurface
+    )
+    for key, entry in pairs(report) do
+        used_elems = fill_validation_report_row(
+            report_table,
+            elems,
+            used_elems,
+            key,
+            entry
+        )
+    end
+    -- destoying any unwanted rows in case "table" got smaller
+    for i = #elems, used_elems + 1, -5 do
+        -- deviation label style
+        elems[i] = nil
+        -- deviation label
+        elems[i - 1].destroy()
+        elems[i - 1] = nil
+        -- output sum label
+        elems[i - 2].destroy()
+        elems[i - 2] = nil
+        -- input sum label
+        elems[i - 3].destroy()
+        elems[i - 3] = nil
+        -- sprite button (destroying parent flow)
+        elems[i - 4].parent.destroy()
+        elems[i - 4] = nil
+    end
+end
+
+---Adds section used to display compilation validation report
+---@param parent LuaGuiElement
+---@param gui_data ControlCenterData
+local function add_validation_report_section(parent, gui_data)
+    local elements = gui_data.elements
+    local section = CommonGui.create_info_element_base(
+        parent,
+        {"cc-surfaces.validation-report"}
+    )
+    local report_table = section.add{
+        type = "table",
+        column_count = 4,
+        style = "validation_report_table"
+    }
+    -- table header
+    report_table.add{
+        type = "label",
+        caption = {"cc-surfaces.entry"},
+        style = "bold_label"
+    }
+    report_table.add{
+        type = "label",
+        caption = {"cc-surfaces.input-sum"},
+        style = "bold_label"
+    }
+    report_table.add{
+        type = "label",
+        caption = {"cc-surfaces.output-sum"},
+        style = "bold_label"
+    }
+    report_table.add{
+        type = "label",
+        caption = {"cc-surfaces.deviation"},
+        style = "bold_label"
+    }
+    elements.val_report_table = report_table
+    elements.val_report_elems = {}
+    update_validation_report_section(gui_data)
 end
 
 -------------------------------------------------------------------------------
@@ -926,13 +1359,11 @@ function CCSurfaces.construct_right_side(gui_data)
     add_computation_display_section(right_frame, gui_data)
 
     ---Displaying vsurface information if it's selected
-    local selected_vsurface = gui_data.selected_vsurface
-    if selected_vsurface then
+    if gui_data.selected_vsurface then
         add_vsurface_info_section(right_frame, gui_data)
-        -- if surface is compiling, displaying compilation info
-        if VSurfaceManager.is_compiling(selected_vsurface) then
-            add_compilation_info_section(right_frame, gui_data)
-        end
+        add_compilation_info_section(right_frame, gui_data)
+        add_compilation_io_sections(right_frame, gui_data)
+        add_validation_report_section(right_frame, gui_data)
     end
 
     ---If sumbode is selected, displaying corresponding section
@@ -941,6 +1372,7 @@ function CCSurfaces.construct_right_side(gui_data)
         local constructor = submode_gui_constructors[submode]
         if constructor then
             constructor(right_frame, gui_data)
+            right_frame.scroll_to_bottom()
         end
     end
 end
@@ -949,6 +1381,18 @@ end
 ---@param gui_data ControlCenterData
 ---@param update_cycle integer
 function CCSurfaces.on_tick_updater(gui_data, update_cycle)
+    -- updating sections related to selected surface
+    if gui_data.selected_vsurface then
+        update_compilation_info_section(gui_data)
+        if update_cycle % 30 == 0 then
+            update_vsurface_info_section(gui_data)
+            update_compilation_io_sections(gui_data)
+        end
+        if update_cycle % 300 == 0 then
+            update_validation_report_section(gui_data)
+        end
+    end
+
     if update_cycle % 30 == 0 then
         update_tcc_entity_info(gui_data)
         update_computation_display_section(gui_data)
@@ -959,15 +1403,6 @@ function CCSurfaces.on_tick_updater(gui_data, update_cycle)
         elseif submode == surface_submodes.start_compilation then
             update_confirm_compilation_start_section(gui_data)
         end
-        -- updating vsurface info section
-        if gui_data.selected_vsurface then
-            update_vsurface_info_section(gui_data)
-        end
-    end
-
-    -- updating vsurface compilation progress
-    if gui_data.selected_vsurface then
-        update_compilation_info_section(gui_data)
     end
 end
 
@@ -1210,6 +1645,8 @@ function CCSurfaces.handle_new_vsurface_confirm_button(event)
 end
 
 --------------------------- SELECTED VSURFACE INFO ----------------------------
+
+-- TODO: use new CommonGui function
 
 ---Handles view vsurface button being pressed
 ---@param event EventData.on_gui_click

@@ -110,7 +110,7 @@ function TemplateFluidIO.update(properties)
         ---@diagnostic disable-next-line
         delta = properties.entity.extract_fluid(properties.io_request)
         if delta > 0 then
-            VSurfaceManager.add_to_venv_output(
+            VSurfaceManager.add_to_vsurface_output(
                 properties.surface_index,
                 properties.buffer_key,
                 delta
@@ -120,7 +120,7 @@ function TemplateFluidIO.update(properties)
         ---@diagnostic disable-next-line
         delta = properties.entity.insert_fluid(properties.io_request)
         if delta > 0 then
-            VSurfaceManager.add_to_venv_input(
+            VSurfaceManager.add_to_vsurface_input(
                 properties.surface_index,
                 properties.buffer_key,
                 delta

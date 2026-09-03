@@ -931,6 +931,7 @@ local function fill_cluster_io_row(
         local sprite_btn = elems[used_elems + 1]
         sprite_btn.sprite = buffer_entry.sprite
         sprite_btn.tooltip = buffer_entry.tooltip
+        sprite_btn.quality = buffer_entry.item_id.quality
         -- progressbar
         local progressbar = elems[used_elems + 2]
         progressbar.caption = bar_caption
@@ -951,6 +952,7 @@ local function fill_cluster_io_row(
             type = "sprite-button",
             sprite = buffer_entry.sprite,
             tooltip = buffer_entry.tooltip,
+            quality = buffer_entry.item_id.quality,
         }
         -- progressbar and its style
         local progressbar = io_table.add{

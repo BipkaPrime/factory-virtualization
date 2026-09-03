@@ -29,11 +29,13 @@ script.on_init(function()
     -- world/vsurface-chunk-processor
     storage.vsurface_chunks = {}
     -- world/vsurface-manager
+    ---@type VSurfaceStorage
     storage.vsurfaces = {
         array = {},
-        lookup = {},
+        lookup_by_index = {},
+        lookup_by_name = {},
         compilation_queue = {},
-        next_index = 1
+        next_compilation = 1
     }
     -- simulation/cluster-processor
     ---@type ClusterStorage

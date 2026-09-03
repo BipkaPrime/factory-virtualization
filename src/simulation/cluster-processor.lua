@@ -995,9 +995,10 @@ end
 function ClusterProcessor.get_cluster_center(cluster_name)
     local cluster = get_cluster_by_name(cluster_name)
     if not cluster then return end
+
     local weight = cluster.total_weight
-    local pos_x = cluster.sum_x / weight
-    local pos_y = cluster.sum_y / weight
+    local pos_x = (weight ~= 0) and (cluster.sum_x / weight) or 0
+    local pos_y = (weight ~= 0) and (cluster.sum_y / weight) or 0
     return cluster.surface_index, pos_x, pos_y
 end
 
@@ -1161,12 +1162,10 @@ local function add_to_statistics(cluster, entry, count)
     if entry_type == "energy" then return end
     if entry_type == "item" then
         -- adding to item statistics
-        ---@type LuaFlowStatistics
         local statistics = cluster.item_statistics
         statistics.on_flow(entry.item_id, count)
     else
         -- adding to fluid statistics
-        ---@type LuaFlowStatistics
         local statistics = cluster.fluid_statistics
         statistics.on_flow(entry.fluid_name, count)
     end
