@@ -27,6 +27,7 @@ script.on_init(function()
         lookup = {},
     }
     -- world/vsurface-chunk-processor
+    ---@type ChunkData[]
     storage.vsurface_chunks = {}
     -- world/vsurface-manager
     ---@type VSurfaceStorage

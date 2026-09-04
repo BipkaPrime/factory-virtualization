@@ -1,16 +1,18 @@
 --[[ 
-This mod allows the player to create special "virtualization surfaces" or "vsurfaces".
-Vsurface is basically a sandbox where player can build anything for free.
-Vsurfaces are created as a sterile environment generated with lab tiles.
+This mod allows the player to create special "virtualization surfaces"
+also called "vsurfaces". Vsurface is basically a sandbox where player
+can build anything for free.
 
 We want to have several services working on virtualization surfaces.
-For example, auto reviving ghosts, auto deconstructing marked, auto upgrade, charting.
-Also there are 2 states vsurface can be in: "compiling" and "not compiling". And services
-working on a vsurface depend on compilation flag. All registered chunks are stored at: storage.vsurface_chunks.
+For example, auto reviving ghosts, auto deconstructing marked, auto
+upgrade, charting. There are 2 states vsurface can be in: "compiling"
+and "not compiling". And services working on a vsurface depend on this flag.
+All registered chunks are stored at: storage.vsurface_chunks.
 
-Chunk processor has only 3 public operations: on-tick processor, add surface
-and set compilation flag. Delete surface operation is integrated in the on-tick
-processor. Chunks of the surface are deleted from registry when surface becomes invalid.
+Chunk processor has only 3 public operations: on-tick processor,
+add surface and set compilation flag. Delete surface operation is
+integrated in the on-tick processor. Chunks of the surface are deleted
+from registry when surface becomes invalid.
 --]]
 
 ---Table describing one chunk in chunk registry
@@ -95,7 +97,7 @@ function ChunkProcessor.set_compiling_flag(surface_index, state)
 end
 
 ------------------------------------------------------------------------------------
--- Virtual Surface Services
+-------------------------------- VSURFACE SERVICES ---------------------------------
 ------------------------------------------------------------------------------------
 
 ---Force reveal chunk area on the map
@@ -106,15 +108,37 @@ local function chart_chunk(surface, chunk_area, force)
     force.chart(surface, chunk_area)
 end
 
-
----TODO: HANDLE TILES!
 ---Handles entities marked for deconstruction
 ---@param surface LuaSurface surface being processed
 ---@param chunk_area BoundingBox area that is processed
 local function process_deconstruction(surface, chunk_area)
+    -- deconstructing tiles marked for deconstruction
+    local tiles = surface.find_tiles_filtered{
+        area = chunk_area,
+        to_be_deconstructed = true,
+    }
+    if #tiles > 0 then
+        ---@type Tile[]
+        local new_tiles = {}
+        for _, tile in ipairs(tiles) do
+            new_tiles[#new_tiles + 1] = {
+                name = tile.hidden_tile,
+                position = tile.position,
+            }
+        end
+        surface.set_tiles(
+            new_tiles,
+            true,
+            true,
+            true,
+            true
+        )
+    end
+
+    -- deconstructing entities marked for deconstruction
     local to_deconstruct = surface.find_entities_filtered{
         area = chunk_area,
-        to_be_deconstructed = true
+        to_be_deconstructed = true,
     }
     for i = 1, #to_deconstruct do
         local entity = to_deconstruct[i]
@@ -137,7 +161,10 @@ local function process_ghosts(surface, chunk_area)
         if ghost.valid then
             local _, revived_entity = ghost.revive{raise_revive = true}
             -- if revived entity is a lab type we need to disable it by script
-            if revived_entity and revived_entity.valid and revived_entity.type == "lab" then
+            if (revived_entity and
+                revived_entity.valid and
+                revived_entity.type == "lab"
+            ) then
                 revived_entity.disabled_by_script = true
             end
         end
@@ -157,15 +184,17 @@ local function process_upgrades(surface, chunk_area)
         if entity.valid then
             local upgraded_entity = entity.apply_upgrade()
             -- if upgraded entity is a lab type we need to disable it by script
-            if upgraded_entity and upgraded_entity.valid and upgraded_entity.type == "lab" then
+            if (upgraded_entity and
+                upgraded_entity.valid and
+                upgraded_entity.type == "lab"
+            ) then
                 upgraded_entity.disabled_by_script = true
             end
         end
     end
 end
 
----TODO: fix this. Currently it works strange with item deletion requests
----Find and satisfy item request proxies (modules)
+---Find and satisfy item request proxies
 ---@param surface LuaSurface surface being processed
 ---@param chunk_area BoundingBox area that is processed
 local function process_item_requests(surface, chunk_area)
@@ -173,24 +202,62 @@ local function process_item_requests(surface, chunk_area)
         area = chunk_area,
         name = "item-request-proxy"
     }
-    -- going through all found proxies 
+
     for _, proxy in ipairs(proxies) do
-        -- checking validity
-        if proxy and proxy.valid then
-            local target_entity = proxy.proxy_target
-            -- checking target entity validity
-            if target_entity and target_entity.valid then
-                -- getting module inventory of target entity
-                local target_inventory = target_entity.get_module_inventory()
-                local requests = proxy.item_requests
-                -- processing requests
-                if target_inventory then
-                    for _, item in ipairs(requests) do
-                        target_inventory.insert({name = item.name, quality = item.quality, count = item.count})
+        if proxy.valid then
+            local target = proxy.proxy_target
+            if target then
+                local insert_plan = proxy.insert_plan
+                local removal_plan = proxy.removal_plan
+                -- In case same inventory is accessed multiple times
+                ---@type table<defines.inventory, LuaInventory>
+                local inv_map = {}
+                -- processing removal plan
+                for _, entry in ipairs(removal_plan) do
+                    local inv_positions = entry.items.in_inventory
+                    if inv_positions then
+                        for _, position in ipairs(inv_positions) do
+                            local inv_define = position.inventory
+                            if not inv_map[inv_define] then
+                                inv_map[inv_define] = (
+                                    target.get_inventory(inv_define)
+                                )
+                            end
+                            local inventory = inv_map[inv_define]
+                            if inventory then
+                                local slot = inventory[position.stack + 1]
+                                if slot.valid_for_read then
+                                    slot.count = slot.count - (position.count or 1)
+                                end
+                            end
+                        end
                     end
-                    -- deleting proxy 
-                    proxy.destroy{raise_destroy=true}
                 end
+                -- processing insertion plan
+                for _, entry in ipairs(insert_plan) do
+                    local item_id = entry.id
+                    local inv_positions = entry.items.in_inventory
+                    if inv_positions then
+                        for _, position in ipairs(inv_positions) do
+                            local inv_define = position.inventory
+                            if not inv_map[inv_define] then
+                                inv_map[inv_define] = (
+                                    target.get_inventory(inv_define)
+                                )
+                            end
+                            local inventory = inv_map[inv_define]
+                            if inventory then
+                                local slot = inventory[position.stack + 1]
+                                slot.set_stack{
+                                    name = item_id.name,
+                                    count = position.count or 1,
+                                    quality = item_id.quality,
+                                }
+                            end
+                        end
+                    end
+                end
+                proxy.destroy()
             end
         end
     end
