@@ -940,9 +940,9 @@ end
 function ClusterProcessor.get_cluster_surface_name(cluster_name)
     local cluster = get_cluster_by_name(cluster_name)
     -- cluster not found or name was not provided
-    if not cluster then return "None" end
+    if not cluster then return "—" end
     local surface = game.get_surface(cluster.surface_index)
-    if not surface then return "None" end
+    if not surface then return "—" end
     return surface.name
 end
 

@@ -9,6 +9,7 @@ Create, delete, start compilation, stop compilation, view information
 
 ---@class ControlCenterElements additional LuaGuiElements used in this mode
 ---@field new_surface_btn LuaGuiElement|nil toggles "new_surface" submode
+---@field rename_surface_btn LuaGuiElement|nil toggles "rename_surface" submode
 ---@field delete_surface_btn LuaGuiElement|nil toggles "delete_surface" submode
 ---@field idle_surface_selector LuaGuiElement|nil "list-box" for idle surfaces
 ---@field compiling_surface_selector LuaGuiElement|nil "list-box" for compiling
@@ -19,10 +20,13 @@ Create, delete, start compilation, stop compilation, view information
 ---@field new_vsurface_confirm_btn LuaGuiElement|nil button to confirm vsurface creation
 ---@field new_vsurface_confirm_status LuaGuiElement|nil confirm vsurface creation status
 ---@field new_vsurface_info_label LuaGuiElement|nil "new_surface" submode
+---@field confirm_vsurface_rename_btn LuaGuiElement|nil "rename_surface" submode
+---@field confirm_vsurface_rename_label LuaGuiElement|nil "rename_surface" submode
 ---@field confirm_compile_btn LuaGuiElement|nil "start_compilation" submode
 ---@field confirm_compile_label LuaGuiElement|nil "start_compilation" submode
 ---@field vsurface_info_status LuaGuiElement|nil vsurface info section
 ---@field vsurface_info_demand LuaGuiElement|nil vsurface info section
+---@field compiling_template_lbl LuaGuiElement|nil compilation info template name
 ---@field compilation_progress_label LuaGuiElement|nil compilation info progress label
 ---@field compilation_progressbar LuaGuiElement|nil compilation info progressbar
 ---@field tcc_status LuaGuiElement|nil "label", TCC entity info section
@@ -43,6 +47,7 @@ Create, delete, start compilation, stop compilation, view information
 ---@field compiling_surface_query string|nil last user input into compiling surfaces textfield
 ---@field vsurface_config VSurfaceConfig|nil data required for creation of vsurface
 ---@field new_template_name string|nil name of new template
+---@field vsurface_rename_name string|nil "rename_surface" new name
 
 
 local CommonGui = require("src.gui.common")
@@ -54,13 +59,15 @@ local CCSurfaces = {}
 
 ---All possible submodes of control center in "surfaces" mode.
 ---Used to handle mutually exclusive GUI states.
+---@enum
 local surface_submodes = {
     new_surface = "new_surface",
-    delete_selected = "delete_selected",
+    rename_surface = "rename_surface",
+    delete_surface = "delete_surface",
     start_compilation = "start_compilation",
     stop_compilation = "stop_compilation",
 }
---TODO: add rename surface submode
+
 -------------------------------------------------------------------------------
 ----------- LEFT FRAME CONTROL ELEMENTS: CREATION AND CONFIGURATION -----------
 -------------------------------------------------------------------------------
@@ -73,7 +80,9 @@ local function update_new_surface_button(gui_data)
     local button = gui_data.elements.new_surface_btn
     if not button or not button.valid then return end
     -- button is toggled if gui is in "new_surface" submode
-    button.toggled = (gui_data.surface_submode == surface_submodes.new_surface)
+    button.toggled = (
+        gui_data.surface_submode == surface_submodes.new_surface
+    )
 end
 
 ---Adds "create new vsurface" button to given parent element
@@ -88,6 +97,35 @@ local function add_new_surface_button(parent, gui_data)
     button.style.horizontally_stretchable = true
     gui_data.elements.new_surface_btn = button
     update_new_surface_button(gui_data)
+end
+
+---------------------------- RENAME SURFACE BUTTON ----------------------------
+
+---Updates "rename surface" button according to gui_data
+---@param gui_data ControlCenterData
+local function update_rename_surface_button(gui_data)
+    local button = gui_data.elements.rename_surface_btn
+    if not button or not button.valid then return end
+    -- button is enabled only when vsurface is selected
+    button.enabled = not not gui_data.selected_vsurface
+    -- button is toggled if gui is in "rename_surface" submode
+    button.toggled = (
+        gui_data.surface_submode == surface_submodes.rename_surface
+    )
+end
+
+---Adds "rename surface" button to given parent element
+---@param parent LuaGuiElement
+---@param gui_data ControlCenterData
+local function add_rename_surface_button(parent, gui_data)
+    local button = parent.add{
+        type = "button",
+        name = PREFIX .. "cc-rename-surface-btn",
+        caption = {"cc-surfaces.rename-vsurface"},
+    }
+    button.style.horizontally_stretchable = true
+    gui_data.elements.rename_surface_btn = button
+    update_rename_surface_button(gui_data)
 end
 
 ---------------------------- IDLE SURFACE SELECTOR ----------------------------
@@ -117,7 +155,7 @@ local function add_idle_surface_selection_widget(parent, gui_data)
         PREFIX .. "cc-idle-surface-search",
         PREFIX .. "cc-idle-surface-selector",
         {"cc-surfaces.idle-vsurfaces"},
-        140
+        112
     )
     search.text = gui_data.idle_surface_query or ""
     gui_data.elements.idle_surface_selector = selector
@@ -141,7 +179,9 @@ local function update_surface_delete_button(gui_data)
         button.enabled = false
     end
     -- button is toggled if gui in "delete_selected" submode
-    button.toggled = (gui_data.surface_submode == surface_submodes.delete_selected)
+    button.toggled = (
+        gui_data.surface_submode == surface_submodes.delete_surface
+    )
 end
 
 ---Adds "delete selected vsurface" button to given parent element
@@ -170,7 +210,9 @@ local function update_compilation_start_button(gui_data)
     local surface_name = gui_data.selected_vsurface
     button.enabled = VSurfaceManager.is_idle(surface_name)
     -- button is toggled if gui in "start_compilation" submode
-    button.toggled = (gui_data.surface_submode == surface_submodes.start_compilation)
+    button.toggled = (
+        gui_data.surface_submode == surface_submodes.start_compilation
+    )
 end
 
 ---Adds "start compilation" button to given parent element
@@ -214,7 +256,7 @@ local function add_compiling_surface_selection_widget(parent, gui_data)
         PREFIX .. "cc-compiling-surface-search",
         PREFIX .. "cc-compiling-surface-selector",
         {"cc-surfaces.compiling-vsurfaces"},
-        140
+        112
     )
     search.text = gui_data.compiling_surface_query or ""
     gui_data.elements.compiling_surface_selector = selector
@@ -234,7 +276,9 @@ local function update_compilation_stop_button(gui_data)
     local surface_name = gui_data.selected_vsurface
     button.enabled = VSurfaceManager.is_compiling(surface_name)
     -- button is toggled if gui in "stop_compilation" submode
-    button.toggled = (gui_data.surface_submode == surface_submodes.stop_compilation)
+    button.toggled = (
+        gui_data.surface_submode == surface_submodes.stop_compilation
+    )
 end
 
 ---Adds "stop compilation" button to given parent element
@@ -255,128 +299,6 @@ end
 -------------------------------------------------------------------------------
 ---------------------------- RIGHT FRAME ELEMENTS -----------------------------
 -------------------------------------------------------------------------------
-
-------------------------------- TCC ENTITY INFO -------------------------------
-
-local tcc_registered = {"cc-surfaces.tcc-registered"}
-local tcc_not_registered = {"cc-surfaces.tcc-not-registered"}
-
----Updates section used to display info about registered TCC entity
----@param gui_data ControlCenterData
-local function update_tcc_entity_info(gui_data)
-    local elements = gui_data.elements
-
-    -- Updating TCC entity status label
-    local label = elements.tcc_status
-    if not label or not label.valid then return end
-    local is_reg = TCCManager.is_tcc_registered()
-    label.caption = is_reg and tcc_registered or tcc_not_registered
-
-    -- Updating max template tier label
-    label = elements.tcc_max_tier
-    if not label or not label.valid then return end
-    local max_tier = TCCManager.get_max_template_tier()
-    local caption = {
-        "cc-surfaces.tcc-max-tier",
-        CommonGui.number_to_string(max_tier, 2)
-    }
-    label.caption = caption
-
-    -- Updating view TCC button
-    local btn = elements.view_tcc_btn
-    if not btn or not btn.valid then return end
-    btn.enabled = is_reg
-end
-
----Adds section used to display info about registered TCC entity
----@param parent LuaGuiElement element will be added here
----@param gui_data ControlCenterData
-local function add_tcc_entity_info(parent, gui_data)
-    local section = CommonGui.create_info_element_base(
-        parent,
-        {"cc-surfaces.tcc-entity-info"}
-    )
-    local elements = gui_data.elements
-    local h_flow = section.add{type = "flow", direction = "horizontal"}
-    h_flow.style.vertical_align = "center"
-    local v_flow = h_flow.add{type = "flow", direction = "vertical"}
-    v_flow.style.vertical_spacing = 0
-    -- TCC entity status label
-    elements.tcc_status = v_flow.add{type = "label"}
-    -- Max template tier
-    elements.tcc_max_tier = v_flow.add{type = "label"}
-
-    -- View tcc entity button
-    local spacer = h_flow.add{type = "flow"}
-    spacer.style.horizontally_stretchable = true
-    local btn = h_flow.add{
-        type = "button",
-        name = PREFIX .. "cc-view-tcc",
-        caption = {"cc-surfaces.view-tcc-entity"},
-    }
-    btn.style.width = 200
-    elements.view_tcc_btn = btn
-    update_tcc_entity_info(gui_data)
-end
-
------------------------------ COMPUTATION DISPLAY -----------------------------
-
----Updates section used to display current computation state
----@param gui_data ControlCenterData
-local function update_computation_display_section(gui_data)
-    local elements = gui_data.elements
-    local bar = elements.comp_progressbar
-    if not bar or not bar.valid then return end
-    ---@type LuaStyle assuming it's in sync with progressbar
-    local style = elements.comp_style
-
-    local demand = TCCManager.get_computation_curr_demand()
-    local max_available = TCCManager.get_computation_max_available()
-    -- progressbar caption
-    local caption = {
-        "cc-surfaces.progressbar-text",
-        CommonGui.large_number_to_string(demand),
-        CommonGui.large_number_to_string(max_available),
-    }
-    bar.caption = caption
-    -- progressbar value
-    local bar_value = (
-        (max_available ~= 0) and (demand / max_available) or
-        (demand > 0) and 1 or 0
-    )
-    bar.value = bar_value
-    -- progressbar color
-    local bar_color
-    if bar_value <= 0.5 then
-        bar_color = CommonGui.green
-    elseif bar_value <= 0.85 then
-        bar_color = CommonGui.yellow
-    else
-        bar_color = CommonGui.red
-    end
-    style.color = bar_color
-end
-
----Adds information element displaying computation resource demand/max.
----@param parent LuaGuiElement element will be added here
----@param gui_data ControlCenterData
-local function add_computation_display_section(parent, gui_data)
-    local section = CommonGui.create_info_element_base(
-        parent,
-        {"cc-surfaces.computation-display-subtitle"}
-    )
-    local progressbar = section.add{
-        type = "progressbar",
-        style = "electric_statistics_progressbar",
-    }
-    local style = progressbar.style
-    style.horizontally_stretchable = true
-    local elements = gui_data.elements
-    elements.comp_progressbar = progressbar
-    ---@diagnostic disable-next-line: assign-type-mismatch
-    elements.comp_style = style
-    update_computation_display_section(gui_data)
-end
 
 -------------------------- NEW SURFACE CONFIGURATION --------------------------
 
@@ -592,161 +514,70 @@ local function update_new_vsurface_configuration_section(gui_data)
     update_new_surface_info_label(gui_data)
 end
 
---------------------------- SELECTED VSURFACE INFO ----------------------------
+-------------------------- RENAME SELECTED VSURFACE ---------------------------
 
----Updates vsurface info section
+---Updates section used to rename selected vsurface
 ---@param gui_data ControlCenterData
-local function update_vsurface_info_section(gui_data)
-    local surface_name = gui_data.selected_vsurface
+local function update_vsurface_rename_section(gui_data)
     local elements = gui_data.elements
-
-    -- Updating vsurface status row
-    local label = elements.vsurface_info_status
+    local button = elements.confirm_vsurface_rename_btn
+    if not button or not button.valid then return end
+    local label = elements.confirm_vsurface_rename_label
     if not label or not label.valid then return end
-    local status = VSurfaceManager.get_vsurface_status(surface_name)
-    label.caption = status
-
-    -- Updating computation demand row
-    label = elements.vsurface_info_demand
-    if not label or not label.valid then return end
-    local demand = VSurfaceManager.get_current_computation_demand(surface_name)
-    label.caption = CommonGui.large_number_to_string(demand)
+    local status, reason = VSurfaceManager.can_rename_vsurface(
+        gui_data.selected_vsurface,
+        gui_data.vsurface_rename_name
+    )
+    button.enabled = status
+    label.caption = reason or ""
 end
 
----Adds section displaying information about selected vsurface
+---Adds section used to rename selected vsurface
 ---@param parent LuaGuiElement
 ---@param gui_data ControlCenterData
-local function add_vsurface_info_section(parent, gui_data)
-    local elements = gui_data.elements
-    local surface_name = gui_data.selected_vsurface
-
+local function add_vsurface_rename_section(parent, gui_data)
     local section = CommonGui.create_info_element_base(
         parent,
-        {"cc-surfaces.vsurface-info-subtitle"}
+        {"cc-surfaces.rename-section-title"}
     )
-    local info_table = section.add{
-        type = "table",
-        column_count = 2,
-        style = "vsurface_info_table",
+    local elements = gui_data.elements
+
+    -- Old name label
+    local old_name = gui_data.selected_vsurface or "—"
+    local caption = {"cc-surfaces.old-name", old_name}
+    section.add{type = "label", caption = caption}
+
+    -- New name textfield
+    local h_flow = section.add{type = "flow", direction = "horizontal"}
+    h_flow.style.vertical_align = "center"
+    h_flow.add{type = "label", caption = {"cc-surfaces.new-name"}}
+    h_flow.add{
+        type = "textfield",
+        name = PREFIX .. "cc-vsurface-rename-textfield",
+        lose_focus_on_confirm = true,
+        text = gui_data.vsurface_rename_name or ""
     }
 
-    -- Vsurface name row: does not require updates
-    info_table.add{
-        type = "label",
-        caption = {"cc-surfaces.surface-name"},
-        style = "bold_label",
-    }
-    local label = info_table.add{
-        type = "label",
-        caption = surface_name or "None"
-    }
-    label.style.maximal_width = 200
-    -- Vsurface dimensions row: does not require updates
-    info_table.add{
-        type = "label",
-        caption = {"cc-surfaces.dimensions"},
-        style = "bold_label",
-    }
-    local width, height = VSurfaceManager.get_vsurface_dimensions(
-        surface_name
-    )
-    local caption = {"cc-surfaces.dimensions-value", width, height}
-    info_table.add{type = "label", caption = caption}
-    -- Vsurface status row: requires updated
-    info_table.add{
-        type = "label",
-        caption = {"cc-surfaces.surface-status"},
-        style = "bold_label",
-    }
-    elements.vsurface_info_status = info_table.add{type = "label"}
-    -- Vsurface computation demand: requires updated
-    info_table.add{
-        type = "label",
-        caption = {"cc-surfaces.computation-demand"},
-        style = "bold_label",
-    }
-    gui_data.elements.vsurface_info_demand = info_table.add{type = "label"}
-    -- Per-craft overhead: does not require updates
-    info_table.add{
-        type = "label",
-        caption = {"cc-surfaces.per-craft-overhead"},
-        style = "bold_label",
-    }
-    local drain = VSurfaceManager.get_energy_drain_by_name(surface_name)
-    local drain_fmt = CommonGui.large_number_to_string(drain)
-    caption = {"cc-surfaces.overhead-value", drain_fmt}
-    info_table.add{type = "label", caption = caption}
-    -- TODO: add template complexity here
+    -- Confirm button and status label above
+    local flow = section.add{type = "flow", direction = "vertical"}
+    local flow_style = flow.style
+    flow_style.horizontally_stretchable = true
+    flow_style.horizontal_align = "right"
 
-
-    -- View surface row: does not require updates
-    info_table.add{
-        type = "label",
-        caption = {"cc-surfaces.view-surface"},
-        style = "bold_label",
-    }
-    info_table.add{
+    -- button and status label
+    local label = flow.add{type = "label"}
+    label.style.font_color = CommonGui.red
+    local button = flow.add{
         type = "button",
-        name = PREFIX .. "cc-view-surface-btn",
-        caption = {"cc-surfaces.view"}
+        name = PREFIX .. "cc-confirm-vsurface-rename",
+        caption = {"cc-surfaces.confirm-rename-btn"},
+        style = "confirm_button",
+        tooltip = {"cc-surfaces.confirm-rename-tooltip"},
     }
-    update_vsurface_info_section(gui_data)
-end
 
------------------------------- COMPILATION INFO -------------------------------
-
----Updates section desplaying compilation info
----@param gui_data ControlCenterData
-local function update_compilation_info_section(gui_data)
-    local surface_name = gui_data.selected_vsurface
-
-    -- Updating compilation progress label
-    local label = gui_data.elements.compilation_progress_label
-    if not label or not label.valid then return end
-    local elapsed, total = VSurfaceManager.get_compilation_progress(surface_name)
-    local percent = (total ~= 0) and CommonGui.number_to_string(elapsed / total * 100, 2) or "100"
-    local progress_caption = {"cc-surfaces.compilation-info-progress", percent}
-    label.caption = progress_caption
-
-    -- Updating compilation progressbar
-    local bar = gui_data.elements.compilation_progressbar
-    if not bar or not bar.valid then return end
-    local bar_caption = {"cc-surfaces.progressbar-text", elapsed, total}
-    bar.caption = bar_caption
-    local value = (total ~= 0) and (elapsed / total) or 1
-    bar.value = value
-end
-
----Adds section displaying compilation info
----@param parent LuaGuiElement
----@param gui_data ControlCenterData
-local function add_compilation_info_section(parent, gui_data)
-    local section = CommonGui.create_info_element_base(
-        parent,
-        {"cc-surfaces.compilation-info-subtitle"}
-    )
-    local surface_name = gui_data.selected_vsurface
-
-    -- Template name label
-    local template_name = VSurfaceManager.get_template_name(surface_name)
-    local template_caption = {"cc-surfaces.compilation-info-template-name", template_name}
-    section.add{type = "label", caption = template_caption}
-
-    -- Compilation progress label
-    local progress_label = section.add{type = "label"}
-    gui_data.elements.compilation_progress_label = progress_label
-
-    -- Compilation progressbar
-    local bar = section.add{
-        type = "progressbar",
-        style = "electric_statistics_progressbar",
-    }
-    gui_data.elements.compilation_progressbar = bar
-    local bar_style = bar.style
-    bar_style.horizontally_stretchable = true
-    bar_style.color = CommonGui.green
-
-    update_compilation_info_section(gui_data)
+    elements.confirm_vsurface_rename_btn = button
+    elements.confirm_vsurface_rename_label = label
+    update_vsurface_rename_section(gui_data)
 end
 
 -------------------------- DELETE SELECTED VSURFACE ---------------------------
@@ -765,7 +596,7 @@ local function add_confirm_vsurface_delete_section(parent, gui_data)
     local demand_fmt = CommonGui.large_number_to_string(idle_demand)
     local caption = {
         "cc-surfaces.vsurface-deletion-warning",
-        surface_name,
+        surface_name or "—",
         demand_fmt
     }
     local warning = section.add{type = "label", caption = caption}
@@ -795,9 +626,11 @@ local function add_confirm_compilation_start_warning(parent, gui_data)
     local idle_demand, compiling_demand = VSurfaceManager.get_computation_demands(
         surface_name
     )
-    local delta_compute = compiling_demand - idle_demand
-    local delta_fmt = CommonGui.large_number_to_string(delta_compute)
-    local caption = {"cc-surfaces.compilation-start-warning", surface_name, delta_fmt}
+    local caption = {
+        "cc-surfaces.compilation-start-warning",
+        surface_name or "—",
+        CommonGui.large_number_to_string(compiling_demand - idle_demand)
+    }
     local warning = parent.add{type = "label", caption = caption}
     warning.style.single_line = false
 end
@@ -895,7 +728,11 @@ local function add_confirm_compilation_stop_section(parent, gui_data)
     )
     local delta_compute = compiling_demand - idle_demand
     local delta_fmt = CommonGui.large_number_to_string(delta_compute)
-    local caption = {"cc-surfaces.compilation-stop-warning", surface_name, delta_fmt}
+    local caption = {
+        "cc-surfaces.compilation-stop-warning",
+        surface_name or "—",
+        delta_fmt
+    }
     local warning = section.add{type = "label", caption = caption}
     warning.style.single_line = false
 
@@ -911,6 +748,314 @@ local function add_confirm_compilation_stop_section(parent, gui_data)
         style = "red_confirm_button",
         tooltip = {"cc-surfaces.compilation-stop-tooltip"},
     }
+end
+
+------------------------------- TCC ENTITY INFO -------------------------------
+
+local tcc_registered = {"cc-surfaces.tcc-registered"}
+local tcc_not_registered = {"cc-surfaces.tcc-not-registered"}
+
+---Updates section used to display info about registered TCC entity
+---@param gui_data ControlCenterData
+local function update_tcc_entity_info(gui_data)
+    local elements = gui_data.elements
+
+    -- Updating TCC entity status label
+    local label = elements.tcc_status
+    if not label or not label.valid then return end
+    local is_reg = TCCManager.is_tcc_registered()
+    label.caption = is_reg and tcc_registered or tcc_not_registered
+
+    -- Updating max template tier label
+    label = elements.tcc_max_tier
+    if not label or not label.valid then return end
+    local max_tier = TCCManager.get_max_template_tier()
+    local caption = {
+        "cc-surfaces.tcc-max-tier",
+        CommonGui.number_to_string(max_tier, 2)
+    }
+    label.caption = caption
+
+    -- Updating view TCC button
+    local btn = elements.view_tcc_btn
+    if not btn or not btn.valid then return end
+    btn.enabled = is_reg
+end
+
+---Adds section used to display info about registered TCC entity
+---@param parent LuaGuiElement element will be added here
+---@param gui_data ControlCenterData
+local function add_tcc_entity_info(parent, gui_data)
+    local section = CommonGui.create_info_element_base(
+        parent,
+        {"cc-surfaces.tcc-entity-info"}
+    )
+    local elements = gui_data.elements
+    local h_flow = section.add{type = "flow", direction = "horizontal"}
+    h_flow.style.vertical_align = "center"
+    local v_flow = h_flow.add{type = "flow", direction = "vertical"}
+    v_flow.style.vertical_spacing = 0
+    -- TCC entity status label
+    elements.tcc_status = v_flow.add{type = "label"}
+    -- Max template tier
+    elements.tcc_max_tier = v_flow.add{type = "label"}
+
+    -- View tcc entity button
+    local spacer = h_flow.add{type = "flow"}
+    spacer.style.horizontally_stretchable = true
+    local btn = h_flow.add{
+        type = "button",
+        name = PREFIX .. "cc-view-tcc",
+        caption = {"cc-surfaces.view-tcc-entity"},
+    }
+    btn.style.width = 200
+    elements.view_tcc_btn = btn
+    update_tcc_entity_info(gui_data)
+end
+
+----------------------------- COMPUTATION DISPLAY -----------------------------
+
+---Updates section used to display current computation state
+---@param gui_data ControlCenterData
+local function update_computation_display_section(gui_data)
+    local elements = gui_data.elements
+    local bar = elements.comp_progressbar
+    if not bar or not bar.valid then return end
+    ---@type LuaStyle assuming it's in sync with progressbar
+    local style = elements.comp_style
+
+    local demand = TCCManager.get_computation_curr_demand()
+    local max_available = TCCManager.get_computation_max_available()
+    -- progressbar caption
+    local caption = {
+        "cc-surfaces.progressbar-text",
+        CommonGui.large_number_to_string(demand),
+        CommonGui.large_number_to_string(max_available),
+    }
+    bar.caption = caption
+    -- progressbar value
+    local bar_value = (
+        (max_available ~= 0) and (demand / max_available) or
+        (demand > 0) and 1 or 0
+    )
+    bar.value = bar_value
+    -- progressbar color
+    local bar_color
+    if bar_value <= 0.5 then
+        bar_color = CommonGui.green
+    elseif bar_value <= 0.85 then
+        bar_color = CommonGui.yellow
+    else
+        bar_color = CommonGui.red
+    end
+    style.color = bar_color
+end
+
+---Adds information element displaying computation resource demand/max.
+---@param parent LuaGuiElement element will be added here
+---@param gui_data ControlCenterData
+local function add_computation_display_section(parent, gui_data)
+    local section = CommonGui.create_info_element_base(
+        parent,
+        {"cc-surfaces.computation-display-subtitle"}
+    )
+    local progressbar = section.add{
+        type = "progressbar",
+        style = "electric_statistics_progressbar",
+    }
+    local style = progressbar.style
+    style.horizontally_stretchable = true
+    local elements = gui_data.elements
+    elements.comp_progressbar = progressbar
+    ---@diagnostic disable-next-line: assign-type-mismatch
+    elements.comp_style = style
+    update_computation_display_section(gui_data)
+end
+
+--------------------------- SELECTED VSURFACE INFO ----------------------------
+
+---Updates vsurface info section
+---@param gui_data ControlCenterData
+local function update_vsurface_info_section(gui_data)
+    local surface_name = gui_data.selected_vsurface
+    local elements = gui_data.elements
+
+    -- Updating vsurface status row
+    local label = elements.vsurface_info_status
+    if not label or not label.valid then return end
+    local status = VSurfaceManager.get_vsurface_status(surface_name)
+    label.caption = status
+
+    -- Updating computation demand row
+    label = elements.vsurface_info_demand
+    if not label or not label.valid then return end
+    local demand = VSurfaceManager.get_current_computation_demand(surface_name)
+    label.caption = CommonGui.large_number_to_string(demand)
+end
+
+---Adds section displaying information about selected vsurface
+---@param parent LuaGuiElement
+---@param gui_data ControlCenterData
+local function add_vsurface_info_section(parent, gui_data)
+    local elements = gui_data.elements
+    local surface_name = gui_data.selected_vsurface
+
+    local section = CommonGui.create_info_element_base(
+        parent,
+        {"cc-surfaces.vsurface-info-subtitle"}
+    )
+    local info_table = section.add{
+        type = "table",
+        column_count = 2,
+        style = "vsurface_info_table",
+    }
+
+    -- Vsurface name row: does not require updates
+    info_table.add{
+        type = "label",
+        caption = {"cc-surfaces.surface-name"},
+        style = "bold_label",
+    }
+    local label = info_table.add{
+        type = "label",
+        caption = surface_name or "None"
+    }
+    label.style.maximal_width = 200
+    -- Vsurface dimensions row: does not require updates
+    info_table.add{
+        type = "label",
+        caption = {"cc-surfaces.dimensions"},
+        style = "bold_label",
+    }
+    local width, height = VSurfaceManager.get_vsurface_dimensions(
+        surface_name
+    )
+    local caption = {"cc-surfaces.dimensions-value", width, height}
+    info_table.add{type = "label", caption = caption}
+    -- Vsurface status row: requires updated
+    info_table.add{
+        type = "label",
+        caption = {"cc-surfaces.surface-status"},
+        style = "bold_label",
+    }
+    elements.vsurface_info_status = info_table.add{type = "label"}
+    -- Vsurface computation demand: requires updated
+    info_table.add{
+        type = "label",
+        caption = {"cc-surfaces.computation-demand"},
+        style = "bold_label",
+    }
+    gui_data.elements.vsurface_info_demand = info_table.add{type = "label"}
+    -- Per-craft overhead: does not require updates
+    info_table.add{
+        type = "label",
+        caption = {"cc-surfaces.per-craft-overhead"},
+        style = "bold_label",
+    }
+    local drain = VSurfaceManager.get_energy_drain_by_name(surface_name)
+    local drain_fmt = CommonGui.large_number_to_string(drain)
+    caption = {"cc-surfaces.overhead-value", drain_fmt}
+    info_table.add{type = "label", caption = caption}
+    -- Template complexity: does not require updates
+    info_table.add{
+        type = "label",
+        caption = {"cc-surfaces.template-complexity"},
+        style = "bold_label",
+    }
+    local tier = (drain ~= 0) and TCCManager.get_template_tier(drain) or -1
+    local tier_caption = CommonGui.number_to_string(tier, 2)
+    info_table.add{
+        type = "label",
+        caption = tier_caption
+    }
+    -- View surface row: does not require updates
+    info_table.add{
+        type = "label",
+        caption = {"cc-surfaces.view-surface"},
+        style = "bold_label",
+    }
+    info_table.add{
+        type = "button",
+        name = PREFIX .. "cc-view-surface-btn",
+        caption = {"cc-surfaces.view"}
+    }
+    update_vsurface_info_section(gui_data)
+end
+
+------------------------------ COMPILATION INFO -------------------------------
+
+---Updates section desplaying compilation info
+---@param gui_data ControlCenterData
+local function update_compilation_info_section(gui_data)
+    local elements = gui_data.elements
+    local surface_name = gui_data.selected_vsurface
+    local elapsed, total = VSurfaceManager.get_compilation_progress(
+        surface_name
+    )
+
+    -- Updating compiling template label
+    local label = elements.compiling_template_lbl
+    if not label or not label.valid then return end
+    local template_name = VSurfaceManager.get_template_name(surface_name)
+    local template_caption = {
+        "cc-surfaces.info-template-name",
+        template_name
+    }
+    label.caption = template_caption
+
+
+    -- Updating compilation progress label
+    label = elements.compilation_progress_label
+    if not label or not label.valid then return end
+    local percent = (
+        (total ~= 0) and
+        CommonGui.number_to_string(elapsed / total * 100, 2) or
+        0
+    )
+    local progress_caption = {"cc-surfaces.info-progress", percent}
+    label.caption = progress_caption
+
+    -- Updating compilation progressbar
+    local bar = elements.compilation_progressbar
+    if not bar or not bar.valid then return end
+    local bar_caption = {"cc-surfaces.progressbar-text", elapsed, total}
+    bar.caption = bar_caption
+    local value = (total ~= 0) and (elapsed / total) or 0
+    bar.value = value
+end
+
+---Adds section displaying compilation info
+---@param parent LuaGuiElement
+---@param gui_data ControlCenterData
+local function add_compilation_info_section(parent, gui_data)
+    local section = CommonGui.create_info_element_base(
+        parent,
+        {"cc-surfaces.info-subtitle"}
+    )
+    local flow = section.add{type = "flow", direction = "vertical"}
+    flow.style.vertical_spacing = 0
+    local elements = gui_data.elements
+    local surface_name = gui_data.selected_vsurface
+
+    -- Template name label: requires updates
+    elements.compiling_template_lbl = flow.add{type = "label"}
+
+    -- Compilation progress label: requires updates
+    local progress_label = flow.add{type = "label"}
+    elements.compilation_progress_label = progress_label
+    progress_label.style.bottom_margin = 4
+
+    -- Compilation progressbar: requires updates
+    local bar = flow.add{
+        type = "progressbar",
+        style = "electric_statistics_progressbar",
+    }
+    elements.compilation_progressbar = bar
+    local bar_style = bar.style
+    bar_style.horizontally_stretchable = true
+    bar_style.color = CommonGui.green
+
+    update_compilation_info_section(gui_data)
 end
 
 ------------------------- COMPILATION IO SECTIONS --------------------------
@@ -1332,6 +1477,7 @@ end
 function CCSurfaces.construct_left_side(gui_data)
     local left_frame = gui_data.elements.left_frame
     add_new_surface_button(left_frame, gui_data)
+    add_rename_surface_button(left_frame, gui_data)
     add_idle_surface_selection_widget(left_frame, gui_data)
     add_surface_delete_button(left_frame, gui_data)
     add_compilation_start_button(left_frame, gui_data)
@@ -1344,7 +1490,8 @@ end
 ---Maps submodes to functions used to construct corresponding element
 local submode_gui_constructors = {
     [surface_submodes.new_surface] = add_new_vsurface_configuration_section,
-    [surface_submodes.delete_selected] = add_confirm_vsurface_delete_section,
+    [surface_submodes.rename_surface] = add_vsurface_rename_section,
+    [surface_submodes.delete_surface] = add_confirm_vsurface_delete_section,
     [surface_submodes.start_compilation] = add_confirm_compilation_start_section,
     [surface_submodes.stop_compilation] = add_confirm_compilation_stop_section,
 }
@@ -1377,10 +1524,40 @@ function CCSurfaces.construct_right_side(gui_data)
     end
 end
 
+---Updates all elements in the left frame, rebuilds the right frame
+---@param gui_data ControlCenterData
+local function update_left_rebuild_right(gui_data)
+    update_new_surface_button(gui_data)
+    update_rename_surface_button(gui_data)
+    update_idle_surface_selector(gui_data)
+    update_surface_delete_button(gui_data)
+    update_compilation_start_button(gui_data)
+    update_compiling_surface_selector(gui_data)
+    update_compilation_stop_button(gui_data)
+    gui_data.elements.right_frame.clear()
+    CCSurfaces.construct_right_side(gui_data)
+end
+
+---Maps submodes to functions used to update corresponding sections
+local submode_updates = {
+    [surface_submodes.new_surface] = update_new_vsurface_confirm_button,
+    [surface_submodes.rename_surface] = update_vsurface_rename_section,
+    [surface_submodes.start_compilation] = update_confirm_compilation_start_section,
+}
+
 ---Time based updater for the window in surfaces mode
 ---@param gui_data ControlCenterData
 ---@param update_cycle integer
 function CCSurfaces.on_tick_updater(gui_data, update_cycle)
+    -- Validating that selected vsurface actually exists
+    local selected = gui_data.selected_vsurface
+    if selected and not VSurfaceManager.does_vsurface_exist(selected) then
+        gui_data.selected_vsurface = nil
+        gui_data.surface_submode = nil
+        update_left_rebuild_right(gui_data)
+        return
+    end
+
     -- updating sections related to selected surface
     if gui_data.selected_vsurface then
         update_compilation_info_section(gui_data)
@@ -1398,10 +1575,11 @@ function CCSurfaces.on_tick_updater(gui_data, update_cycle)
         update_computation_display_section(gui_data)
         -- Updating surface submode section
         local submode = gui_data.surface_submode
-        if submode == surface_submodes.new_surface then
-            update_new_vsurface_confirm_button(gui_data)
-        elseif submode == surface_submodes.start_compilation then
-            update_confirm_compilation_start_section(gui_data)
+        if submode then
+            local handler = submode_updates[submode]
+            if handler then
+                handler(gui_data)
+            end
         end
     end
 end
@@ -1409,19 +1587,6 @@ end
 -------------------------------------------------------------------------------
 ---------------------------- GUI STATE MANAGEMENT -----------------------------
 -------------------------------------------------------------------------------
-
----Updates all elements in the left frame, rebuilds the right frame
----@param gui_data ControlCenterData
-local function update_left_rebuild_right(gui_data)
-    update_new_surface_button(gui_data)
-    update_idle_surface_selector(gui_data)
-    update_surface_delete_button(gui_data)
-    update_compilation_start_button(gui_data)
-    update_compiling_surface_selector(gui_data)
-    update_compilation_stop_button(gui_data)
-    gui_data.elements.right_frame.clear()
-    CCSurfaces.construct_right_side(gui_data)
-end
 
 ---Used to set surface submode to provided value. If provided value
 ---matches with current submode, it's cleared instead.
@@ -1476,6 +1641,17 @@ function CCSurfaces.handle_new_surface_button(event)
     )
 end
 
+---------------------------- RENAME SURFACE BUTTON ----------------------------
+
+---Handles "rename vsurface" button being pressed
+---@param event EventData.on_gui_click
+function CCSurfaces.handle_rename_surface_btn(event)
+    toggle_surface_submode(
+        storage.control_center[event.player_index],
+        surface_submodes.rename_surface
+    )
+end
+
 ---------------------------- IDLE SURFACE SELECTOR ----------------------------
 
 ---Handles idle surface textfield being changed
@@ -1506,7 +1682,7 @@ end
 function CCSurfaces.handle_surface_delete_button(event)
     toggle_surface_submode(
         storage.control_center[event.player_index],
-        surface_submodes.delete_selected
+        surface_submodes.delete_surface
     )
 end
 
@@ -1644,30 +1820,49 @@ function CCSurfaces.handle_new_vsurface_confirm_button(event)
     update_left_rebuild_right(gui_data)
 end
 
---------------------------- SELECTED VSURFACE INFO ----------------------------
+-------------------------- RENAME SELECTED VSURFACE ---------------------------
 
--- TODO: use new CommonGui function
+---Handles new vsurface name (rename) being changed
+---@param event EventData.on_gui_text_changed
+function CCSurfaces.handle_vsurface_rename_textfield(event)
+    local gui_data = storage.control_center[event.player_index]
+    gui_data.vsurface_rename_name = event.text
+    update_vsurface_rename_section(gui_data)
+end
+
+---Handles confirm vsurface rename button being pressed
+---@param event EventData.on_gui_click
+function CCSurfaces.handle_vsurface_rename_confirm(event)
+    local gui_data = storage.control_center[event.player_index]
+    local old_name = gui_data.selected_vsurface
+    local new_name = gui_data.vsurface_rename_name
+    local status = VSurfaceManager.rename_vsurface(old_name, new_name)
+    -- rename failed: updating rename section
+    if not status then
+        update_vsurface_rename_section(gui_data)
+        return
+    end
+    -- rename successful: updating gui state
+    gui_data.vsurface_rename_name = nil
+    gui_data.selected_vsurface = new_name
+    gui_data.surface_submode = nil
+    update_left_rebuild_right(gui_data)
+end
+
+--------------------------- SELECTED VSURFACE INFO ----------------------------
 
 ---Handles view vsurface button being pressed
 ---@param event EventData.on_gui_click
 function CCSurfaces.handle_view_vsurface_btn(event)
     local player_index = event.player_index
-    ---@type ControlCenterData
     local gui_data = storage.control_center[player_index]
-
-    ---Moving camera to selected surface
-    local surface_name = gui_data.selected_vsurface
-    if not surface_name then return end
-    local surface = game.get_surface(surface_name)
-    if not surface or not surface.valid then return end
-    local player = game.get_player(player_index)
-    if not player or not player.valid then return end
-    player.set_controller{
-        type = defines.controllers.remote,
-        surface = surface,
-        position = {0, 0}
-    }
-    player.opened = nil
+    local surface_index, pos_x, pos_y = VSurfaceManager.get_vsurface_position(
+        gui_data.selected_vsurface
+    )
+    if not surface_index then return end
+    ---@cast pos_x number
+    ---@cast pos_y number
+    CommonGui.move_player_camera(player_index, surface_index, pos_x, pos_y)
 end
 
 -------------------------- DELETE SELECTED VSURFACE ---------------------------

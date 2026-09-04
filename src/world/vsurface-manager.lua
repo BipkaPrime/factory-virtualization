@@ -339,6 +339,8 @@ end
 ---Attempts to rename given vsurface
 ---@param old_name string|nil current vsurface name
 ---@param new_name string|nil new vsurface name
+---@return boolean status true if vsurface can be renamed
+---@return LocalisedString|nil reason why vsurface cannot be renamed
 function VSurfaceManager.rename_vsurface(old_name, new_name)
     local status, reason = VSurfaceManager.can_rename_vsurface(
         old_name,
@@ -356,6 +358,7 @@ function VSurfaceManager.rename_vsurface(old_name, new_name)
     vsurface_data.surface_name = new_name
     lookup_by_name[new_name] = vsurface_data
     lookup_by_name[old_name] = nil
+    return true
 end
 
 ------------------------------ VSURFACE DELETION ------------------------------
@@ -593,6 +596,13 @@ end
 
 ------------------------------- BY SURFACE NAME -------------------------------
 
+---Checks if given vsurface exists
+---@param surface_name string|nil
+---@return boolean true if vsurface exists
+function VSurfaceManager.does_vsurface_exist(surface_name)
+    return not not get_vsurface_data_by_name(surface_name)
+end
+
 ---Gets width and height of a given vsurface
 ---@param surface_name string|nil
 ---@return integer width, integer height
@@ -699,8 +709,8 @@ end
 ---@return string
 function VSurfaceManager.get_template_name(surface_name)
     local vsurface_data = get_vsurface_data_by_name(surface_name)
-    if not vsurface_data then return "None" end
-    return vsurface_data.template_name or "None"
+    if not vsurface_data then return "—" end
+    return vsurface_data.template_name or "—"
 end
 
 ---Gets compilation progress of given vsurface. If vsurface data is not

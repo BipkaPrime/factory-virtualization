@@ -788,7 +788,6 @@ end
 ---Handles new name textfield being changed in template rename section
 ---@param event EventData.on_gui_text_changed
 function CCTemplates.handle_template_rename_textfield(event)
-    ---@type ControlCenterData
     local gui_data = storage.control_center[event.player_index]
     gui_data.template_rename_name = event.text
     update_rename_template_section(gui_data)
@@ -797,7 +796,6 @@ end
 ---Handles confirm template rename button being pressed
 ---@param event EventData.on_gui_click
 function CCTemplates.handle_template_rename_confirm_btn(event)
-    ---@type ControlCenterData
     local gui_data = storage.control_center[event.player_index]
     local old_name = gui_data.selected_template
     local new_name = gui_data.template_rename_name

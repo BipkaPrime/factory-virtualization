@@ -178,6 +178,8 @@ local on_gui_click_router = {
     [PREFIX .. "cc-view-tcc"] = CCSurfaces.handle_view_tcc_button,
     [PREFIX .. "entity-open-cc"] = EntityGui.handle_open_cc_btn,
     [PREFIX .. "cc-view-cluster"] = CCClusters.handle_view_cluster_btn,
+    [PREFIX .. "cc-rename-surface-btn"] = CCSurfaces.handle_rename_surface_btn,
+    [PREFIX .. "cc-confirm-vsurface-rename"] = CCSurfaces.handle_vsurface_rename_confirm,
 }
 script.on_event(defines.events.on_gui_click, function(event)
     element_name_router(event, on_gui_click_router)
@@ -210,6 +212,7 @@ local on_gui_text_changed_router = {
     [PREFIX .. "entity-override-textfield"] = EntityGui.handle_override_textfield,
     [PREFIX .. "entity-overflow-threshold"] = EntityGui.handle_overflow_threshold,
     [PREFIX .. "entity-template-search"] = EntityGui.handle_selected_template_search,
+    [PREFIX .. "cc-vsurface-rename-textfield"] = CCSurfaces.handle_vsurface_rename_textfield,
 }
 script.on_event(defines.events.on_gui_text_changed, function(event)
     element_name_router(event, on_gui_text_changed_router)
