@@ -194,7 +194,7 @@ local function process_upgrades(surface, chunk_area)
     end
 end
 
----Find and satisfy item request proxies
+---Finds and satisfies item request proxies
 ---@param surface LuaSurface surface being processed
 ---@param chunk_area BoundingBox area that is processed
 local function process_item_requests(surface, chunk_area)

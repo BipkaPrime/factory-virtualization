@@ -1,3 +1,5 @@
+local graphics_root = "__factory-virtualization__/graphics/"
+
 local iconpath = "__factory-virtualization__/graphics/icons/"
 local entitypath = "__factory-virtualization__/graphics/entity/"
 
@@ -19,6 +21,7 @@ local cluster_item_io_mk1 = {
         stack_size_max = 600,
     },
     quality_affects_inventory_size = false,
+    inventory_size = 1,
     name = PREFIX .. "cluster-item-io-mk1",
     icon = iconpath .. "cluster-item-io-mk1.png",
     icon_size = 64,
@@ -26,16 +29,12 @@ local cluster_item_io_mk1 = {
     minable = {mining_time = 1, result = PREFIX .. "cluster-item-io-mk1"},
     collision_box = {{-1.7, -1.7}, {1.7, 1.7}},
     selection_box = {{-2, -2}, {2, 2}},
-    inventory_size = 1,
     picture = {
-        layers = {
-            {
-                filename = entitypath .. "cluster-item-io-mk1.png",
-                width = 256,
-                height = 256,
-                scale = 0.5,
-            }
-        },
+        filename = entitypath .. "cluster-item-io-mk1.png",
+        width = 256,
+        height = 256,
+        scale = 0.6,
+        shift = {x = 0, y = -0.5}
     }
 }
 
@@ -46,6 +45,7 @@ local cluster_item_io_mk2 = {
         stack_size_min = 6000,
         stack_size_max = 6000,
     },
+    inventory_size = 1,
     quality_affects_inventory_size = false,
     name = PREFIX .. "cluster-item-io-mk2",
     icon = iconpath .. "cluster-item-io-mk2.png",
@@ -54,16 +54,12 @@ local cluster_item_io_mk2 = {
     minable = {mining_time = 1, result = PREFIX .. "cluster-item-io-mk2"},
     collision_box = {{-1.7, -1.7}, {1.7, 1.7}},
     selection_box = {{-2, -2}, {2, 2}},
-    inventory_size = 1,
     picture = {
-        layers = {
-            {
-                filename = entitypath .. "cluster-item-io-mk2.png",
-                width = 256,
-                height = 256,
-                scale = 0.5,
-            }
-        },
+        filename = entitypath .. "cluster-item-io-mk2.png",
+        width = 256,
+        height = 256,
+        scale = 0.6,
+        shift = {x = 0, y = -0.5}
     }
 }
 
@@ -74,6 +70,7 @@ local cluster_item_io_mk3 = {
         stack_size_min = 60000,
         stack_size_max = 60000,
     },
+    inventory_size = 1,
     quality_affects_inventory_size = false,
     name = PREFIX .. "cluster-item-io-mk3",
     icon = iconpath .. "cluster-item-io-mk3.png",
@@ -82,16 +79,12 @@ local cluster_item_io_mk3 = {
     minable = {mining_time = 1, result = PREFIX .. "cluster-item-io-mk3"},
     collision_box = {{-1.7, -1.7}, {1.7, 1.7}},
     selection_box = {{-2, -2}, {2, 2}},
-    inventory_size = 1,
     picture = {
-        layers = {
-            {
-                filename = entitypath .. "cluster-item-io-mk3.png",
-                width = 256,
-                height = 256,
-                scale = 0.5,
-            }
-        },
+        filename = entitypath .. "cluster-item-io-mk3.png",
+        width = 256,
+        height = 256,
+        scale = 0.6,
+        shift = {x = 0, y = -0.5}
     }
 }
 
@@ -187,6 +180,8 @@ local cluster_energy_io_mk1 = {
     energy_source = {
         type = "electric",
         buffer_capacity = "1.2GJ",
+        input_flow_limit = "600MW",
+        output_flow_limit = "600MW",
         usage_priority = "dynamic",
     },
     name = PREFIX .. "cluster-energy-io-mk1",
@@ -197,14 +192,10 @@ local cluster_energy_io_mk1 = {
     collision_box = {{-1.7, -1.7}, {1.7, 1.7}},
     selection_box = {{-2, -2}, {2, 2}},
     picture = {
-        layers = {
-            {
-                filename = entitypath .. "cluster-energy-io-mk1.png",
-                width = 512,
-                height = 512,
-                scale = 0.25,
-            }
-        },
+        filename = entitypath .. "cluster-energy-io-mk1.png",
+        width = 512,
+        height = 512,
+        scale = 0.25,
     }
 }
 
@@ -224,14 +215,10 @@ local cluster_energy_io_mk2 = {
     collision_box = {{-1.7, -1.7}, {1.7, 1.7}},
     selection_box = {{-2, -2}, {2, 2}},
     picture = {
-        layers = {
-            {
-                filename = entitypath .. "cluster-energy-io-mk2.png",
-                width = 512,
-                height = 512,
-                scale = 0.25,
-            }
-        },
+        filename = entitypath .. "cluster-energy-io-mk2.png",
+        width = 512,
+        height = 512,
+        scale = 0.25,
     }
 }
 
@@ -251,14 +238,10 @@ local cluster_energy_io_mk3 = {
     collision_box = {{-1.7, -1.7}, {1.7, 1.7}},
     selection_box = {{-2, -2}, {2, 2}},
     picture = {
-        layers = {
-            {
-                filename = entitypath .. "cluster-energy-io-mk3.png",
-                width = 512,
-                height = 512,
-                scale = 0.25,
-            }
-        },
+        filename = entitypath .. "cluster-energy-io-mk3.png",
+        width = 512,
+        height = 512,
+        scale = 0.25,
     }
 }
 
@@ -292,15 +275,16 @@ local inter_cluster_bridge_mk1 = {
     icon_size = 64,
     flags = {"placeable-neutral", "placeable-player", "player-creation"},
     minable = {mining_time = 1, result = PREFIX .. "inter-cluster-bridge-mk1"},
-    collision_box = {{-3.7, -3.7}, {3.7, 3.7}},
-    selection_box = {{-4, -4}, {4, 4}},
+    collision_box = {{-5.7, -5.7}, {5.7, 5.7}},
+    selection_box = {{-6, -6}, {6, 6}},
     picture = {
         layers = {
             {
                 filename = entitypath .. "inter-cluster-bridge-mk1.png",
-                width = 512,
-                height = 512,
-                scale = 0.5,
+                width = 1024,
+                height = 1024,
+                scale = 0.45,
+                shift = {x = 0.8, y = -0.5}
             }
         },
     }
@@ -320,15 +304,16 @@ local inter_cluster_bridge_mk2 = {
     icon_size = 64,
     flags = {"placeable-neutral", "placeable-player", "player-creation"},
     minable = {mining_time = 1, result = PREFIX .. "inter-cluster-bridge-mk2"},
-    collision_box = {{-3.7, -3.7}, {3.7, 3.7}},
-    selection_box = {{-4, -4}, {4, 4}},
+    collision_box = {{-5.7, -5.7}, {5.7, 5.7}},
+    selection_box = {{-6, -6}, {6, 6}},
     picture = {
         layers = {
             {
                 filename = entitypath .. "inter-cluster-bridge-mk2.png",
-                width = 512,
-                height = 512,
-                scale = 0.5,
+                width = 1024,
+                height = 1024,
+                scale = 0.45,
+                shift = {x = 0.8, y = -0.5}
             }
         },
     }
@@ -348,15 +333,16 @@ local inter_cluster_bridge_mk3 = {
     icon_size = 64,
     flags = {"placeable-neutral", "placeable-player", "player-creation"},
     minable = {mining_time = 1, result = PREFIX .. "inter-cluster-bridge-mk3"},
-    collision_box = {{-3.7, -3.7}, {3.7, 3.7}},
-    selection_box = {{-4, -4}, {4, 4}},
+    collision_box = {{-5.7, -5.7}, {5.7, 5.7}},
+    selection_box = {{-6, -6}, {6, 6}},
     picture = {
         layers = {
             {
                 filename = entitypath .. "inter-cluster-bridge-mk3.png",
-                width = 512,
-                height = 512,
-                scale = 0.5,
+                width = 1024,
+                height = 1024,
+                scale = 0.45,
+                shift = {x = 0.8, y = -0.5}
             }
         },
     }
@@ -466,7 +452,7 @@ local virtualization_mainframe_mk1 = {
     trash_inventory_size = 30,
     render_not_in_network_icon = true,
     use_exact_mode = true,
-    inventory_size = 50,
+    inventory_size = 30,
     quality_affects_inventory_size = false,
     inventory_type = "with_custom_stack_size",
     inventory_properties = {
@@ -475,19 +461,16 @@ local virtualization_mainframe_mk1 = {
     },
     flags = {"placeable-neutral", "placeable-player", "player-creation"},
     minable = {mining_time = 1, result = PREFIX .. "virtualization-mainframe-mk1"},
-    collision_box = {{-7.7, -7.7}, {7.7, 7.7}},
-    selection_box = {{-8, -8}, {8, 8}},
+    collision_box = {{-5.7, -5.7}, {5.7, 5.7}},
+    selection_box = {{-6, -6}, {6, 6}},
     icon = iconpath .. "virtualization-mainframe-mk1.png",
     icon_size = 64,
     picture = {
-        layers = {
-            {
-                filename = entitypath .. "virtualization-mainframe-mk1.png",
-                width = 1024,
-                height = 1024,
-                scale = 0.5,
-            }
-        },
+        filename = entitypath .. "virtualization-mainframe-mk1.png",
+        width = 1024,
+        height = 1024,
+        scale = 0.45,
+        shift = {x = 1.5, y = -0.5}
     },
 }
 
@@ -498,7 +481,7 @@ local virtualization_mainframe_mk2 = {
     trash_inventory_size = 30,
     render_not_in_network_icon = true,
     use_exact_mode = true,
-    inventory_size = 50,
+    inventory_size = 30,
     quality_affects_inventory_size = false,
     inventory_type = "with_custom_stack_size",
     inventory_properties = {
@@ -507,19 +490,16 @@ local virtualization_mainframe_mk2 = {
     },
     flags = {"placeable-neutral", "placeable-player", "player-creation"},
     minable = {mining_time = 1, result = PREFIX .. "virtualization-mainframe-mk2"},
-    collision_box = {{-7.7, -7.7}, {7.7, 7.7}},
-    selection_box = {{-8, -8}, {8, 8}},
+    collision_box = {{-5.7, -5.7}, {5.7, 5.7}},
+    selection_box = {{-6, -6}, {6, 6}},
     icon = iconpath .. "virtualization-mainframe-mk2.png",
     icon_size = 64,
     picture = {
-        layers = {
-            {
-                filename = entitypath .. "virtualization-mainframe-mk2.png",
-                width = 1024,
-                height = 1024,
-                scale = 0.5,
-            }
-        },
+        filename = entitypath .. "virtualization-mainframe-mk2.png",
+        width = 1024,
+        height = 1024,
+        scale = 0.45,
+        shift = {x = 1.5, y = -0.5}
     },
 }
 
@@ -530,7 +510,7 @@ local virtualization_mainframe_mk3 = {
     trash_inventory_size = 30,
     render_not_in_network_icon = true,
     use_exact_mode = true,
-    inventory_size = 50,
+    inventory_size = 30,
     quality_affects_inventory_size = false,
     inventory_type = "with_custom_stack_size",
     inventory_properties = {
@@ -539,19 +519,16 @@ local virtualization_mainframe_mk3 = {
     },
     flags = {"placeable-neutral", "placeable-player", "player-creation"},
     minable = {mining_time = 1, result = PREFIX .. "virtualization-mainframe-mk3"},
-    collision_box = {{-7.7, -7.7}, {7.7, 7.7}},
-    selection_box = {{-8, -8}, {8, 8}},
+    collision_box = {{-5.7, -5.7}, {5.7, 5.7}},
+    selection_box = {{-6, -6}, {6, 6}},
     icon = iconpath .. "virtualization-mainframe-mk3.png",
     icon_size = 64,
     picture = {
-        layers = {
-            {
-                filename = entitypath .. "virtualization-mainframe-mk3.png",
-                width = 1024,
-                height = 1024,
-                scale = 0.5,
-            }
-        },
+        filename = entitypath .. "virtualization-mainframe-mk3.png",
+        width = 1024,
+        height = 1024,
+        scale = 0.45,
+        shift = {x = 1.5, y = -0.5}
     },
 }
 
@@ -569,17 +546,14 @@ local cluster_storage_unit_mk1 = {
     icon_size = 64,
     flags = {"placeable-neutral", "placeable-player", "player-creation"},
     minable = {mining_time = 1, result = PREFIX .. "cluster-storage-unit-mk1"},
-    collision_box = {{-3.7, -3.7}, {3.7, 3.7}},
-    selection_box = {{-4, -4}, {4, 4}},
+    collision_box = {{-3.2, -2.7}, {3.2, 2.7}},
+    selection_box = {{-3.5, -3}, {3.5, 3}},
     picture = {
-        layers = {
-            {
-                filename = entitypath .. "cluster-storage-unit-mk1.png",
-                width = 512,
-                height = 512,
-                scale = 0.5,
-            }
-        },
+        filename = entitypath .. "cluster-storage-unit-mk1.png",
+        width = 512,
+        height = 512,
+        scale = 0.5,
+        shift = {x = -0.12, y = 0}
     }
 }
 
@@ -597,17 +571,14 @@ local cluster_storage_unit_mk2 = {
     icon_size = 64,
     flags = {"placeable-neutral", "placeable-player", "player-creation"},
     minable = {mining_time = 1, result = PREFIX .. "cluster-storage-unit-mk2"},
-    collision_box = {{-3.7, -3.7}, {3.7, 3.7}},
-    selection_box = {{-4, -4}, {4, 4}},
+    collision_box = {{-3.2, -2.7}, {3.2, 2.7}},
+    selection_box = {{-3.5, -3}, {3.5, 3}},
     picture = {
-        layers = {
-            {
-                filename = entitypath .. "cluster-storage-unit-mk2.png",
-                width = 512,
-                height = 512,
-                scale = 0.5,
-            }
-        },
+        filename = entitypath .. "cluster-storage-unit-mk2.png",
+        width = 512,
+        height = 512,
+        scale = 0.5,
+        shift = {x = -0.12, y = 0}
     }
 }
 
@@ -625,17 +596,14 @@ local cluster_storage_unit_mk3 = {
     icon_size = 64,
     flags = {"placeable-neutral", "placeable-player", "player-creation"},
     minable = {mining_time = 1, result = PREFIX .. "cluster-storage-unit-mk3"},
-    collision_box = {{-3.7, -3.7}, {3.7, 3.7}},
-    selection_box = {{-4, -4}, {4, 4}},
+    collision_box = {{-3.2, -2.7}, {3.2, 2.7}},
+    selection_box = {{-3.5, -3}, {3.5, 3}},
     picture = {
-        layers = {
-            {
-                filename = entitypath .. "cluster-storage-unit-mk3.png",
-                width = 512,
-                height = 512,
-                scale = 0.5,
-            }
-        },
+        filename = entitypath .. "cluster-storage-unit-mk3.png",
+        width = 512,
+        height = 512,
+        scale = 0.5,
+        shift = {x = -0.12, y = 0}
     }
 }
 
@@ -828,6 +796,8 @@ local template_energy_io_mk1 = {
     energy_source = {
         type = "electric",
         buffer_capacity = "1.2GJ",
+        input_flow_limit = "600MW",
+        output_flow_limit = "600MW",
         usage_priority = "dynamic",
     },
     name = PREFIX .. "template-energy-io-mk1",
@@ -837,16 +807,15 @@ local template_energy_io_mk1 = {
     minable = {mining_time = 1, result = PREFIX .. "template-energy-io-mk1"},
     collision_box = {{-1.7, -1.7}, {1.7, 1.7}},
     selection_box = {{-2, -2}, {2, 2}},
-    picture = {
-        layers = {
-            {
-                filename = entitypath .. "template-energy-io-mk1.png",
-                width = 512,
-                height = 512,
-                scale = 0.25,
-            }
-        },
-    },
+    continuous_animation = true,
+    animation = {
+        filename = entitypath .. "template-energy-io-mk1.png",
+        width = 512,
+        height = 512,
+        frame_count = 16,
+        line_length = 4,
+        scale = 0.25,
+    }
 }
 
 local template_energy_io_mk2 = {
@@ -936,14 +905,10 @@ local template_computation_array_mk1 = {
     collision_box = {{-3.7, -3.7}, {3.7, 3.7}},
     selection_box = {{-4, -4}, {4, 4}},
     picture = {
-        layers = {
-            {
-                filename = entitypath .. "template-computation-array-mk1.png",
-                width = 512,
-                height = 512,
-                scale = 0.5,
-            }
-        },
+        filename = entitypath .. "template-computation-array-mk1.png",
+        width = 512,
+        height = 512,
+        scale = 0.5,
     }
 }
 
@@ -964,14 +929,10 @@ local template_computation_array_mk2 = {
     collision_box = {{-3.7, -3.7}, {3.7, 3.7}},
     selection_box = {{-4, -4}, {4, 4}},
     picture = {
-        layers = {
-            {
-                filename = entitypath .. "template-computation-array-mk2.png",
-                width = 512,
-                height = 512,
-                scale = 0.5,
-            }
-        },
+        filename = entitypath .. "template-computation-array-mk2.png",
+        width = 512,
+        height = 512,
+        scale = 0.5,
     }
 }
 
@@ -992,14 +953,10 @@ local template_computation_array_mk3 = {
     collision_box = {{-3.7, -3.7}, {3.7, 3.7}},
     selection_box = {{-4, -4}, {4, 4}},
     picture = {
-        layers = {
-            {
-                filename = entitypath .. "template-computation-array-mk3.png",
-                width = 512,
-                height = 512,
-                scale = 0.5,
-            }
-        },
+        filename = entitypath .. "template-computation-array-mk3.png",
+        width = 512,
+        height = 512,
+        scale = 0.5,
     }
 }
 
@@ -1110,6 +1067,14 @@ local template_access_interface_mk1 = {
                 width = 800,
                 height = 800,
                 scale = 0.5,
+            },
+            {
+                filename = entitypath .. "template-access-interface-sh.png",
+                width = 867,
+                height = 626,
+                scale = 0.5,
+                shift = {x = 0.52, y = 1.3},
+                draw_as_shadow = true,
             }
         },
     }
@@ -1138,6 +1103,14 @@ local template_access_interface_mk2 = {
                 width = 800,
                 height = 800,
                 scale = 0.5,
+            },
+            {
+                filename = entitypath .. "template-access-interface-sh.png",
+                width = 867,
+                height = 626,
+                scale = 0.5,
+                shift = {x = 0.52, y = 1.3},
+                draw_as_shadow = true,
             }
         },
     }
@@ -1166,6 +1139,14 @@ local template_access_interface_mk3 = {
                 width = 800,
                 height = 800,
                 scale = 0.5,
+            },
+            {
+                filename = entitypath .. "template-access-interface-sh.png",
+                width = 867,
+                height = 626,
+                scale = 0.5,
+                shift = {x = 0.52, y = 1.3},
+                draw_as_shadow = true,
             }
         },
     }

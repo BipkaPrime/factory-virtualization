@@ -4,7 +4,7 @@ local iconpath = "__factory-virtualization__/graphics/icons/"
 local virtualization_group = {
 	type = "item-group",
 	name = PREFIX .. "inventory-tab",
-    icon = iconpath .. "virtualization-inventory-tab.png",
+    icon = iconpath .. "inventory-tab.png",
     icon_size = 128,
     order = "g",
 }
@@ -134,7 +134,7 @@ local storage_core_mk1 = {
 	name = PREFIX .. "storage-core-mk1",
 	subgroup = PREFIX .. "intermediates",
 	icon = iconpath .. "storage-core-mk1.png",
-	icon_size = 128,
+	icon_size = 64,
 	stack_size = 200,
 }
 
@@ -143,7 +143,7 @@ local storage_core_mk2 = {
 	name = PREFIX .. "storage-core-mk2",
 	subgroup = PREFIX .. "intermediates",
 	icon = iconpath .. "storage-core-mk2.png",
-	icon_size = 128,
+	icon_size = 64,
 	stack_size = 200,
 }
 
@@ -152,7 +152,7 @@ local storage_core_mk3 = {
 	name = PREFIX .. "storage-core-mk3",
 	subgroup = PREFIX .. "intermediates",
 	icon = iconpath .. "storage-core-mk3.png",
-	icon_size = 128,
+	icon_size = 64,
 	stack_size = 200,
 }
 
