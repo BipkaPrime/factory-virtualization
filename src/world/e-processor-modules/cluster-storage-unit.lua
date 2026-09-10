@@ -60,27 +60,27 @@ StorageUnit.configuration = {
 ---Maps entity names to their capacity limits
 local capacity_limits = {
     [PREFIX .. "cluster-storage-unit-mk1"] = {
-        item = 1e6,
+        item = 1e5,
         fluid = 1e6,
-        energy = 1e12,
+        energy = 1e11,
     },
     [PREFIX .. "cluster-storage-unit-mk2"] = {
-        item = 1e9,
-        fluid = 1e9,
-        energy = 1e15,
+        item = 1e8,
+        fluid = 1e6,
+        energy = 1e14,
     },
     [PREFIX .. "cluster-storage-unit-mk3"] = {
-        item = 1e12,
+        item = 1e11,
         fluid = 1e12,
-        energy = 1e18,
+        energy = 1e17,
     },
 }
 
 ---Maps entity names to their weights inside clusters
 local weights = {
-    [PREFIX .. "cluster-storage-unit-mk1"] = 5e-6,
-    [PREFIX .. "cluster-storage-unit-mk2"] = 5e-5,
-    [PREFIX .. "cluster-storage-unit-mk3"] = 5e-4,
+    [PREFIX .. "cluster-storage-unit-mk1"] = 1e-4,
+    [PREFIX .. "cluster-storage-unit-mk2"] = 1e-3,
+    [PREFIX .. "cluster-storage-unit-mk3"] = 1e-2,
 }
 
 ---Attemps entity initialization: checks that all requirments are met.

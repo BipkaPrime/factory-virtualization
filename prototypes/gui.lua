@@ -11,8 +11,8 @@ local control_center_shortcut = {
     type = "shortcut",
     name = PREFIX .. "control-center-shortcut",
     action = "lua",
-    icon = iconpath .. "control-center-shortcut.png",
-    small_icon = iconpath .. "control-center-shortcut.png",
+    icon = iconpath .. "computation-core-mk1.png",
+    small_icon = iconpath .. "computation-core-mk1.png",
     associated_control_input = PREFIX .. "control-center-hotkey",
 }
 

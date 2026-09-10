@@ -1,13 +1,9 @@
-local graphics_root = "__factory-virtualization__/graphics/"
-
 local iconpath = "__factory-virtualization__/graphics/icons/"
 local entitypath = "__factory-virtualization__/graphics/entity/"
 
 
 --TODO: set input flow limit of energy consumers to something reasonable (not maxdouble)
 --TODO: set output flow limit of energy consumers to 0
---TODO: make use of dynamic energy consumption of energy IOs. (scripts)
---TODO: improve graphics: recolor buildings of different tiers, get better graphics somehow
 
 -------------------------------------------------------------------------------
 -- SIMPLE CLUSTER IO SUBGROUP
@@ -31,10 +27,9 @@ local cluster_item_io_mk1 = {
     selection_box = {{-2, -2}, {2, 2}},
     picture = {
         filename = entitypath .. "cluster-item-io-mk1.png",
-        width = 256,
-        height = 256,
-        scale = 0.6,
-        shift = {x = 0, y = -0.5}
+        width = 512,
+        height = 512,
+        scale = 0.25,
     }
 }
 
@@ -56,10 +51,9 @@ local cluster_item_io_mk2 = {
     selection_box = {{-2, -2}, {2, 2}},
     picture = {
         filename = entitypath .. "cluster-item-io-mk2.png",
-        width = 256,
-        height = 256,
-        scale = 0.6,
-        shift = {x = 0, y = -0.5}
+        width = 512,
+        height = 512,
+        scale = 0.25,
     }
 }
 
@@ -81,10 +75,9 @@ local cluster_item_io_mk3 = {
     selection_box = {{-2, -2}, {2, 2}},
     picture = {
         filename = entitypath .. "cluster-item-io-mk3.png",
-        width = 256,
-        height = 256,
-        scale = 0.6,
-        shift = {x = 0, y = -0.5}
+        width = 512,
+        height = 512,
+        scale = 0.25,
     }
 }
 
@@ -117,9 +110,9 @@ local cluster_fluid_io_mk1 = {
     pictures = {
         picture = {
             filename = entitypath .. "cluster-fluid-io-mk1.png",
-            width = 256,
-            height = 256,
-            scale = 0.5,
+            width = 512,
+            height = 512,
+            scale = 0.25,
         },
     }
 }
@@ -142,9 +135,9 @@ local cluster_fluid_io_mk2 = {
     pictures = {
         picture = {
             filename = entitypath .. "cluster-fluid-io-mk2.png",
-            width = 256,
-            height = 256,
-            scale = 0.5,
+            width = 512,
+            height = 512,
+            scale = 0.25,
         },
     }
 }
@@ -167,9 +160,9 @@ local cluster_fluid_io_mk3 = {
     pictures = {
         picture = {
             filename = entitypath .. "cluster-fluid-io-mk3.png",
-            width = 256,
-            height = 256,
-            scale = 0.5,
+            width = 512,
+            height = 512,
+            scale = 0.25,
         },
     }
 }
@@ -362,17 +355,13 @@ local cluster_overflow_controller_mk1 = {
     icon_size = 64,
     flags = {"placeable-neutral", "placeable-player", "player-creation"},
     minable = {mining_time = 1, result = PREFIX .. "cluster-overflow-controller-mk1"},
-    collision_box = {{-3.7, -3.7}, {3.7, 3.7}},
-    selection_box = {{-4, -4}, {4, 4}},
+    collision_box = {{-5.7, -5.7}, {5.7, 5.7}},
+    selection_box = {{-6, -6}, {6, 6}},
     picture = {
-        layers = {
-            {
-                filename = entitypath .. "cluster-overflow-controller-mk1.png",
-                width = 1024,
-                height = 1024,
-                scale = 0.25,
-            }
-        },
+        filename = entitypath .. "cluster-overflow-controller-mk1.png",
+        width = 1024,
+        height = 1024,
+        scale = 0.375,
     }
 }
 
@@ -390,17 +379,13 @@ local cluster_overflow_controller_mk2 = {
     icon_size = 64,
     flags = {"placeable-neutral", "placeable-player", "player-creation"},
     minable = {mining_time = 1, result = PREFIX .. "cluster-overflow-controller-mk2"},
-    collision_box = {{-3.7, -3.7}, {3.7, 3.7}},
-    selection_box = {{-4, -4}, {4, 4}},
+    collision_box = {{-5.7, -5.7}, {5.7, 5.7}},
+    selection_box = {{-6, -6}, {6, 6}},
     picture = {
-        layers = {
-            {
-                filename = entitypath .. "cluster-overflow-controller-mk2.png",
-                width = 1024,
-                height = 1024,
-                scale = 0.25,
-            }
-        },
+        filename = entitypath .. "cluster-overflow-controller-mk2.png",
+        width = 1024,
+        height = 1024,
+        scale = 0.375,
     }
 }
 
@@ -418,17 +403,13 @@ local cluster_overflow_controller_mk3 = {
     icon_size = 64,
     flags = {"placeable-neutral", "placeable-player", "player-creation"},
     minable = {mining_time = 1, result = PREFIX .. "cluster-overflow-controller-mk3"},
-    collision_box = {{-3.7, -3.7}, {3.7, 3.7}},
-    selection_box = {{-4, -4}, {4, 4}},
+    collision_box = {{-5.7, -5.7}, {5.7, 5.7}},
+    selection_box = {{-6, -6}, {6, 6}},
     picture = {
-        layers = {
-            {
-                filename = entitypath .. "cluster-overflow-controller-mk3.png",
-                width = 1024,
-                height = 1024,
-                scale = 0.25,
-            }
-        },
+        filename = entitypath .. "cluster-overflow-controller-mk3.png",
+        width = 1024,
+        height = 1024,
+        scale = 0.375,
     }
 }
 
@@ -637,14 +618,10 @@ local template_item_io_mk1 = {
     collision_box = {{-1.7, -1.7}, {1.7, 1.7}},
     selection_box = {{-2, -2}, {2, 2}},
     picture = {
-        layers = {
-            {
-                filename = entitypath .. "template-item-io-mk1.png",
-                width = 512,
-                height = 512,
-                scale = 0.25,
-            }
-        },
+        filename = entitypath .. "template-item-io-mk1.png",
+        width = 256,
+        height = 256,
+        scale = 0.5,
     }
 }
 
@@ -665,14 +642,10 @@ local template_item_io_mk2 = {
     collision_box = {{-1.7, -1.7}, {1.7, 1.7}},
     selection_box = {{-2, -2}, {2, 2}},
     picture = {
-        layers = {
-            {
-                filename = entitypath .. "template-item-io-mk2.png",
-                width = 512,
-                height = 512,
-                scale = 0.25,
-            }
-        },
+        filename = entitypath .. "template-item-io-mk2.png",
+        width = 256,
+        height = 256,
+        scale = 0.5,
     }
 }
 
@@ -693,14 +666,10 @@ local template_item_io_mk3 = {
     collision_box = {{-1.7, -1.7}, {1.7, 1.7}},
     selection_box = {{-2, -2}, {2, 2}},
     picture = {
-        layers = {
-            {
-                filename = entitypath .. "template-item-io-mk3.png",
-                width = 512,
-                height = 512,
-                scale = 0.25,
-            }
-        },
+        filename = entitypath .. "template-item-io-mk3.png",
+        width = 256,
+        height = 256,
+        scale = 0.5,
     }
 }
 
@@ -733,10 +702,10 @@ local template_fluid_io_mk1 = {
     pictures = {
         picture = {
             filename = entitypath .. "template-fluid-io-mk1.png",
-                width = 512,
-                height = 512,
-                scale = 0.25,
-        },
+            width = 256,
+            height = 256,
+            scale = 0.5,
+        }
     }
 }
 
@@ -758,10 +727,10 @@ local template_fluid_io_mk2 = {
     pictures = {
         picture = {
             filename = entitypath .. "template-fluid-io-mk2.png",
-                width = 512,
-                height = 512,
-                scale = 0.25,
-        },
+            width = 256,
+            height = 256,
+            scale = 0.5,
+        }
     }
 }
 
@@ -783,10 +752,10 @@ local template_fluid_io_mk3 = {
     pictures = {
         picture = {
             filename = entitypath .. "template-fluid-io-mk3.png",
-                width = 512,
-                height = 512,
-                scale = 0.25,
-        },
+            width = 256,
+            height = 256,
+            scale = 0.5,
+        }
     }
 }
 
@@ -808,12 +777,10 @@ local template_energy_io_mk1 = {
     collision_box = {{-1.7, -1.7}, {1.7, 1.7}},
     selection_box = {{-2, -2}, {2, 2}},
     continuous_animation = true,
-    animation = {
+    picture = {
         filename = entitypath .. "template-energy-io-mk1.png",
         width = 512,
         height = 512,
-        frame_count = 16,
-        line_length = 4,
         scale = 0.25,
     }
 }
@@ -834,15 +801,11 @@ local template_energy_io_mk2 = {
     collision_box = {{-1.7, -1.7}, {1.7, 1.7}},
     selection_box = {{-2, -2}, {2, 2}},
     picture = {
-        layers = {
-            {
-                filename = entitypath .. "template-energy-io-mk2.png",
-                width = 512,
-                height = 512,
-                scale = 0.25,
-            }
-        },
-    },
+        filename = entitypath .. "template-energy-io-mk2.png",
+        width = 512,
+        height = 512,
+        scale = 0.25,
+    }
 }
 
 local template_energy_io_mk3 = {
@@ -861,15 +824,11 @@ local template_energy_io_mk3 = {
     collision_box = {{-1.7, -1.7}, {1.7, 1.7}},
     selection_box = {{-2, -2}, {2, 2}},
     picture = {
-        layers = {
-            {
-                filename = entitypath .. "template-energy-io-mk3.png",
-                width = 512,
-                height = 512,
-                scale = 0.25,
-            }
-        },
-    },
+        filename = entitypath .. "template-energy-io-mk3.png",
+        width = 512,
+        height = 512,
+        scale = 0.25,
+    }
 }
 
 data.extend{

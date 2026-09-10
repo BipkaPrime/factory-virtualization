@@ -171,7 +171,7 @@ function VSurfaceManager.can_create_vsurface(vsurface_config)
     if template_drain > TCCManager.get_max_template_drain() then
         local max_tier = TCCManager.get_max_template_tier()
         return false, {
-            "vsurface-manager.template-tier-too-high",
+            "vsurface-manager.tier-too-high",
             CommonGui.number_to_string(max_tier, 2)
         }
     end

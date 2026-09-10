@@ -60,26 +60,26 @@ ClusterBridge.configuration = {
 local flow_limits = {
     [PREFIX .. "inter-cluster-bridge-mk1"] = {
         item = 1e6,
-        fluid = 1e6,
+        fluid = 1e7,
         energy = 1e12,
     },
     [PREFIX .. "inter-cluster-bridge-mk2"] = {
         item = 1e9,
-        fluid = 1e9,
+        fluid = 1e10,
         energy = 1e15,
     },
     [PREFIX .. "inter-cluster-bridge-mk3"] = {
         item = 1e12,
-        fluid = 1e12,
+        fluid = 1e13,
         energy = 1e18,
     },
 }
 
 ---Maps entity names to their weights inside clusters
 local weights = {
-    [PREFIX .. "inter-cluster-bridge-mk1"] = 5e-6,
-    [PREFIX .. "inter-cluster-bridge-mk2"] = 5e-5,
-    [PREFIX .. "inter-cluster-bridge-mk3"] = 5e-4,
+    [PREFIX .. "inter-cluster-bridge-mk1"] = 2e-5,
+    [PREFIX .. "inter-cluster-bridge-mk2"] = 2e-4,
+    [PREFIX .. "inter-cluster-bridge-mk3"] = 2e-3,
 }
 
 ---Attemps entity initialization: checks that all requirments are met.
