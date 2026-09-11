@@ -35,9 +35,9 @@ operation and is close enough to TCC (transmit mode), it's switched to
 TCC range (transmit mode), it's switched to "not operational" state.
 --]]
 
-local ClusterProcessor = require("src.simulation.cluster-processor")
-local Utilities = require("src.world.e-processor-modules.utilities")
-local TCCManager = require("src.simulation.tcc-manager")
+local ClusterProcessor = require("scripts.simulation.cluster-processor")
+local Utilities = require("scripts.world.e-processor-modules.utilities")
+local TCCManager = require("scripts.simulation.tcc-manager")
 
 
 local PREFIX = "FV-"

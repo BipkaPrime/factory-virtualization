@@ -61,12 +61,12 @@ all players and is located at storage.entity_gui: table<integer, EntityGuiData>
 ---@field template_query string|nil template search query
 ---@field player LuaPlayer for which window is opened
 
-local EntityProcessor = require("src.world.entity-processor")
-local ClusterProcessor = require("src.simulation.cluster-processor")
-local ControlCenter = require("src.gui.control-center")
-local TCCManager = require("src.simulation.tcc-manager")
-local CommonGui = require("src.gui.common")
-local GuiUpdater = require("src.gui.updater")
+local EntityProcessor = require("scripts.world.entity-processor")
+local ClusterProcessor = require("scripts.simulation.cluster-processor")
+local ControlCenter = require("scripts.gui.control-center")
+local TCCManager = require("scripts.simulation.tcc-manager")
+local CommonGui = require("scripts.gui.common")
+local GuiUpdater = require("scripts.gui.updater")
 
 
 local PREFIX = "FV-"

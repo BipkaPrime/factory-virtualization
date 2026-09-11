@@ -25,8 +25,8 @@ Properties that can be assigned during on-tick processing:
 1. ls_flow. Can be used to track entity work.
 --]]
 
-local VSurfaceManager = require("src.world.vsurface-manager")
-local Utilities = require("src.world.e-processor-modules.utilities")
+local VSurfaceManager = require("scripts.world.vsurface-manager")
+local Utilities = require("scripts.world.e-processor-modules.utilities")
 
 
 local PREFIX = "FV-"

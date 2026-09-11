@@ -1,5 +1,5 @@
 --[[
-Cluster fluid IO is used to transfer fluids from physical factorio world
+Cluster item IO is used to transfer items from physical factorio world
 to internal virtual buffers of clusters and vice versa.
 -------------------------------------------------------------------------------
 -- ENTITY INITIALIZATION
@@ -7,7 +7,7 @@ to internal virtual buffers of clusters and vice versa.
 Initialization requirements for this building:
 I. Mandatory entity configuration is provided:
     1. first_cluster. Used to determine the cluster entity should connect to.
-    2. selected_fluid. Used to determine the buffer key.
+    2. selected_item (name and quality). Used to determine buffer_key.
     3. io_mode. Used to determine the entity operation.
 II. Entity is not located on a vsurface.
 III. Selected cluster exists and this entity can be added to it.
@@ -20,7 +20,8 @@ Properties that are assigned on initialization:
 2. buffer_key. Used to access a specific cluster buffer entry
 3. is_output. Used to determine entity operation
 4. flow_limit. Determines maximum flow rate for this entity
-5. io_request. Used to make calls to factorio API
+5. inventory. Used to make calls to factorio API
+6. io_request. Used to make calls to factorio API
 -------------------------------------------------------------------------------
 -- ON-TICK UPDATES
 -------------------------------------------------------------------------------
@@ -33,41 +34,42 @@ associated cluster. If it's not, entity is considered not operational.
 If cluster is not found during an update, entity is moved to "incorrect".
 --]]
 
-local ClusterProcessor = require("src.simulation.cluster-processor")
-local VSurfaceManager = require("src.world.vsurface-manager")
-local Utilities = require("src.world.e-processor-modules.utilities")
+local ClusterProcessor = require("scripts.simulation.cluster-processor")
+local VSurfaceManager = require("scripts.world.vsurface-manager")
+local Utilities = require("scripts.world.e-processor-modules.utilities")
 
 
 local PREFIX = "FV-"
-local ClusterFluidIO = {}
+local ClusterItemIO = {}
 
 ---List of all copyable properties of this entity
 ---@type EntityConfigField[]
-ClusterFluidIO.configuration = {
+ClusterItemIO.configuration = {
     "first_cluster",
+    "selected_item_name",
+    "selected_item_quality",
     "io_mode",
-    "selected_fluid",
 }
 
 ---Maps entity names to their flow limits
 local flow_limits = {
-    [PREFIX .. "cluster-fluid-io-mk1"] = 1200,
-    [PREFIX .. "cluster-fluid-io-mk2"] = 12000,
-    [PREFIX .. "cluster-fluid-io-mk3"] = 120000,
+    [PREFIX .. "cluster-item-io-mk1"] = 120,
+    [PREFIX .. "cluster-item-io-mk2"] = 1200,
+    [PREFIX .. "cluster-item-io-mk3"] = 12000,
 }
 
 ---Maps entity names to their weights as cluster members
 local weights = {
-    [PREFIX .. "cluster-fluid-io-mk1"] = 1e-6,
-    [PREFIX .. "cluster-fluid-io-mk2"] = 1e-5,
-    [PREFIX .. "cluster-fluid-io-mk3"] = 1e-4,
+    [PREFIX .. "cluster-item-io-mk1"] = 1e-6,
+    [PREFIX .. "cluster-item-io-mk2"] = 1e-5,
+    [PREFIX .. "cluster-item-io-mk3"] = 1e-4,
 }
 
 ---Attemps entity initialization: checks that all requirments are met.
 ---If they are, prepares entity properties for on-tick processing.
 ---@param properties EntityProperties table from entity processor
 ---@return EntityRegistrySection
-function ClusterFluidIO.initialize(properties)
+function ClusterItemIO.initialize(properties)
     -- Checking that first cluster is provided
     local cluster_uuid = properties.first_cluster
     if not cluster_uuid then
@@ -80,10 +82,11 @@ function ClusterFluidIO.initialize(properties)
         properties.status = Utilities.entity_status.no_io_mode
         return Utilities.registry_sections.incorrect
     end
-    -- Checking that fluid is selected
-    local selected_fluid = properties.selected_fluid
-    if not selected_fluid then
-        properties.status = Utilities.entity_status.no_selected_fluid
+    -- Checking that item and quality are selected
+    local item_name = properties.selected_item_name
+    local item_quality = properties.selected_item_quality
+    if not item_name or not item_quality then
+        properties.status = Utilities.entity_status.no_selected_item
         return Utilities.registry_sections.incorrect
     end
     -- Checking that entity is not located on a virtualization surface
@@ -111,13 +114,18 @@ function ClusterFluidIO.initialize(properties)
 
     -- All requirements are met: preparing properties for on-tick updates
     properties.status = Utilities.entity_status.initialized
-    properties.buffer_key = selected_fluid
+    properties.buffer_key = item_name .. "//" .. item_quality
     properties.is_output = (io_mode == "output")
     local base_flow = flow_limits[entity_name]
     local quality_mult = 1 + 0.5 * entity.quality.level
     local override = properties.capability_override or 1
     properties.flow_limit = base_flow * quality_mult * override
-    properties.io_request = {name = selected_fluid, amount = 0}
+    properties.inventory = entity.get_inventory(defines.inventory.chest)
+    properties.io_request = {
+        name = item_name,
+        quality = item_quality,
+        count = 0
+    }
     return Utilities.registry_sections.active
 end
 
@@ -126,7 +134,7 @@ end
 ---from "active" or "stalled" to "pending" or "incorrect". Does not clear
 ---"status" field from properties.
 ---@param properties EntityProperties
-function ClusterFluidIO.uninitialize(properties)
+function ClusterItemIO.uninitialize(properties)
     ClusterProcessor.remove_member_from_cluster(
         properties.first_cluster,
         properties.unit_number
@@ -134,6 +142,7 @@ function ClusterFluidIO.uninitialize(properties)
     properties.buffer_key = nil
     properties.is_output = nil
     properties.flow_limit = nil
+    properties.inventory = nil
     properties.io_request = nil
     properties.ls_flow = nil
     properties.operational = nil
@@ -142,7 +151,7 @@ end
 ---Used for on-tick updates of this entity after initialization.
 ---@param properties EntityProperties
 ---@return EntityRegistrySection
-function ClusterFluidIO.update(properties)
+function ClusterItemIO.update(properties)
     properties.ls_flow = 0
 
     -- Attempting to reach specified cluster buffer entry
@@ -168,8 +177,7 @@ function ClusterFluidIO.update(properties)
         properties.status = Utilities.entity_status.entry_not_found
         return Utilities.registry_sections.stalled
     end
-
-    -- Buffer entry found: marking entity as operational in the cluster
+    -- buffer entry found: marking entity as operational in the cluster
     if not properties.operational then
         properties.operational = true
         ClusterProcessor.mark_member_operational(
@@ -179,36 +187,49 @@ function ClusterFluidIO.update(properties)
         properties.status = Utilities.entity_status.operational
     end
 
-    -- Buffer entry is found: attempting to transfer fluid
-    ---@type number assuming flow limit was cached on initialization
-    local flow_limit = properties.flow_limit
+    -- Buffer entry is found: attempting to transfer items
     if properties.is_output then
         -- Output mode: from cluster to world
-        local current_amount = ClusterProcessor.get_current_amount(buffer_entry)
-        local to_transfer = math.min(flow_limit, current_amount)
+        local current_amount = ClusterProcessor.get_current_amount(
+            buffer_entry
+        )
+        local to_transfer = math.min(
+            properties.flow_limit,
+            current_amount
+        )
         if to_transfer >= 1 then
             local io_request = properties.io_request
-            ---@cast io_request Fluid
-            io_request.amount = to_transfer
-            local inserted_amount = properties.entity.insert_fluid(io_request)
-            ClusterProcessor.remove_from_buffer_entry(buffer_entry, inserted_amount)
-            properties.ls_flow = inserted_amount
+            ---@cast io_request ItemStackDefinition
+            io_request.count = to_transfer
+            local inserted_count = properties.inventory.insert(io_request)
+            ClusterProcessor.remove_from_buffer_entry(
+                buffer_entry,
+                inserted_count
+            )
+            properties.ls_flow = inserted_count
         end
     else
         -- Input mode: from world to cluster
-        local available_space = ClusterProcessor.get_available_space(buffer_entry)
-        local to_transfer = math.min(flow_limit, available_space)
+        local available_space = ClusterProcessor.get_available_space(
+            buffer_entry
+        )
+        local to_transfer = math.min(
+            properties.flow_limit,
+            available_space
+        )
         if to_transfer >= 1 then
             local io_request = properties.io_request
-            ---@cast io_request Fluid
-            io_request.amount = to_transfer
-            ---@diagnostic disable-next-line
-            local removed_amount = properties.entity.extract_fluid(io_request)
-            ClusterProcessor.add_to_buffer_entry(buffer_entry, removed_amount)
-            properties.ls_flow = removed_amount
+            ---@cast io_request ItemStackDefinition
+            io_request.count = to_transfer
+            local removed_count = properties.inventory.remove(io_request)
+            ClusterProcessor.add_to_buffer_entry(
+                buffer_entry,
+                removed_count
+            )
+            properties.ls_flow = removed_count
         end
     end
     return Utilities.registry_sections.active
 end
 
-return ClusterFluidIO
+return ClusterItemIO

@@ -37,9 +37,9 @@ Entity is considered operational when:
 If cluster is not found during an update, entity is moved to "incorrect".
 --]]
 
-local ClusterProcessor = require("src.simulation.cluster-processor")
-local VSurfaceManager = require("src.world.vsurface-manager")
-local Utilities = require("src.world.e-processor-modules.utilities")
+local ClusterProcessor = require("scripts.simulation.cluster-processor")
+local VSurfaceManager = require("scripts.world.vsurface-manager")
+local Utilities = require("scripts.world.e-processor-modules.utilities")
 
 
 local PREFIX = "FV-"
@@ -149,6 +149,8 @@ function StorageUnit.initialize(properties)
     local quality_mult = 1 + 0.5 * entity.quality.level
     local override = (properties.capability_override or 1)
     properties.capacity = base_capacity * quality_mult * override
+    -- rendering sprite of selected resource
+    Utilities.render_multimode_sprite(properties)
     return Utilities.registry_sections.active
 end
 
@@ -158,6 +160,7 @@ end
 ---"status" field from properties.
 ---@param properties EntityProperties
 function StorageUnit.uninitialize(properties)
+    Utilities.destory_multimode_sprite_render(properties)
     ClusterProcessor.remove_member_from_cluster(
         properties.first_cluster,
         properties.unit_number

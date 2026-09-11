@@ -36,9 +36,9 @@ If any associated cluster is not found during an update, entity is moved
 to "incorrect".
 --]]
 
-local ClusterProcessor = require("src.simulation.cluster-processor")
-local VSurfaceManager = require("src.world.vsurface-manager")
-local Utilities = require("src.world.e-processor-modules.utilities")
+local ClusterProcessor = require("scripts.simulation.cluster-processor")
+local VSurfaceManager = require("scripts.world.vsurface-manager")
+local Utilities = require("scripts.world.e-processor-modules.utilities")
 
 
 local PREFIX = "FV-"
@@ -169,6 +169,7 @@ function ClusterBridge.initialize(properties)
     local quality_mult = 1 + 0.5 * entity.quality.level
     local override = (properties.capability_override or 1)
     properties.flow_limit = base_flow * quality_mult * override
+    Utilities.render_multimode_sprite(properties)
     return Utilities.registry_sections.active
 end
 
@@ -178,6 +179,7 @@ end
 ---"status" field from properties.
 ---@param properties EntityProperties
 function ClusterBridge.uninitialize(properties)
+    Utilities.destory_multimode_sprite_render(properties)
     local unit_number = properties.unit_number
     ClusterProcessor.remove_member_from_cluster(
         properties.first_cluster,

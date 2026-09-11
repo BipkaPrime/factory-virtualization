@@ -50,9 +50,9 @@ Create, delete, start compilation, stop compilation, view information
 ---@field vsurface_rename_name string|nil "rename_surface" new name
 
 
-local CommonGui = require("src.gui.common")
-local VSurfaceManager = require("src.world.vsurface-manager")
-local TCCManager = require("src.simulation.tcc-manager")
+local CommonGui = require("scripts.gui.common")
+local VSurfaceManager = require("scripts.world.vsurface-manager")
+local TCCManager = require("scripts.simulation.tcc-manager")
 
 local PREFIX = "FV-"
 local CCSurfaces = {}

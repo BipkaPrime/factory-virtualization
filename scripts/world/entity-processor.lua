@@ -72,6 +72,9 @@ Entity properties can be divided into 3 logical groups.
 ---@field overflow_threshold number|nil number in the range [0, 1]
 ---@field selected_template string|nil uuid of template selected by TAE
 ---CACHE (assigned on initialization or during processing)
+---@field alert_render LuaRenderObject|nil alert sprite rendered on this entity
+---@field resource_render LuaRenderObject|nil resource rendered on this entity
+---@field background_render LuaRenderObject|nil background for resource render
 ---@field status LocalisedString|nil entity status
 ---@field buffer_key BufferKeyString|nil used to access cluster or venv buffer entry
 ---@field is_output boolean|nil used to determine entity operation mode
@@ -121,19 +124,19 @@ Entity properties can be divided into 3 logical groups.
 ---for regular on-tick processing of initialized entity. Returns name of section
 ---to which entity properties should be moved
 
-local ClusterBridge = require("src.world.e-processor-modules.cluster-bridge")
-local ClusterEnergyIO = require("src.world.e-processor-modules.cluster-energy-io")
-local ClusterFluidIO = require("src.world.e-processor-modules.cluster-fluid-io")
-local ClusterItemIO = require("src.world.e-processor-modules.cluster-item-io")
-local OverflowController = require("src.world.e-processor-modules.cluster-overflow-controller")
-local StorageUnit = require("src.world.e-processor-modules.cluster-storage-unit")
-local TemplateAccess = require("src.world.e-processor-modules.template-access-interface")
-local ComputationArray = require("src.world.e-processor-modules.template-computation-array")
-local TemplateCC = require("src.world.e-processor-modules.template-control-center")
-local TemplateEnergyIO = require("src.world.e-processor-modules.template-energy-io")
-local TemplateFluidIO = require("src.world.e-processor-modules.template-fluid-io")
-local TemplateItemIO = require("src.world.e-processor-modules.template-item-io")
-local VMainframe = require("src.world.e-processor-modules.virtualization-mainframe")
+local ClusterBridge = require("scripts.world.e-processor-modules.cluster-bridge")
+local ClusterEnergyIO = require("scripts.world.e-processor-modules.cluster-energy-io")
+local ClusterFluidIO = require("scripts.world.e-processor-modules.cluster-fluid-io")
+local ClusterItemIO = require("scripts.world.e-processor-modules.cluster-item-io")
+local OverflowController = require("scripts.world.e-processor-modules.cluster-overflow-controller")
+local StorageUnit = require("scripts.world.e-processor-modules.cluster-storage-unit")
+local TemplateAccess = require("scripts.world.e-processor-modules.template-access-interface")
+local ComputationArray = require("scripts.world.e-processor-modules.template-computation-array")
+local TemplateCC = require("scripts.world.e-processor-modules.template-control-center")
+local TemplateEnergyIO = require("scripts.world.e-processor-modules.template-energy-io")
+local TemplateFluidIO = require("scripts.world.e-processor-modules.template-fluid-io")
+local TemplateItemIO = require("scripts.world.e-processor-modules.template-item-io")
+local VMainframe = require("scripts.world.e-processor-modules.virtualization-mainframe")
 
 
 local PREFIX = "FV-"
@@ -284,6 +287,12 @@ local uninit_sections = {
     pending = true,
     incorrect = true
 }
+---Maps registry sections to corresponding alerts sprites
+local alert_sections = {
+    incorrect = PREFIX .. "entity-config-alert-red",
+    stalled = PREFIX .. "entity-config-alert-yellow",
+}
+
 ---Moves properties to specified registry section
 ---@param properties EntityProperties properties to move
 ---@param destination_name EntityRegistrySection name of destination section
@@ -314,6 +323,24 @@ local function move_properties(properties, destination_name)
     -- uninitializing properties if necessery
     if init_sections[source_name] and uninit_sections[destination_name] then
         uninitialization[properties.entity_name](properties)
+    end
+
+    -- removing any render associated with this entity
+    local render = properties.alert_render
+    if render and render.valid then
+        render.destroy()
+        properties.alert_render = nil
+    end
+    -- adding an alert render if necessery
+    local alert_sprite = alert_sections[destination_name]
+    if alert_sprite then
+        properties.alert_render = rendering.draw_sprite{
+            sprite = alert_sprite,
+            render_layer = "entity-info-icon-above",
+            target = properties.entity,
+            surface = properties.entity.surface_index,
+            blink_interval = 30,
+        }
     end
 end
 
@@ -600,12 +627,6 @@ function EntityProcessor.setup_blueprint_tags(event)
         end
     end
 end
-
--- TODO: add following
--- on_blueprint_settings_pasted
--- on_entity_cloned
--- on_entity_settings_pasted
--- (+ selection tool to configure area)
 
 -------------------------------------------------------------------------------
 ------------------------------- MAIN PROCESSOR --------------------------------

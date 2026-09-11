@@ -67,10 +67,11 @@ This file handles vsurface requests like:
 ---in compilation queue
 
 
-local ChunkProcessor = require("src.world.vsurface-chunk-processor")
-local TCCManager = require("src.simulation.tcc-manager")
-local CommonGui = require("src.gui.common")
+local ChunkProcessor = require("scripts.world.vsurface-chunk-processor")
+local TCCManager = require("scripts.simulation.tcc-manager")
+local CommonGui = require("scripts.gui.common")
 
+local PREFIX = "FV-"
 local VSurfaceManager = {}
 
 ---Vsurface compilation time in ticks (10 minutes)
@@ -830,7 +831,6 @@ local function add_to_cost(total_cost, name, quality, count)
     total_cost[key] = (total_cost[key] or 0) + count
 end
 
---TODO: add all items and fluids stored in entities 
 ---Calculates total building cost of a vsurface.
 ---@param surface LuaSurface assumed to be valid
 ---@return table<BufferKeyString, number> building_cost
@@ -1046,6 +1046,9 @@ local function process_compilations()
             }
             game.print(msg)
             create_template(vsurface_data)
+            game.forces["player"].script_trigger_research(
+                PREFIX .. "compile-any-template"
+            )
             terminate_compilation(vsurface_data)
         else
             -- compilation failed

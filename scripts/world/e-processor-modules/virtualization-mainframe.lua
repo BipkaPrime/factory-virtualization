@@ -42,9 +42,9 @@ Entity state meaning breakdown:
     does provide crafting power.
 --]]
 
-local ClusterProcessor = require("src.simulation.cluster-processor")
-local VSurfaceManager = require("src.world.vsurface-manager")
-local Utilities = require("src.world.e-processor-modules.utilities")
+local ClusterProcessor = require("scripts.simulation.cluster-processor")
+local VSurfaceManager = require("scripts.world.vsurface-manager")
+local Utilities = require("scripts.world.e-processor-modules.utilities")
 
 local PREFIX = "FV-"
 local VMainframe = {}

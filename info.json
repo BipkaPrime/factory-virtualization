@@ -1,9 +1,12 @@
 {
   "name": "factory-virtualization",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "title": "Factory Virtualization",
-  "author": "AntonMRMC",
+  "author": "BipkaPrime",
   "factorio_version": "2.1",
-  "dependencies": ["base >= 2.1"],
-  "description": "_"
+  "dependencies": [
+    "base >= 2.1",
+    "quality >= 2.1",
+    "space-age >= 2.1"
+  ]
 }

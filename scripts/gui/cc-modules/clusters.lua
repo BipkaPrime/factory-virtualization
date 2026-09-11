@@ -47,10 +47,10 @@ create; rename; delete; clear assigned template.
 ---@field cluster_rename_name string|nil new name for a cluser (cluster rename)
 
 
-local CommonGui = require("src.gui.common")
-local TCCManager = require("src.simulation.tcc-manager")
-local ClusterProcessor = require("src.simulation.cluster-processor")
-local VSurfaceManager = require("src.world.vsurface-manager")
+local CommonGui = require("scripts.gui.common")
+local TCCManager = require("scripts.simulation.tcc-manager")
+local ClusterProcessor = require("scripts.simulation.cluster-processor")
+local VSurfaceManager = require("scripts.world.vsurface-manager")
 
 
 local PREFIX = "FV-"
@@ -900,6 +900,12 @@ local function fill_cluster_io_row(
     buffer_entry,
     crafting_power
 )
+    local sprite = buffer_entry.sprite
+    local tooltip = buffer_entry.tooltip
+    local quality
+    if buffer_entry.item_id then
+        quality = buffer_entry.item_id.quality
+    end
     local current = buffer_entry.current
     local maximum = buffer_entry.maximum
     local bar_value = (maximum ~= 0) and current / maximum or 0
@@ -929,9 +935,9 @@ local function fill_cluster_io_row(
     if elems_length > used_elems then
         -- There are enough elements: updating existing
         local sprite_btn = elems[used_elems + 1]
-        sprite_btn.sprite = buffer_entry.sprite
-        sprite_btn.tooltip = buffer_entry.tooltip
-        sprite_btn.quality = buffer_entry.item_id.quality
+        sprite_btn.sprite = sprite
+        sprite_btn.tooltip = tooltip
+        sprite_btn.quality = quality
         -- progressbar
         local progressbar = elems[used_elems + 2]
         progressbar.caption = bar_caption
@@ -950,9 +956,9 @@ local function fill_cluster_io_row(
         }
         elems[elems_length + 1] = frame.add{
             type = "sprite-button",
-            sprite = buffer_entry.sprite,
-            tooltip = buffer_entry.tooltip,
-            quality = buffer_entry.item_id.quality,
+            sprite = sprite,
+            tooltip = tooltip,
+            quality = quality,
         }
         -- progressbar and its style
         local progressbar = io_table.add{

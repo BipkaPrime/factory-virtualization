@@ -131,8 +131,8 @@ All cluster data is located at storage.clusters (see ClusterStorage class).
 ---@field uuid_to_name table<string, string> maps cluster uuids to display names
 
 
-local TCCManager = require("src.simulation.tcc-manager")
-local VSurfaceManager = require("src.world.vsurface-manager")
+local TCCManager = require("scripts.simulation.tcc-manager")
+local VSurfaceManager = require("scripts.world.vsurface-manager")
 
 
 local ClusterProcessor = {}

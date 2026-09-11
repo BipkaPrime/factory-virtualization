@@ -18,6 +18,10 @@ local control_center_shortcut = {
 
 data.extend({control_center_hotkey, control_center_shortcut})
 
+-------------------------------------------------------------------------------
+--------------------------------- GUI STYLES ----------------------------------
+-------------------------------------------------------------------------------
+
 -- Template routing table style
 data.raw["gui-style"]["default"]["template_routing_table"] = {
     type = "table_style",
@@ -142,3 +146,27 @@ data.raw["gui-style"]["default"]["validation_report_table"] = {
         {column = 4, width = 124},
     },
 }
+
+-------------------------------------------------------------------------------
+-------------------------------- ALERT SPRITES --------------------------------
+-------------------------------------------------------------------------------
+
+local alert_red = {
+    type = "sprite",
+    name = PREFIX .. "entity-config-alert-red",
+    filename = iconpath .. "entity-config-alert-red.png",
+    width = 64,
+    height = 64,
+    scale = 0.5
+}
+
+local alert_yellow = {
+    type = "sprite",
+    name = PREFIX .. "entity-config-alert-yellow",
+    filename = iconpath .. "entity-config-alert-yellow.png",
+    width = 64,
+    height = 64,
+    scale = 0.5
+}
+
+data.extend{alert_red, alert_yellow}

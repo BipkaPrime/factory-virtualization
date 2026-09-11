@@ -25,8 +25,8 @@ Entity is considered operational when:
 2. Has enough electric energy stored.
 --]]
 
-local TCCManager = require("src.simulation.tcc-manager")
-local Utilities = require("src.world.e-processor-modules.utilities")
+local TCCManager = require("scripts.simulation.tcc-manager")
+local Utilities = require("scripts.world.e-processor-modules.utilities")
 
 
 local PREFIX = "FV-"

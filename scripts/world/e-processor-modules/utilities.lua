@@ -77,4 +77,49 @@ function Utilities.generate_multimode_buffer_key(properties)
     return "electric_energy"
 end
 
+---Renders a sprite over the machine for multi-mode entities.
+---Assumes that provided configuration is correct. Operation mode is selected,
+---selected item is present for "item" mode, selected fluid is present for "fluid" mode.
+---@param properties EntityProperties
+function Utilities.render_multimode_sprite(properties)
+    local sprite
+    local operation_mode = properties.operation_mode
+    if operation_mode == "item" then
+        sprite = "item/" .. properties.selected_item_name
+    elseif operation_mode == "fluid" then
+        sprite = "fluid/" .. properties.selected_fluid
+    else
+        sprite = "virtual-signal/signal-lightning"
+    end
+    properties.background_render = rendering.draw_sprite{
+        sprite = "utility/entity_info_dark_background",
+        render_layer = "entity-info-icon",
+        target = properties.entity,
+        surface = properties.entity.surface_index,
+        only_in_alt_mode = true,
+    }
+    properties.resource_render = rendering.draw_sprite{
+        sprite = sprite,
+        render_layer = "entity-info-icon-above",
+        target = properties.entity,
+        surface = properties.entity.surface_index,
+        only_in_alt_mode = true,
+    }
+end
+
+---Destroys the sprite rendered over the multi-mode entity.
+---@param properties EntityProperties
+function Utilities.destory_multimode_sprite_render(properties)
+    local resource_render = properties.resource_render
+    if resource_render and resource_render.valid then
+        resource_render.destroy()
+        properties.resource_render = nil
+    end
+    local background_render = properties.background_render
+    if background_render and background_render.valid then
+        background_render.destroy()
+        properties.background_render = nil
+    end
+end
+
 return Utilities

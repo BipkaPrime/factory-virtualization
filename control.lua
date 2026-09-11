@@ -1,22 +1,24 @@
-local EntityProcessor = require("src.world.entity-processor")
-local ChunkProcessor = require("src.world.vsurface-chunk-processor")
-local ClusterProcessor = require("src.simulation.cluster-processor")
-local VSurfaceManager = require("src.world.vsurface-manager")
-local CommonGui = require("src.gui.common")
-local EntityGui = require("src.gui.entity")
-local ControlCenter = require("src.gui.control-center")
-local CCSurfaces = require("src.gui.cc-modules.surfaces")
-local CCTemplates = require("src.gui.cc-modules.templates")
-local CCClusters = require("src.gui.cc-modules.clusters")
-local GuiUpdater = require("src.gui.updater")
+local EntityProcessor = require("scripts.world.entity-processor")
+local ChunkProcessor = require("scripts.world.vsurface-chunk-processor")
+local ClusterProcessor = require("scripts.simulation.cluster-processor")
+local VSurfaceManager = require("scripts.world.vsurface-manager")
+local CommonGui = require("scripts.gui.common")
+local EntityGui = require("scripts.gui.entity")
+local ControlCenter = require("scripts.gui.control-center")
+local CCSurfaces = require("scripts.gui.cc-modules.surfaces")
+local CCTemplates = require("scripts.gui.cc-modules.templates")
+local CCClusters = require("scripts.gui.cc-modules.clusters")
+local GuiUpdater = require("scripts.gui.updater")
+local ProductionResearch = require("scripts.world.production-research")
 
 local PREFIX = "FV-"
 
 -------------------------------------------------------------------------------
--- Initialization and lifecycle
+------------------------------- INITIALIZATION --------------------------------
 -------------------------------------------------------------------------------
 
 script.on_init(function()
+    ProductionResearch.initialize_storage()
     -- world/entity-processor
     ---@type EntityRegistry
     storage.entity_registry = {
@@ -47,9 +49,8 @@ script.on_init(function()
         uuid_to_name = {}
     }
     -- simulation/tcc-manager
-    local tcc_surface = script.active_mods["space-age"] and "aquilo" or "nauvis"
     ---@type TCCData
-    storage.tcc = {allowed_surface = tcc_surface}
+    storage.tcc = {allowed_surface = "aquilo"}
     ---@type ComputationStorage
     storage.computation = {max_available = 0, curr_demand = 0}
     ---@type TemplateStorage
@@ -72,10 +73,6 @@ script.on_init(function()
     storage.gui_updater = {array = {}, lookup = {}, next_index = 1}
 end)
 
-script.on_configuration_changed(function()
-
-end)
-
 -------------------------------------------------------------------------------
 -- TIME-BASED SCRIPTS
 -------------------------------------------------------------------------------
@@ -87,6 +84,8 @@ script.on_event(defines.events.on_tick, function(event)
     VSurfaceManager.on_tick_updater()
     GuiUpdater.on_tick()
 end)
+
+script.on_nth_tick(3600, ProductionResearch.check_progress)
 
 -------------------------------------------------------------------------------
 -- ENTITY PROCESSOR TAGS AND REGISTRATION
@@ -257,12 +256,3 @@ script.on_event(defines.events.on_gui_checked_state_changed, function(event)
 end)
 
 script.on_event(PREFIX .. "control-center-hotkey", ControlCenter.handle_hotkey)
-
--------------------------------------------------------------------------------
--- DEBUG COMMANDS
--------------------------------------------------------------------------------
-
-commands.add_command("save_template_data", "Saves all compiled template data to json", function()
-    helpers.write_file("compiled_templates.json", serpent.block(storage.templates), false)
-    game.print("Template data saved to compiled_templates.json")
-end)

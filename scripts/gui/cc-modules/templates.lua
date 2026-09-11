@@ -25,9 +25,9 @@ Rename, delete compiled templates as well as view template data.
 ---@field template_rename_name string|nil new template name when renaming template
 
 
-local CommonGui = require("src.gui.common")
-local TCCManager = require("src.simulation.tcc-manager")
-local ClusterProcessor = require("src.simulation.cluster-processor")
+local CommonGui = require("scripts.gui.common")
+local TCCManager = require("scripts.simulation.tcc-manager")
+local ClusterProcessor = require("scripts.simulation.cluster-processor")
 
 
 local PREFIX = "FV-"

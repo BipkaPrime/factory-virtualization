@@ -17,11 +17,11 @@
 ---@field elements ControlCenterElements
 
 
-local CCSurfaces = require("src.gui.cc-modules.surfaces")
-local CCTemplates = require("src.gui.cc-modules.templates")
-local CCClusters = require("src.gui.cc-modules.clusters")
-local CommonGui = require("src.gui.common")
-local GuiUpdater = require("src.gui.updater")
+local CCSurfaces = require("scripts.gui.cc-modules.surfaces")
+local CCTemplates = require("scripts.gui.cc-modules.templates")
+local CCClusters = require("scripts.gui.cc-modules.clusters")
+local CommonGui = require("scripts.gui.common")
+local GuiUpdater = require("scripts.gui.updater")
 
 
 local PREFIX = "FV-"
