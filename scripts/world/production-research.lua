@@ -3,6 +3,7 @@
 ---@field item_name string name of item that needs to be produced
 ---@field amount number amount that needs to be produced in one hour
 
+--TODO: consider not deleting research.
 
 local PREFIX = "FV-"
 local ProductionResearch = {}

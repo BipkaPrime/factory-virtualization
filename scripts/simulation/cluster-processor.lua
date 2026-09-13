@@ -391,7 +391,7 @@ end
 -------------------------- CLUSTER MEMBER MANAGEMENT --------------------------
 -------------------------------------------------------------------------------
 
-local dc_loss_base = 1e-6
+local dc_loss_base = 5e-6
 
 ---Updates "input.electic_energy" buffer entry if it exists in the cluster
 ---@param cluster ClusterData

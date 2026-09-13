@@ -173,6 +173,7 @@ local function from_idle_to_constructing(properties)
     properties.filter_lookup = filter_lookup
     properties.state = entity_states.constructing
     properties.status = Utilities.entity_status.requesting_materials
+    properties.entity.minable_flag = false
 end
 
 ---Used for on-tick updates of this entity in idle state.
@@ -390,6 +391,7 @@ local function deconstructing_state_update(properties)
         properties.assigned_template = nil
         properties.state = entity_states.idle
         properties.status = Utilities.entity_status.idle
+        properties.entity.minable_flag = true
     end
     return Utilities.registry_sections.active
 end
@@ -491,6 +493,9 @@ end
 ---"status" field from properties.
 ---@param properties EntityProperties
 function VMainframe.uninitialize(properties)
+    if properties.entity.valid then
+        properties.entity.minable_flag = true
+    end
     eject_building_contents(properties)
     ClusterProcessor.remove_member_from_cluster(
         properties.first_cluster,

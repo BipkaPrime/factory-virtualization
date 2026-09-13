@@ -13,6 +13,10 @@ local ProductionResearch = require("scripts.world.production-research")
 
 local PREFIX = "FV-"
 
+--TODO: add on_surface_deleted handler (for clusters and vsurfaces?)
+--TODO: on player removed for GUI?
+--TODO: update control center gui (hover events left side of interface).
+
 -------------------------------------------------------------------------------
 ------------------------------- INITIALIZATION --------------------------------
 -------------------------------------------------------------------------------

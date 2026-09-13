@@ -14,6 +14,7 @@ local control_center_shortcut = {
     icon = iconpath .. "computation-core-mk1.png",
     small_icon = iconpath .. "computation-core-mk1.png",
     associated_control_input = PREFIX .. "control-center-hotkey",
+    technology_to_unlock = PREFIX .. "mk1-root",
 }
 
 data.extend({control_center_hotkey, control_center_shortcut})
