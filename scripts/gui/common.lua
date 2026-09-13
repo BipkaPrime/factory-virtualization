@@ -10,6 +10,9 @@ CommonGui.green = {r = 0.2, g = 0.8, b = 0.2}
 CommonGui.grey = {r = 0.5, g = 0.5, b = 0.5}
 CommonGui.orange = {r = 0.98, g = 0.53, b = 0.06}
 
+CommonGui.updates_on = {"cc-general.updates-on"}
+CommonGui.updates_off = {"cc-general.updates-off"}
+
 
 ---Prints given message for given player
 ---@param player_index integer unique player identifier
@@ -196,28 +199,48 @@ end
 ---@param parent LuaGuiElement widget will be added here
 ---@param search_name string internal name of searchbox element
 ---@param selector_name string internal name of selector element
+---@param update_name string|nil name for update button (button not added if nil)
 ---@param caption LocalisedString caption above searchfield
 ---@param height number|nil height of the selector. Defaults to 200
----@return LuaGuiElement searchfield, LuaGuiElement selector
-function CommonGui.add_selection_widget(parent, search_name, selector_name, caption, height)
-    local flow = parent.add{
-        type = "flow",
-        direction = "vertical",
-    }
-    flow.add{type = "label", caption = caption}
-    local searchfield = flow.add{
+---@return LuaGuiElement searchfield
+---@return LuaGuiElement selector
+---@return LuaGuiElement|nil update_button
+function CommonGui.add_selection_widget(
+    parent,
+    search_name,
+    selector_name,
+    update_name,
+    caption,
+    height
+)
+    local v_flow = parent.add{type = "flow", direction = "vertical"}
+    local row = v_flow.add{type = "flow", direction = "horizontal"}
+    row.add{type = "label", caption = caption}
+    -- adding a button for toggling updates if name is provided
+    local button
+    if update_name then
+        -- horizontal spacer to put the button on the right side
+        row.add{type = "flow"}.style.horizontally_stretchable = true
+        button = row.add{
+            type = "sprite-button",
+            name = update_name,
+            sprite = "utility/refresh",
+            style = "shortcut_bar_button_small",
+        }
+    end
+    local searchfield = v_flow.add{
         type = "textfield",
         name = search_name,
         lose_focus_on_confirm = true,
     }
-    local selector = flow.add{
+    local selector = v_flow.add{
         type = "list-box",
         name = selector_name,
         style = "list_box_in_shallow_frame",
     }
     selector.style.width = 200
     selector.style.height = height or 200
-    return searchfield, selector
+    return searchfield, selector, button
 end
 
 ---Finds the first index of given value in an array
@@ -237,7 +260,22 @@ end
 ---@param options string[] list of options to display
 ---@param selected string|nil option that should be selected
 function CommonGui.update_selector(selector, options, selected)
-    selector.items = options
+    local items = selector.items
+    for i = 1, #options do
+        local option = options[i]
+        if items[i] ~= option then
+            if #items >= i then
+                selector.set_item(i, option)
+            else
+                selector.add_item(option)
+            end
+        end
+    end
+    -- Clearing tailing items in case options list got shorter
+    for i = #items, #options + 1, -1 do
+        selector.remove_item(i)
+    end
+
     -- looking for selected option in options
     local index = selected and CommonGui.find_value(options, selected) or 0
     selector.selected_index = index

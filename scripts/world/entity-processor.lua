@@ -403,7 +403,7 @@ local config_fields = {
 ---Abstract setter. Sets specified property for a given entity or entity-ghost
 ---@param entity LuaEntity entity for which data should be set
 ---@param field string field in properties that will be set
----@param value nil|boolean|table|string|number value to write in properties[field]
+---@param value nil|boolean|table|string|number value to write in properties
 local function set_entity_property(entity, field, value)
     if not entity.valid then return end
     if entity.name == "entity-ghost" then
@@ -544,8 +544,14 @@ end
 ---@param entity LuaEntity entity for which data should be retrieved
 ---@return string|nil name, string|nil quality  
 function EntityProcessor.get_selected_item(entity)
-    local name = get_entity_property(entity, config_fields.selected_item_name)
-    local quality = get_entity_property(entity, config_fields.selected_item_quality)
+    local name = get_entity_property(
+        entity,
+        config_fields.selected_item_name
+    )
+    local quality = get_entity_property(
+        entity,
+        config_fields.selected_item_quality
+    )
     return name, quality
 end
 

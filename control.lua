@@ -18,7 +18,7 @@ local PREFIX = "FV-"
 --TODO: update control center gui (hover events left side of interface).
 
 -------------------------------------------------------------------------------
-------------------------------- INITIALIZATION --------------------------------
+------------------------ INITIALIZATION AND LIFECYCLE -------------------------
 -------------------------------------------------------------------------------
 
 script.on_init(function()
@@ -74,7 +74,26 @@ script.on_init(function()
     ---@type table<integer, EntityGuiData>
     storage.entity_gui = {}
     -- gui/updater
+    ---@type GuiUpdater
     storage.gui_updater = {array = {}, lookup = {}, next_index = 1}
+end)
+
+script.on_configuration_changed(function(change_data)
+    -- TODO: when migration is applied (any mod in the save)
+    -- have to apply it to all data structures:
+    -- entity processor: selected item, selected fluid,
+    -- vsurfaces (compilation tables)
+    -- clusters (internal buffers, members?)
+    -- templates (io, constuction cost)
+
+    -- TODO: close opened gui windows here and clear related structures?
+    -- control_center, entity_gui, gui_updater
+end)
+
+script.on_event(defines.events.on_pre_player_removed, function(event)
+    -- cleaning up gui-related data associated with deleted player
+    ControlCenter.on_pre_player_removed(event)
+    EntityGui.on_pre_player_removed(event)
 end)
 
 -------------------------------------------------------------------------------
@@ -120,7 +139,7 @@ script.on_event(defines.events.on_player_setup_blueprint, function(event)
 end)
 
 -------------------------------------------------------------------------------
--- GUI HANDLERS
+-------------------------------- GUI HANDLERS ---------------------------------
 -------------------------------------------------------------------------------
 
 script.on_event(defines.events.on_gui_opened, function(event)
@@ -184,6 +203,9 @@ local on_gui_click_router = {
     [PREFIX .. "cc-view-cluster"] = CCClusters.handle_view_cluster_btn,
     [PREFIX .. "cc-rename-surface-btn"] = CCSurfaces.handle_rename_surface_btn,
     [PREFIX .. "cc-confirm-vsurface-rename"] = CCSurfaces.handle_vsurface_rename_confirm,
+    [PREFIX .. "cc-vsurface-update"] = CCSurfaces.handle_vsurface_updates_btn,
+    [PREFIX .. "cc-template-update"] = CCTemplates.handle_template_updates_btn,
+    [PREFIX .. "cc-cluster-update"] = CCClusters.handle_cluster_updates_btn,
 }
 script.on_event(defines.events.on_gui_click, function(event)
     element_name_router(event, on_gui_click_router)
@@ -223,11 +245,11 @@ script.on_event(defines.events.on_gui_text_changed, function(event)
 end)
 
 local on_gui_selection_state_changed_router = {
-    [PREFIX .. "cc-idle-surface-selector"] = CCSurfaces.handle_idle_surface_selector,
-    [PREFIX .. "cc-compiling-surface-selector"] = CCSurfaces.handle_compiling_surface_selector,
+    [PREFIX .. "cc-idle-surface-selector"] = CCSurfaces.handle_surface_selection_change,
+    [PREFIX .. "cc-compiling-surface-selector"] = CCSurfaces.handle_surface_selection_change,
     [PREFIX .. "cc-generate-as-selector"] = CCSurfaces.handle_new_vsurface_generate_as_selector,
-    [PREFIX .. "cc-inactive-template-selector"] = CCTemplates.handle_inactive_template_selector,
-    [PREFIX .. "cc-active-template-selector"] = CCTemplates.handle_active_template_selector,
+    [PREFIX .. "cc-inactive-template-selector"] = CCTemplates.handle_template_selection_change,
+    [PREFIX .. "cc-active-template-selector"] = CCTemplates.handle_template_selection_change,
     [PREFIX .. "cc-suboptimal-cluster-selector"] = CCClusters.handle_cluster_selection_change,
     [PREFIX .. "cc-optimal-cluster-selector"] = CCClusters.handle_cluster_selection_change,
     [PREFIX .. "cc-new-cluster-selector"] = CCClusters.handle_new_cluster_surface_selection,

@@ -11,8 +11,10 @@ create; rename; delete; clear assigned template.
 ---@class ControlCenterElements additional elements used in "clusters" mode
 ---@field new_cluster_btn LuaGuiElement|nil used to toggle "create" submode
 ---@field suboptimal_cluster_selector LuaGuiElement|nil left side selector
+---@field suboptimal_cluster_update LuaGuiElement|nil button used to toggle updates
 ---@field rename_cluster_btn LuaGuiElement|nil used to toggle "rename" submode
 ---@field optimal_cluster_selector LuaGuiElement|nil left side selector
+---@field optimal_cluster_update LuaGuiElement|nil button used to toggle updates
 ---@field delete_cluster_btn LuaGuiElement|nil used to toggle "delete" submode
 ---@field clear_template_btn LuaGuiElement|nil used to toggle "clear_template" submode
 ---@field cluster_surface_selector LuaGuiElement|nil new cluster surface selection
@@ -42,9 +44,9 @@ create; rename; delete; clear assigned template.
 ---@field selected_cluster string|nil display name of selected cluster
 ---@field optimal_cluster_query string|nil optimal cluster search query
 ---@field new_cluster_name string|nil name of new cluster (cluster creation)
----@field new_cluster_surface string|nil name of the surface for
----the new cluster (cluster creation)
+---@field new_cluster_surface string|nil surface for new cluster (cluster creation)
 ---@field cluster_rename_name string|nil new name for a cluser (cluster rename)
+---@field cluster_updates boolean|nil true if selectors are updated on time
 
 
 local CommonGui = require("scripts.gui.common")
@@ -55,7 +57,6 @@ local VSurfaceManager = require("scripts.world.vsurface-manager")
 
 local PREFIX = "FV-"
 local CCClusters = {}
-
 
 ---All possible submodes of control center in "clusters" mode.
 ---Used to handle mutually exclusive GUI states.
@@ -78,7 +79,9 @@ local function update_new_cluster_button(gui_data)
     local button = gui_data.elements.new_cluster_btn
     if not button or not button.valid then return end
     -- button is toggled if gui is in "create" submode
-    button.toggled = (gui_data.cluster_submode == cluster_submodes.create)
+    button.toggled = (
+        gui_data.cluster_submode == cluster_submodes.create
+    )
 end
 
 ---Adds "create new cluster" button to given parent element
@@ -105,7 +108,9 @@ local function update_rename_cluster_button(gui_data)
     -- button is enabled if cluster is selected
     button.enabled = not not gui_data.selected_cluster
     -- button is toggled if gui is in "rename" submode
-    button.toggled = (gui_data.cluster_submode == cluster_submodes.rename)
+    button.toggled = (
+        gui_data.cluster_submode == cluster_submodes.rename
+    )
 end
 
 ---Adds "rename cluster" button to given parent element
@@ -132,7 +137,9 @@ local function update_clear_template_button(gui_data)
     -- button is enabled if cluster is selected
     button.enabled = not not gui_data.selected_cluster
     -- button is toggled if gui in "clear_template" submode
-    button.toggled = (gui_data.cluster_submode == cluster_submodes.clear_template)
+    button.toggled = (
+        gui_data.cluster_submode == cluster_submodes.clear_template
+    )
 end
 
 ---Adds "clear template" button to given parent element
@@ -160,7 +167,9 @@ local function update_cluster_delete_button(gui_data)
     -- button is enabled only when cluster is selected
     button.enabled = not not gui_data.selected_cluster
     -- button is toggled if gui in "delete" submode
-    button.toggled = (gui_data.cluster_submode == cluster_submodes.delete)
+    button.toggled = (
+        gui_data.cluster_submode == cluster_submodes.delete
+    )
 end
 
 ---Adds "delete selected" button to given parent element
@@ -183,7 +192,17 @@ end
 ---Updates suboptimal cluster selector according to gui_data
 ---@param gui_data ControlCenterData
 local function update_suboptimal_cluster_selector(gui_data)
-    local selector = gui_data.elements.suboptimal_cluster_selector
+    local elements = gui_data.elements
+    -- Updating button toggling cluster updates
+    local button = elements.suboptimal_cluster_update
+    if not button or not button.valid then return end
+    local update_toggled = not not gui_data.cluster_updates
+    button.toggled = update_toggled
+    button.tooltip = (
+        update_toggled and CommonGui.updates_on or CommonGui.updates_off
+    )
+    -- Updating elements displayed in the selector
+    local selector = elements.suboptimal_cluster_selector
     if not selector or not selector.valid then return end
     local query = gui_data.suboptimal_cluster_query
     -- getting names of all suboptimal clusters
@@ -197,23 +216,25 @@ local function update_suboptimal_cluster_selector(gui_data)
     CommonGui.update_selector(selector, options, selected_option)
 end
 
----Adds selection widget for suboptimal clusters to given parent element. Widget
----consists of "label", "textfield" for searching and "list-box" for selection.
+---Adds selection widget for suboptimal clusters to given parent element.
 ---@param parent LuaGuiElement
 ---@param gui_data ControlCenterData
 local function add_suboptimal_cluster_selection_widget(parent, gui_data)
-    local search, selector = CommonGui.add_selection_widget(
+    local search, selector, update_btn = CommonGui.add_selection_widget(
         parent,
         PREFIX .. "cc-suboptimal-cluster-search",
         PREFIX .. "cc-suboptimal-cluster-selector",
+        PREFIX .. "cc-cluster-update",
         {"cc-clusters.clusters-suboptimal"},
         140
     )
-    search.text = gui_data.suboptimal_cluster_query or ""
-    gui_data.elements.suboptimal_cluster_selector = selector
+    local elements = gui_data.elements
+    elements.suboptimal_cluster_selector = selector
+    elements.suboptimal_cluster_update = update_btn
     update_suboptimal_cluster_selector(gui_data)
-    -- scrolling to selected item when creating the element
     CommonGui.scroll_to_selection(selector)
+    -- updating searchfield (only on creation)
+    search.text = gui_data.suboptimal_cluster_query or ""
 end
 
 -------------------------- OPTIMAL CLUSTER SELECTION --------------------------
@@ -221,7 +242,17 @@ end
 ---Updates optimal cluster selector according to gui_data
 ---@param gui_data ControlCenterData
 local function update_optimal_cluster_selector(gui_data)
-    local selector = gui_data.elements.optimal_cluster_selector
+    local elements = gui_data.elements
+    -- Updating button toggling cluster updates
+    local button = elements.optimal_cluster_update
+    if not button or not button.valid then return end
+    local update_toggled = not not gui_data.cluster_updates
+    button.toggled = update_toggled
+    button.tooltip = (
+        update_toggled and CommonGui.updates_on or CommonGui.updates_off
+    )
+    -- Updating elements displayed in the selector
+    local selector = elements.optimal_cluster_selector
     if not selector or not selector.valid then return end
     local query = gui_data.optimal_cluster_query
     -- getting names of all optimal clusters
@@ -240,18 +271,21 @@ end
 ---@param parent LuaGuiElement
 ---@param gui_data ControlCenterData
 local function add_optimal_cluster_selection_widget(parent, gui_data)
-    local search, selector = CommonGui.add_selection_widget(
+    local search, selector, update_btn = CommonGui.add_selection_widget(
         parent,
         PREFIX .. "cc-optimal-cluster-search",
         PREFIX .. "cc-optimal-cluster-selector",
+        PREFIX .. "cc-cluster-update",
         {"cc-clusters.clusters-optimal"},
         140
     )
-    search.text = gui_data.optimal_cluster_query or ""
-    gui_data.elements.optimal_cluster_selector = selector
+    local elements = gui_data.elements
+    elements.optimal_cluster_selector = selector
+    elements.optimal_cluster_update = update_btn
     update_optimal_cluster_selector(gui_data)
-    -- scrolling to selected item when creating the element
     CommonGui.scroll_to_selection(selector)
+    -- updating searchfield (only on creation)
+    search.text = gui_data.optimal_cluster_query or ""
 end
 
 -------------------------------------------------------------------------------
@@ -263,17 +297,18 @@ end
 ---Updates section used for new cluster creation
 ---@param gui_data ControlCenterData
 local function update_new_cluster_section(gui_data)
-    -- New cluster surface selection
-    local selector = gui_data.elements.cluster_surface_selector
+    local elements = gui_data.elements
+    -- Updating new cluster surface selection
+    local selector = elements.cluster_surface_selector
     if not selector or not selector.valid then return end
     local options = ClusterProcessor.get_cluster_location_options()
     local selected = gui_data.new_cluster_surface
     CommonGui.update_selector(selector, options, selected)
     CommonGui.scroll_to_selection(selector)
-    -- Confirm cluster creation button and status
-    local button = gui_data.elements.new_cluster_confirm_btn
+    -- Updating button and status label
+    local button = elements.new_cluster_confirm_btn
     if not button or not button.valid then return end
-    local label = gui_data.elements.new_cluster_confirm_status
+    local label = elements.new_cluster_confirm_status
     if not label or not label.valid then return end
     local status, reason = ClusterProcessor.can_create_cluser(
         gui_data.new_cluster_name,
@@ -287,6 +322,7 @@ end
 ---@param parent LuaGuiElement
 ---@param gui_data ControlCenterData
 local function add_new_cluster_section(parent, gui_data)
+    local elements = gui_data.elements
     local section = CommonGui.create_info_element_base(
         parent,
         {"cc-clusters.create-section-title"}
@@ -298,7 +334,10 @@ local function add_new_cluster_section(parent, gui_data)
     -- First row, left side: name textfield and select current surface btn
     local left_flow = h_flow.add{type = "flow", direction = "vertical"}
     -- New cluster name textfied
-    left_flow.add{type = "label", caption = {"cc-clusters.create-section-name"}}
+    left_flow.add{
+        type = "label",
+        caption = {"cc-clusters.create-section-name"}
+    }
     local textfield = left_flow.add{
         type = "textfield",
         name = PREFIX .. "cc-new-cluster-name",
@@ -323,13 +362,16 @@ local function add_new_cluster_section(parent, gui_data)
 
     -- First row, right side: cluster surface selector
     local right_flow = h_flow.add{type = "flow", direction = "vertical"}
-    right_flow.add{type = "label", caption = {"cc-clusters.create-section-surface"}}
+    right_flow.add{
+        type = "label",
+        caption = {"cc-clusters.create-section-surface"}
+    }
     local selector = right_flow.add{
         type = "list-box",
         name = PREFIX .. "cc-new-cluster-selector",
         style = "list_box_in_shallow_frame",
     }
-    gui_data.elements.cluster_surface_selector = selector
+    elements.cluster_surface_selector = selector
     local selector_style = selector.style
     selector_style.width = 200
     selector_style.height = 84
@@ -351,8 +393,8 @@ local function add_new_cluster_section(parent, gui_data)
         style = "confirm_button",
         tooltip = {"cc-clusters.create-section-confirm-tooltip"},
     }
-    gui_data.elements.new_cluster_confirm_btn = button
-    gui_data.elements.new_cluster_confirm_status = label
+    elements.new_cluster_confirm_btn = button
+    elements.new_cluster_confirm_status = label
     update_new_cluster_section(gui_data)
 end
 
@@ -366,12 +408,10 @@ local function update_rename_cluster_section(gui_data)
     if not button or not button.valid then return end
     local label = elements.confirm_cluster_rename_label
     if not label or not label.valid then return end
-
     local status, reason = ClusterProcessor.can_rename_cluster(
         gui_data.selected_cluster,
         gui_data.cluster_rename_name
     )
-
     button.enabled = status
     label.caption = reason or ""
 end
@@ -386,19 +426,24 @@ local function add_rename_cluster_section(parent, gui_data)
     )
 
     -- Old name label
-    local cluster_name = gui_data.selected_cluster or "None"
-    local old_caption = {"cc-clusters.rename-section-old", cluster_name}
-    section.add{type = "label", caption = old_caption}
+    local caption = {
+        "cc-clusters.rename-section-old",
+        gui_data.selected_cluster or "—"
+    }
+    section.add{type = "label", caption = caption}
 
     -- New name textfield
     local name_flow = section.add{type = "flow", direction = "horizontal"}
     name_flow.style.vertical_align = "center"
-    name_flow.add{type = "label", caption = {"cc-clusters.rename-section-new"}}
+    name_flow.add{
+        type = "label",
+        caption = {"cc-clusters.rename-section-new"}
+    }
     name_flow.add{
         type = "textfield",
         name = PREFIX .. "cc-cluster-rename-textfield",
         lose_focus_on_confirm = true,
-        text = gui_data.cluster_rename_name or ""
+        text = gui_data.cluster_rename_name
     }
 
     -- confirm button and status label above
@@ -406,8 +451,6 @@ local function add_rename_cluster_section(parent, gui_data)
     local flow_style = confirm_flow.style
     flow_style.horizontally_stretchable = true
     flow_style.horizontal_align = "right"
-
-    -- button and status label
     local label = confirm_flow.add{type = "label"}
     label.style.font_color = CommonGui.red
     local button = confirm_flow.add{
@@ -417,8 +460,9 @@ local function add_rename_cluster_section(parent, gui_data)
         style = "confirm_button",
         tooltip = {"cc-clusters.confirm-rename-tooltip"},
     }
-    gui_data.elements.confirm_cluster_rename_btn = button
-    gui_data.elements.confirm_cluster_rename_label = label
+    local elements = gui_data.elements
+    elements.confirm_cluster_rename_btn = button
+    elements.confirm_cluster_rename_label = label
     update_rename_cluster_section(gui_data)
 end
 
@@ -433,9 +477,12 @@ local function add_clear_template_section(parent, gui_data)
         {"cc-clusters.clear-template-section-title"}
     )
 
-    local cluster_name = gui_data.selected_cluster or "None"
-    local warning = {"cc-clusters.clear-template-warning", cluster_name}
-    local warning_label = section.add{type = "label", caption = warning}
+    -- Template drop warning
+    local caption = {
+        "cc-clusters.clear-template-warning",
+        gui_data.selected_cluster or "—"
+    }
+    local warning_label = section.add{type = "label", caption = caption}
     warning_label.style.single_line = false
 
     -- Confirm button
@@ -458,32 +505,32 @@ end
 ---@param parent LuaGuiElement
 ---@param gui_data ControlCenterData
 local function add_delete_cluster_section(parent, gui_data)
+    local cluster_name = gui_data.selected_cluster
     local section = CommonGui.create_info_element_base(
         parent,
         {"cc-clusters.delete-section-title"}
     )
 
-    -- general warning: always present
-    local cluster_name = gui_data.selected_cluster or "None"
-    local general_warning = {
+    -- General warning: always present
+    local caption = {
         "cc-clusters.delete-warning-general",
-        cluster_name
+        cluster_name or "—"
     }
-    local general_label = section.add{type = "label", caption = general_warning}
+    local general_label = section.add{type = "label", caption = caption}
     general_label.style.single_line = false
 
-    -- non empty warning: present when cluster member count is not 0
+    -- Non empty warning: present when cluster member count is not 0
     local member_count = ClusterProcessor.get_total_member_counts(cluster_name)
     if member_count ~= 0 then
-        local non_empty_warning = {
+        caption = {
             "cc-clusters.delete-warning-non-empty",
             member_count
         }
-        local label = section.add{type = "label", caption = non_empty_warning}
+        local label = section.add{type = "label", caption = caption}
         label.style.single_line = false
     end
 
-    -- confirm deletion button
+    -- Confirm deletion button
     local flow = section.add{type = "flow", direction = "vertical"}
     local flow_style = flow.style
     flow_style.horizontally_stretchable = true
@@ -505,7 +552,7 @@ local function update_general_info_section(gui_data)
     local elements = gui_data.elements
     local cluster_name = gui_data.selected_cluster
 
-    -- Updating cluster status
+    -- Updating cluster status label
     local label = elements.cluster_status_lbl
     if not label or not label.valid then return end
     local is_optimal = ClusterProcessor.is_cluster_optimal(cluster_name)
@@ -515,15 +562,17 @@ local function update_general_info_section(gui_data)
         {"cc-clusters.attention-required"}
     )
 
-    -- Updaing assigned template
+    -- Updaing assigned template label
     label = elements.assigned_template_lbl
     if not label or not label.valid then return end
     local assigned_uuid = ClusterProcessor.get_assigned_template_by_name(
         cluster_name
     )
-    local assigned_name = TCCManager.get_template_name(assigned_uuid) or "None"
-    local caption = {"", assigned_name}
-    -- checking if this template is reachable
+    local caption = {
+        "",
+        TCCManager.get_template_name(assigned_uuid) or "—"
+    }
+    -- Checking if this template is reachable
     local reachable_uuid
     local cluster_uuid = ClusterProcessor.get_cluster_uuid(cluster_name)
     if cluster_uuid then
@@ -568,7 +617,7 @@ local function add_general_info_section(parent, gui_data)
     }
     local label = info_table.add{
         type = "label",
-        caption = cluster_name or "None"
+        caption = cluster_name or "—"
     }
     label.style.maximal_width = 220
     -- Surface name row: does not need updates
@@ -793,8 +842,9 @@ local function add_member_info_section(parent, gui_data)
         caption = {"cc-clusters.problems"},
         style = "bold_label"
     }
-    gui_data.elements.cluster_members_table = members_table
-    gui_data.elements.cluster_members_elems = {}
+    local elements = gui_data.elements
+    elements.cluster_members_table = members_table
+    elements.cluster_members_elems = {}
     update_member_info_section(gui_data)
 end
 
@@ -1137,6 +1187,8 @@ local submode_constructors = {
 ---@param gui_data ControlCenterData
 function CCClusters.construct_right_side(gui_data)
     local right_frame = gui_data.elements.right_frame
+
+    -- If cluster is selected displaying cluster info sections
     if gui_data.selected_cluster then
         add_general_info_section(right_frame, gui_data)
         add_member_info_section(right_frame, gui_data)
@@ -1144,34 +1196,14 @@ function CCClusters.construct_right_side(gui_data)
         add_cluster_io_sections(right_frame, gui_data)
     end
 
-    ---If sumbode is selected, displaying corresponding section
+    -- If sumbode is selected, displaying corresponding section
     local submode = gui_data.cluster_submode
     if submode then
         local constructor = submode_constructors[submode]
-        if constructor then
-            constructor(right_frame, gui_data)
-            right_frame.scroll_to_bottom()
-        end
+        constructor(right_frame, gui_data)
+        right_frame.scroll_to_bottom()
     end
 end
-
----Time based updater for the window in clusters mode
----@param gui_data ControlCenterData
----@param update_cycle integer
-function CCClusters.on_tick_updater(gui_data, update_cycle)
-    if gui_data.selected_cluster then
-        update_cluster_io_sections(gui_data)
-        if update_cycle % 30 == 0 then
-            update_general_info_section(gui_data)
-            update_member_info_section(gui_data)
-            update_cluster_operation_section(gui_data)
-        end
-    end
-end
-
--------------------------------------------------------------------------------
----------------------------- GUI STATE MANAGEMENT -----------------------------
--------------------------------------------------------------------------------
 
 ---Updates all elements in the left frame, rebuilds the right frame
 ---@param gui_data ControlCenterData
@@ -1186,6 +1218,40 @@ local function update_left_rebuild_right(gui_data)
     CCClusters.construct_right_side(gui_data)
 end
 
+---Time based updater for the window in clusters mode
+---@param gui_data ControlCenterData
+---@param update_cycle integer
+function CCClusters.on_tick_updater(gui_data, update_cycle)
+    -- Verifying that selected cluster actually exists
+    local selected = gui_data.selected_cluster
+    if selected and not ClusterProcessor.get_cluster_uuid(selected) then
+        gui_data.selected_cluster = nil
+        gui_data.cluster_submode = nil
+        update_left_rebuild_right(gui_data)
+        return
+    end
+
+    -- If cluster is selected updating cluster info elements
+    if gui_data.selected_cluster then
+        update_cluster_io_sections(gui_data)
+        if update_cycle % 30 == 0 then
+            update_general_info_section(gui_data)
+            update_member_info_section(gui_data)
+            update_cluster_operation_section(gui_data)
+        end
+    end
+
+    -- Updating cluster selectors if updates are enabled
+    if update_cycle % 60 == 0 and gui_data.cluster_updates then
+        update_suboptimal_cluster_selector(gui_data)
+        update_optimal_cluster_selector(gui_data)
+    end
+end
+
+-------------------------------------------------------------------------------
+---------------------------- GUI STATE MANAGEMENT -----------------------------
+-------------------------------------------------------------------------------
+
 ---Used to set clusters submode to provided value. If provided value
 ---matches with current submode, it's cleared instead.
 ---@param gui_data ControlCenterData
@@ -1195,9 +1261,13 @@ local function toggle_cluster_submode(gui_data, new_submode)
         gui_data.cluster_submode = nil
     else
         gui_data.cluster_submode = new_submode
-        -- "create" submode is mutually exclusive with selected cluster
         if new_submode == cluster_submodes.create then
+            -- this submode is mutually exclusive with selected cluster
             gui_data.selected_cluster = nil
+            gui_data.new_cluster_name = nil
+            gui_data.new_cluster_surface = nil
+        elseif new_submode == cluster_submodes.rename then
+            gui_data.cluster_rename_name = nil
         end
     end
     update_left_rebuild_right(gui_data)
@@ -1262,6 +1332,15 @@ function CCClusters.handle_delete_cluster_btn(event)
 end
 
 ------------------------------ CLUSTER SELECTION ------------------------------
+
+---Handles button, which toggles time-based updates for template selectors
+---@param event EventData.on_gui_click
+function CCClusters.handle_cluster_updates_btn(event)
+    local gui_data = storage.control_center[event.player_index]
+    gui_data.cluster_updates = not gui_data.cluster_updates
+    update_suboptimal_cluster_selector(gui_data)
+    update_optimal_cluster_selector(gui_data)
+end
 
 ---Handles optimal cluster searchfield being changed
 ---@param event EventData.on_gui_text_changed
@@ -1332,9 +1411,12 @@ function CCClusters.handle_select_current_surface_btn(event)
     if not player then return end
     local gui_data = storage.control_center[player_index]
     local surface = player.surface
-    -- if vsurface is selected, it should not be selected
+    -- vsurface cannot be selected
     if VSurfaceManager.is_vsurface(surface.index) then
-        CommonGui.print_message(player_index, {"cc-clusters.cannot-select-vsurface"})
+        CommonGui.print_message(
+            player_index,
+            {"cc-clusters.cannot-select-vsurface"}
+        )
         return
     end
     gui_data.new_cluster_surface = surface.name

@@ -1,19 +1,21 @@
 --[[
-
-
+Template control center GUI window is the main dashboard in the mod.
+Currently it has 3 modes: surfaces, templates and clusters.
+Surfaces mode is used to manage virtualization surfaces,
+templates and clusters modes are used to manage respective objects.
 --]]
 
 ---@class ControlCenterElements base elements: these are always present
 ---@field main_window LuaGuiElement reference to control center main window
----@field surface_mode_btn LuaGuiElement top panel button used to switch the window to surface mode
----@field template_mode_btn LuaGuiElement top panel button used to switch the window to template mode
----@field cluster_mode_btn LuaGuiElement top panel button used to switch the window to cluster mode
----@field left_frame LuaGuiElement "flow" type element used to display other elements on the left side
----@field right_frame LuaGuiElement "flow" type element used to display other elements on the right side
+---@field surface_mode_btn LuaGuiElement toggles surface mode (top panel)
+---@field template_mode_btn LuaGuiElement toggles template mode (top panel)
+---@field cluster_mode_btn LuaGuiElement toggles cluster mode (top panel)
+---@field left_frame LuaGuiElement left side of interface
+---@field right_frame LuaGuiElement right side of interface
 
 ---@class ControlCenterData base fields
 ---@field opened true|nil true if window is currently on the screen
----@field mode string|nil current opened mode of the window (for example "surfaces")
+---@field mode string|nil current mode of the window (i.e. clusters)
 ---@field elements ControlCenterElements
 
 
@@ -26,7 +28,6 @@ local GuiUpdater = require("scripts.gui.updater")
 
 local PREFIX = "FV-"
 local ControlCenter = {}
-
 
 ------------------------------ TOP PANEL BUTTONS ------------------------------
 
@@ -297,6 +298,12 @@ function ControlCenter.handle_hotkey(event)
     local player = game.get_player(event.player_index)
     if not player or not player.valid then return end
     toggle_control_center_window(player)
+end
+
+---Handles player being removed from the game (cleanup)
+---@param event EventData.on_pre_player_removed
+function ControlCenter.on_pre_player_removed(event)
+    storage.control_center[event.player_index] = nil
 end
 
 return ControlCenter

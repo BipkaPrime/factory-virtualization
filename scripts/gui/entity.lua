@@ -1,7 +1,7 @@
 --[[
 Entities added by this mod have custom GUIs that allow player to affect
 entity configuration in the entity-processor. It also displays useful
-entity-related information (status, current flow, etc.) 
+entity-related information (status, current flow, etc.)
 
 Technically entity GUI is handled as follows: when player clicks an entity
 from this mod, its "vanilla" GUI is closed and this is opened instead.
@@ -25,31 +25,25 @@ all players and is located at storage.entity_gui: table<integer, EntityGuiData>
 ---@field item_radiobtn LuaGuiElement|nil used for "operation_mode" configuration
 ---@field fluid_radiobtn LuaGuiElement|nil used for "operation_mode" configuration
 ---@field energy_radiobtn LuaGuiElement|nil used for "operation_mode" configuration
----@field item_selection LuaGuiElement|nil choose-elem-button used for
----"selected_item" configuration
----@field fluid_selection LuaGuiElement|nil choose-elem-button used for
----"selected_fluid" configuration
----@field fc_selector LuaGuiElement|nil "list-box" used for "first_cluster"
----configuration 
----@field sc_selector LuaGuiElement|nil "list-box" used for "second_cluster"
----configuration 
----@field override_checkbox LuaGuiElement|nil "checkbox" used for
----"override_capability" configuration
----@field override_textfield LuaGuiElement|nil "textfield" used for
----"override_capability" configuration
----@field template_selector LuaGuiElement|nil "list-box" used for "selected_template"
----configuration
+---@field item_selection LuaGuiElement|nil used for "selected_item" configuration
+---@field fluid_selection LuaGuiElement|nil used for "selected_fluid" configuration
+---@field fc_selector LuaGuiElement|nil used for "first_cluster" configuration
+---@field sc_selector LuaGuiElement|nil used for "second_cluster" configuration
+---@field override_checkbox LuaGuiElement|nil used for "override_capability" config
+---@field override_textfield LuaGuiElement|nil used for "override_capability" config
+---@field template_selector LuaGuiElement|nil used for "selected_template" config
 ---@field status_label LuaGuiElement|nil "label" used to display entity status
 ---@field entity_performance_bar LuaGuiElement|nil "progressbar" performance section
 ---@field entity_performance_style LuaStyle|nil style of progressbar above
----@field mainf_requests_table LuaGuiElement|nil "table" mainframe requests section
----@field mainf_requests_btns LuaGuiElement[]|nil "sprite-buttons" requests section
----@field mainf_contents_table LuaGuiElement|nil "table" mainframe contents section
----@field mainf_contents_btns LuaGuiElement[]|nil "sprite-buttons" contents section
+---@field vm_requests_table LuaGuiElement|nil "table" mainframe requests section
+---@field vm_requests_btns LuaGuiElement[]|nil "sprite-buttons" requests section
+---@field vm_contents_table LuaGuiElement|nil "table" mainframe contents section
+---@field vm_contents_btns LuaGuiElement[]|nil "sprite-buttons" contents section
 
 ---Contains data related to this window for one player
 ---@class EntityGuiData
 ---@field opened boolean|nil true if window is currently open
+---@field player LuaPlayer for which window is opened
 ---@field elements EntityGuiElements
 ---@field entity LuaEntity entity that was opened to create this gui
 ---@field unit_number integer unique entity identifier
@@ -59,9 +53,10 @@ all players and is located at storage.entity_gui: table<integer, EntityGuiData>
 ---@field fc_query string|nil first cluster search query
 ---@field sc_query string|nil second cluster search query
 ---@field template_query string|nil template search query
----@field player LuaPlayer for which window is opened
+
 
 local EntityProcessor = require("scripts.world.entity-processor")
+local EntityInfo = require("scripts.world.e-processor-modules.entity-info")
 local ClusterProcessor = require("scripts.simulation.cluster-processor")
 local ControlCenter = require("scripts.gui.control-center")
 local TCCManager = require("scripts.simulation.tcc-manager")
@@ -110,7 +105,7 @@ local function add_io_mode_configurator(
     output_caption
 )
     local v_flow = parent.add{type = "flow", direction = "vertical"}
-    local title = v_flow.add{type = "label", caption = subtitle}
+    v_flow.add{type = "label", caption = subtitle}
 
     -- Input button
     local row = v_flow.add{type = "flow", direction = "horizontal"}
@@ -183,7 +178,9 @@ local function update_selected_item_configurator(gui_data)
     -- setting elem value for button according to entity processor data
     local entity = gui_data.entity
     local name, quality = EntityProcessor.get_selected_item(entity)
-    button.elem_value = name and quality and {name = name, quality = quality} or nil
+    button.elem_value = (
+        name and quality and {name = name, quality = quality} or nil
+    )
 
     -- enabling/disabling the button if necessery
     local entity_name = gui_data.entity_name
@@ -410,6 +407,7 @@ local function add_first_cluster_configurator(
         parent,
         PREFIX .. "entity-fc-search",
         PREFIX .. "entity-fc-selector",
+        nil,
         subtitle,
         height
     )
@@ -483,6 +481,7 @@ local function add_second_cluster_configurator(
         parent,
         PREFIX .. "entity-sc-search",
         PREFIX .. "entity-sc-selector",
+        nil,
         subtitle,
         height
     )
@@ -689,6 +688,7 @@ local function add_selected_template_configurator(parent, gui_data)
         parent,
         PREFIX .. "entity-template-search",
         PREFIX .. "entity-template-selector",
+        nil,
         {"entity-gui.select-template"},
         150
     )
@@ -792,13 +792,7 @@ local function get_entity_status(gui_data)
     if gui_data.is_ghost then
         return {"entity-status.ghost"}
     end
-    local properties = EntityProcessor.get_entity_properties(
-        gui_data.unit_number
-    )
-    if not properties then
-        return {"entity-status.not-registered"}
-    end
-    return properties.status or {"entity-status.unknown"}
+    return EntityInfo.get_entity_status(gui_data.unit_number)
 end
 
 ---Updates section used to display entity status
@@ -832,24 +826,14 @@ local function update_entity_performance_section(gui_data)
     ---@type LuaStyle
     local style = elements.entity_performance_style
 
-    local properties = EntityProcessor.get_entity_properties(
-        gui_data.unit_number
-    )
-    local current, maximum
-    if properties then
-        current = properties.ls_flow or 0
-        maximum = properties.flow_limit or 0
-    else
-        current = 0
-        maximum = 0
-    end
+    local curr, max = EntityInfo.get_entity_performance(gui_data.unit_number)
     local bar_caption = {
         "entity-gui.bar-text",
-        CommonGui.large_number_to_string(current),
-        CommonGui.large_number_to_string(maximum)
+        CommonGui.large_number_to_string(curr),
+        CommonGui.large_number_to_string(max)
     }
 
-    local bar_value = (maximum ~= 0) and current / maximum or 0
+    local bar_value = (max ~= 0) and (curr / max) or 0
     local bar_color
     if bar_value < 0.75 then
         bar_color = CommonGui.green
@@ -887,8 +871,7 @@ end
 
 ---Collects sprite button data from mainframe requests or contents table
 ---@param mainframe_table table<BufferKeyString, ItemBuffer>
----@param buttons_data SpriteButtonData[]
----@return SpriteButtonData[]
+---@param buttons_data SpriteButtonData[] data will be added to this table
 local function collect_sprite_button_data(mainframe_table, buttons_data)
     for _, entry in pairs(mainframe_table) do
         local count = entry.count
@@ -896,38 +879,34 @@ local function collect_sprite_button_data(mainframe_table, buttons_data)
             local name = entry.name
             buttons_data[#buttons_data + 1] = {
                 sprite = "item/" .. name,
-                -- items can only have localization as entities
-                ---@diagnostic disable-next-line
-                tooltip = {"?", {"item-name." .. name}, {"entity-name." .. name}},
+                -- items can have localization as entities
+                tooltip = {
+                    "?",
+                    ---@diagnostic disable-next-line
+                    {"item-name." .. name},
+                    ---@diagnostic disable-next-line
+                    {"entity-name." .. name}
+                },
                 count = count,
                 quality = entry.quality
             }
         end
     end
-    return buttons_data
 end
 
 ---Adds 2 section used to display mainframe requests and contents
 ---@param gui_data EntityGuiData table with window-related data
 local function update_mainframe_tables(gui_data)
     local elements = gui_data.elements
-    local properties = EntityProcessor.get_entity_properties(gui_data.unit_number)
+    local requests, contents = EntityInfo.get_vm_tables(gui_data.unit_number)
 
     -- Updating missing materials table
-    local btn_table = elements.mainf_requests_table
+    local btn_table = elements.vm_requests_table
     if not btn_table or not btn_table.valid then return end
-    ---@type LuaGuiElement[] 
-    local buttons = elements.mainf_requests_btns
+    ---@type LuaGuiElement[] assuming table exists and valid with btn_table
+    local buttons = elements.vm_requests_btns
     local buttons_data = {}
-    if properties then
-        local requests = properties.building_requests
-        if requests then
-            collect_sprite_button_data(
-                requests,
-                buttons_data
-            )
-        end
-    end
+    collect_sprite_button_data(requests, buttons_data)
     CommonGui.update_sprite_button_table(
         btn_table,
         buttons,
@@ -935,20 +914,12 @@ local function update_mainframe_tables(gui_data)
     )
 
     -- Updating collected materials table
-    btn_table = elements.mainf_contents_table
+    btn_table = elements.vm_contents_table
     if not btn_table or not btn_table.valid then return end
-    ---@type LuaGuiElement[] 
-    buttons = elements.mainf_contents_btns
+    ---@type LuaGuiElement[] assuming table exists and valid with btn_table
+    buttons = elements.vm_contents_btns
     buttons_data = {}
-    if properties then
-        local contents = properties.building_contents
-        if contents then
-            collect_sprite_button_data(
-                contents,
-                buttons_data
-            )
-        end
-    end
+    collect_sprite_button_data(contents, buttons_data)
     CommonGui.update_sprite_button_table(
         btn_table,
         buttons,
@@ -967,16 +938,16 @@ local function add_mainframe_tables(parent, gui_data)
         parent,
         {"entity-gui.missing-materials"}
     )
-    elements.mainf_requests_table = CommonGui.add_sprite_button_table(section)
-    elements.mainf_requests_btns = {}
+    elements.vm_requests_table = CommonGui.add_sprite_button_table(section)
+    elements.vm_requests_btns = {}
 
     -- Contents section
     section = CommonGui.create_info_element_base(
         parent,
         {"entity-gui.collected-materials"}
     )
-    elements.mainf_contents_table = CommonGui.add_sprite_button_table(section)
-    elements.mainf_contents_btns = {}
+    elements.vm_contents_table = CommonGui.add_sprite_button_table(section)
+    elements.vm_contents_btns = {}
 
     update_mainframe_tables(gui_data)
 end
@@ -1497,6 +1468,11 @@ function EntityGui.handle_entity_gui_closed(event)
     GuiUpdater.close_window(event.player_index)
 end
 
+---Handles player being removed from the game (cleanup)
+function EntityGui.on_pre_player_removed(event)
+    storage.entity_gui[event.player_index] = nil
+end
+
 -------------------------------------------------------------------------------
 ------------------------------- ON-TICK UPDATER -------------------------------
 -------------------------------------------------------------------------------
@@ -1508,14 +1484,16 @@ local function on_tick_updater(gui_data, update_cycle)
     -- Checking entity validity
     local entity = gui_data.entity
     if not entity.valid then
-        -- closing window for invalid window
+        -- closing window for invalid entity
         local player = gui_data.player
         if not player.valid then return end
         player.opened = nil
         return
     end
 
-    update_status_section(gui_data)
+    if update_cycle % 10 == 0 then
+        update_status_section(gui_data)
+    end
     if update_cycle % 30 == 0 then
         update_entity_performance_section(gui_data)
     end

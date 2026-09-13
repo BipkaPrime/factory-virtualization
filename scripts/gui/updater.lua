@@ -45,13 +45,6 @@ player_index. In case of a collision (aka. for some reason you are trying to reg
 a second entry for a given player_index), the older entry is always destroyed. Also, if
 schema names do not match between the older and newer entries, the updater ensures that
 the older window is closed before deleting the entry.
-
-Everything related to this updater is located at:
-storage.gui_updater = {
-    array GuiUpdaterEntry[]: contains all registered entries, used as the ring buffer
-    lookup table<player_index, GuiUpdaterEntry> maps player index to their entries
-    next_index integeк points to the inxed in array that should be updated in the next iteration 
-}
 --]]
 
 ---A function used to update one gui window
@@ -65,6 +58,11 @@ storage.gui_updater = {
 ---@field gui_data gui_data
 ---@field player LuaPlayer player for which window is opened
 ---@field update_cycle integer how many times this entry was updated
+
+---@class GuiUpdater
+---@field array GuiUpdaterEntry[] ring buffer containing all entries
+---@field lookup table<integer, GuiUpdaterEntry> key is player index
+---@field next_index integer array pointer
 
 
 local GuiUpdater = {}
@@ -84,15 +82,13 @@ end
 ---@param entry GuiUpdaterEntry
 local function delete_entry(entry)
     local updater = storage.gui_updater
-    ---@type GuiUpdaterEntry[]
     local array = updater.array
-    ---@type table<integer, GuiUpdaterEntry>
     local lookup = updater.lookup
 
     -- replacing entry with the last element in the array
     local last_element = array[#array]
     local index = entry.array_index
-    array[index] = array[#array]
+    array[index] = last_element
     last_element.array_index = index
 
     -- deleting entry from both tables
@@ -111,7 +107,7 @@ local function unregister_entry(entry)
         if main_window and main_window.valid then
             main_window.destroy()
         end
-        gui_data.elements = nil
+        gui_data.elements = {}
     end
     delete_entry(entry)
 end
@@ -130,9 +126,7 @@ end
 ---@param player LuaPlayer assumed to be valid
 function GuiUpdater.register_gui(schema_name, gui_data, player)
     local updater = storage.gui_updater
-    ---@type GuiUpdaterEntry[]
     local array = updater.array
-    ---@type table<integer, GuiUpdaterEntry>
     local lookup = updater.lookup
 
     -- checking for collisions on player_index
@@ -173,18 +167,17 @@ function GuiUpdater.on_tick()
     -- getting entry we want to update this tick
     local index = updater.next_index
     if not array[index] then index = 1 end
-    ---@type GuiUpdaterEntry
     local entry = array[index]
+    updater.next_index = index + 1
 
-    -- removing entry from updater if player is not found
-    -- in case player was removed from the game or smth
+    -- checking that player is valid, otherwise deleting the entry
     local player = entry.player
     if not player.valid then
         unregister_entry(entry)
         return
     end
 
-    -- closing the window in case player disconnected
+    -- if player is not connected, closing the window
     if not player.connected then
         unregister_entry(entry)
         return
@@ -209,7 +202,6 @@ function GuiUpdater.on_tick()
     local update_cycle = entry.update_cycle
     update_function(gui_data, update_cycle)
     entry.update_cycle = update_cycle + 1
-    updater.next_index = index + 1
 end
 
 return GuiUpdater

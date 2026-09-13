@@ -7,12 +7,14 @@ Control center gui in "templates" mode can be used to manage compiled templates.
 Rename, delete compiled templates as well as view template data.
 --]]
 
----@class ControlCenterElements additional LuaGuiElements that can be used in "templates" mode
----@field inactive_template_selector LuaGuiElement|nil list-box used for inactive template selection
----@field rename_template_btn LuaGuiElement|nil button used to switch gui into rename_template submode
----@field delete_template_btn LuaGuiElement|nil button used to switch gui into delete_template submode
----@field active_template_selector LuaGuiElement|nil list-box used for active template selection
----@field confirm_template_rename_btn LuaGuiElement|nil button used to confirm template rename
+---@class ControlCenterElements additional LuaGuiElements used in "templates" mode
+---@field inactive_template_selector LuaGuiElement|nil list-box for inactive templates
+---@field inactive_template_update LuaGuiElement|nil button used to toggle updates
+---@field rename_template_btn LuaGuiElement|nil used to toggle rename_template submode
+---@field delete_template_btn LuaGuiElement|nil used to toggle delete_template submode
+---@field active_template_selector LuaGuiElement|nil list-box for active templates
+---@field active_template_update LuaGuiElement|nil button used to toggle updates
+---@field confirm_template_rename_btn LuaGuiElement|nil used to confirm template rename
 ---@field confirm_template_rename_label LuaGuiElement|nil label above confirm rename button
 ---@field template_routing_table LuaGuiElement|nil table used to display template routing
 ---@field template_routing_labels LuaGuiElement[]|nil contains all template routing labels 
@@ -23,6 +25,7 @@ Rename, delete compiled templates as well as view template data.
 ---@field template_submode string|nil submode the gui is currently in
 ---@field active_template_query string|nil search query for active template selector
 ---@field template_rename_name string|nil new template name when renaming template
+---@field template_updates boolean|nil true if selectors are updated on time
 
 
 local CommonGui = require("scripts.gui.common")
@@ -49,7 +52,17 @@ local template_submodes = {
 ---Updates inactive template selector according to gui_data
 ---@param gui_data ControlCenterData
 local function update_inactive_template_selector(gui_data)
-    local selector = gui_data.elements.inactive_template_selector
+    local elements = gui_data.elements
+    -- Updating button toggling selector updates
+    local button = elements.inactive_template_update
+    if not button or not button.valid then return end
+    local update_toggled = not not gui_data.template_updates
+    button.toggled = update_toggled
+    button.tooltip = (
+        update_toggled and CommonGui.updates_on or CommonGui.updates_off
+    )
+    -- Updating elements displayed in the selector
+    local selector = elements.inactive_template_selector
     if not selector or not selector.valid then return end
     local query = gui_data.inactive_template_query
     local options = TCCManager.get_inactive_template_names(query)
@@ -63,23 +76,25 @@ local function update_inactive_template_selector(gui_data)
     CommonGui.update_selector(selector, options, selected_option)
 end
 
----Adds selection widget for inactive templates. Widget consists of
----of "label", "textfield" for searching and "list-box" for selection.
+---Adds selection widget for inactive templates.
 ---@param parent LuaGuiElement
 ---@param gui_data ControlCenterData
 local function add_inactive_template_selection_widget(parent, gui_data)
-    local search, selector = CommonGui.add_selection_widget(
+    local search, selector, update_btn = CommonGui.add_selection_widget(
         parent,
         PREFIX .. "cc-inactive-template-search",
         PREFIX .. "cc-inactive-template-selector",
+        PREFIX .. "cc-template-update",
         {"cc-templates.inactive-templates"},
         180
     )
-    search.text = gui_data.inactive_template_query or ""
-    gui_data.elements.inactive_template_selector = selector
+    local elements = gui_data.elements
+    elements.inactive_template_selector = selector
+    elements.inactive_template_update = update_btn
     update_inactive_template_selector(gui_data)
-    -- scrolling to selected item
     CommonGui.scroll_to_selection(selector)
+    -- updating searchfield (only on creation)
+    search.text = gui_data.inactive_template_query or ""
 end
 
 -------------------------------- RENAME BUTTON --------------------------------
@@ -92,7 +107,9 @@ local function update_rename_template_button(gui_data)
     -- button is enabled if template is selected
     button.enabled = not not gui_data.selected_template
     -- button is toggled if gui is in "rename_template" submode
-    button.toggled = (gui_data.template_submode == template_submodes.rename_template)
+    button.toggled = (
+        gui_data.template_submode == template_submodes.rename_template
+    )
 end
 
 ---Adds "rename template" button to given parent element
@@ -119,7 +136,9 @@ local function update_delete_template_button(gui_data)
     -- button is enabled if template is selected
     button.enabled = not not gui_data.selected_template
     -- button is toggled if gui is in "delete_template" submode
-    button.toggled = (gui_data.template_submode == template_submodes.delete_template)
+    button.toggled = (
+        gui_data.template_submode == template_submodes.delete_template
+    )
 end
 
 ---Adds "delete template" button to given parent element
@@ -142,7 +161,17 @@ end
 ---Updates active template selector according to gui_data
 ---@param gui_data ControlCenterData
 local function update_active_template_selector(gui_data)
-    local selector = gui_data.elements.active_template_selector
+    local elements = gui_data.elements
+    -- Updating button toggling selector updates
+    local button = elements.active_template_update
+    if not button or not button.valid then return end
+    local update_toggled = not not gui_data.template_updates
+    button.toggled = update_toggled
+    button.tooltip = (
+        update_toggled and CommonGui.updates_on or CommonGui.updates_off
+    )
+    -- Updating elements displayed in the selector
+    local selector = elements.active_template_selector
     if not selector or not selector.valid then return end
     local query = gui_data.active_template_query
     local options = TCCManager.get_active_template_names(query)
@@ -156,23 +185,25 @@ local function update_active_template_selector(gui_data)
     CommonGui.update_selector(selector, options, selected_option)
 end
 
----Adds selection widget for active templates. Widget consists of
----of "label", "textfield" for searching and "list-box" for selection.
+---Adds selection widget for active templates.
 ---@param parent LuaGuiElement
 ---@param gui_data ControlCenterData
 local function add_active_template_selection_widget(parent, gui_data)
-    local search, selector = CommonGui.add_selection_widget(
+    local search, selector, update_btn = CommonGui.add_selection_widget(
         parent,
         PREFIX .. "cc-active-template-search",
         PREFIX .. "cc-active-template-selector",
+        PREFIX .. "cc-template-update",
         {"cc-templates.active-templates"},
         180
     )
-    search.text = gui_data.active_template_query or ""
-    gui_data.elements.active_template_selector = selector
+    local elements = gui_data.elements
+    elements.active_template_selector = selector
+    elements.active_template_update = update_btn
     update_active_template_selector(gui_data)
-    -- scrolling to selected item
     CommonGui.scroll_to_selection(selector)
+    -- updating searchfield (only on creation)
+    search.text = gui_data.active_template_query or ""
 end
 
 -------------------------------------------------------------------------------
@@ -194,7 +225,7 @@ local function add_general_info_section(parent, gui_data)
     local flow = section.add{type = "flow", direction = "vertical"}
     flow.style.vertical_spacing = 0
     -- Template name caption
-    local caption = {"cc-templates.template-name", template_name}
+    local caption = {"cc-templates.template-name", template_name or ""}
     flow.add{type = "label", caption = caption}
     -- Template complexity caption
     local _, drain = TCCManager.get_template_inputs(template_name)
@@ -235,7 +266,7 @@ local function construct_sprite_button_data(buffer_key, count)
     return data
 end
 
----Adds a sprite button table to given parent element displaying contents of buffer.
+---Adds a sprite button table displaying contents of template io buffer.
 ---@param parent LuaGuiElement
 ---@param buffer table<BufferKeyString, number>
 local function add_sprite_button_table(parent, buffer)
@@ -261,8 +292,10 @@ local function add_template_inputs_section(parent, gui_data)
         {"cc-templates.input-per-craft"}
     )
     -- sprite button table for item and fluid inputs
-    local tmpl_name = gui_data.selected_template
-    local inputs, energy_drain = TCCManager.get_template_inputs(tmpl_name)
+    local template_name = gui_data.selected_template
+    local inputs, energy_drain = TCCManager.get_template_inputs(
+        template_name
+    )
     add_sprite_button_table(section, inputs)
 
     -- labels describing energy demand
@@ -270,15 +303,19 @@ local function add_template_inputs_section(parent, gui_data)
     flow.style.vertical_spacing = 0
     -- total energy input label
     local total_energy = (inputs.electric_energy or 0) + energy_drain
-    local total_fmt = CommonGui.large_number_to_string(total_energy)
-    local total_caption = {"cc-templates.input-energy", total_fmt}
-    flow.add{type = "label", caption = total_caption}
+    local caption = {
+        "cc-templates.input-energy",
+        CommonGui.large_number_to_string(total_energy)
+    }
+    flow.add{type = "label", caption = caption}
     -- energy drain label
     local drain_fraction = (total_energy ~= 0) and (energy_drain / total_energy) or 0
-    local drain_fmt = CommonGui.large_number_to_string(energy_drain)
-    local percent_fmt = CommonGui.number_to_string(drain_fraction * 100, 2)
-    local drain_caption = {"cc-templates.energy-drain", drain_fmt, percent_fmt}
-    flow.add{type = "label", caption = drain_caption}
+    caption = {
+        "cc-templates.energy-drain",
+        CommonGui.large_number_to_string(energy_drain),
+        CommonGui.number_to_string(drain_fraction * 100, 2)
+    }
+    flow.add{type = "label", caption = caption}
 end
 
 ------------------------------ TEMPLATE OUTPUTS -------------------------------
@@ -293,14 +330,16 @@ local function add_template_outputs_section(parent, gui_data)
         {"cc-templates.output-per-craft"}
     )
     -- sprite button table for item and fluid outputs
-    local tmpl_name = gui_data.selected_template
-    local outputs = TCCManager.get_template_outputs(tmpl_name)
+    local template_name = gui_data.selected_template
+    local outputs = TCCManager.get_template_outputs(template_name)
     add_sprite_button_table(section, outputs)
 
     local energy_output = outputs["electric_energy"] or 0
-    local energy_fmt = CommonGui.large_number_to_string(energy_output)
-    local energy_caption = {"cc-templates.output-energy", energy_fmt}
-    section.add{type = "label", caption = energy_caption}
+    local caption = {
+        "cc-templates.output-energy",
+        CommonGui.large_number_to_string(energy_output)
+    }
+    section.add{type = "label", caption = caption}
 end
 
 ------------------------- TEMPLATE CONSTRUCTION COST --------------------------
@@ -315,11 +354,12 @@ local function add_template_build_cost_section(parent, gui_data)
         {"cc-templates.construction-cost"}
     )
     -- sprite button table for building materials
-    local tmpl_name = gui_data.selected_template
-    local build_cost = TCCManager.get_template_building_cost(tmpl_name)
+    local template_name = gui_data.selected_template
+    local build_cost = TCCManager.get_template_building_cost(
+        template_name
+    )
     add_sprite_button_table(section, build_cost)
 end
-
 
 --------------------------- TEMPLATE ROUTING TABLE ----------------------------
 
@@ -342,11 +382,13 @@ local function fill_template_routing_row(
     is_transmit,
     is_receive
 )
+    local transmit_caption = is_transmit and yes_caption or no_caption
+    local receive_caption = is_receive and yes_caption or no_caption
     if #labels > used_labels then
         -- there are enough labels: updating existing
         labels[used_labels + 1].caption = cluster_name
-        labels[used_labels + 2].caption = is_transmit and yes_caption or no_caption
-        labels[used_labels + 3].caption = is_receive and yes_caption or no_caption
+        labels[used_labels + 2].caption = transmit_caption
+        labels[used_labels + 3].caption = receive_caption
     else
         -- there are not enough labels: creating new ones
         table.insert(
@@ -360,14 +402,14 @@ local function fill_template_routing_row(
             labels,
             routing_table.add{
                 type = "label",
-                caption = is_transmit and yes_caption or no_caption
+                caption = transmit_caption
             }
         )
         table.insert(
             labels,
             routing_table.add{
                 type = "label",
-                caption = is_receive and yes_caption or no_caption
+                caption = receive_caption
             }
         )
     end
@@ -377,11 +419,12 @@ end
 ---Updates section used to display template routing
 ---@param gui_data ControlCenterData
 local function update_template_routing_table(gui_data)
-    local routing_table = gui_data.elements.template_routing_table
+    local elements = gui_data.elements
+    local routing_table = elements.template_routing_table
     if not routing_table or not routing_table.valid then return end
     -- all labels are considered to be valid as long as routing table is
     ---@type LuaGuiElement[]
-    local labels = gui_data.elements.template_routing_labels
+    local labels = elements.template_routing_labels
     local used_labels = 0
 
     local template_name = gui_data.selected_template
@@ -494,8 +537,9 @@ local function add_template_routing_table(parent, gui_data)
         caption = {"cc-templates.receive"},
         style = "bold_label"
     }
-    gui_data.elements.template_routing_table = routing_table
-    gui_data.elements.template_routing_labels = {}
+    local elements = gui_data.elements
+    elements.template_routing_table = routing_table
+    elements.template_routing_labels = {}
     update_template_routing_table(gui_data)
 end
 
@@ -525,11 +569,13 @@ local function add_rename_template_section(parent, gui_data)
         parent,
         {"cc-templates.confirm-template-rename"}
     )
-    -- old name label
-    local old_name = gui_data.selected_template or "None"
-    local old_name_caption = {"cc-templates.old-name", old_name}
-    section.add{type = "label", caption = old_name_caption}
-    -- new name textfield
+    -- Old name label
+    local caption = {
+        "cc-templates.old-name",
+        gui_data.selected_template or "—"
+    }
+    section.add{type = "label", caption = caption}
+    -- New name textfield
     local h_flow = section.add{type = "flow", direction = "horizontal"}
     h_flow.style.vertical_align = "center"
     h_flow.add{type = "label", caption = {"cc-templates.new-name"}}
@@ -539,13 +585,11 @@ local function add_rename_template_section(parent, gui_data)
         lose_focus_on_confirm = true,
         text = gui_data.template_rename_name or ""
     }
-    -- confirm button and status label above
+    -- Confirm button and status label above
     local flow = section.add{type = "flow", direction = "vertical"}
     local flow_style = flow.style
     flow_style.horizontally_stretchable = true
     flow_style.horizontal_align = "right"
-
-    -- button and status label
     local label = flow.add{type = "label"}
     label.style.font_color = CommonGui.red
     local button = flow.add{
@@ -555,8 +599,9 @@ local function add_rename_template_section(parent, gui_data)
         style = "confirm_button",
         tooltip = {"cc-templates.confirm-rename-tooltip"},
     }
-    gui_data.elements.confirm_template_rename_btn = button
-    gui_data.elements.confirm_template_rename_label = label
+    local elements = gui_data.elements
+    elements.confirm_template_rename_btn = button
+    elements.confirm_template_rename_label = label
     update_rename_template_section(gui_data)
 end
 
@@ -573,26 +618,23 @@ local function add_delete_template_section(parent, gui_data)
 
     -- General warning for all templates
     local template_name = gui_data.selected_template
-    local general_caption = {
+    local caption = {
         "cc-templates.deletion-warning-general",
-        template_name
+        template_name or "—"
     }
-    local general_label = section.add{type = "label", caption = general_caption}
+    local general_label = section.add{type = "label", caption = caption}
     general_label.style.single_line = false
 
     -- Additional warning if template is active
     if TCCManager.is_template_active(template_name) then
         local transmit = TCCManager.get_transmit_cluster_uuids(template_name)
         local receive = TCCManager.get_receive_cluster_uuids(template_name)
-        local active_caption = {
+        caption = {
             "cc-templates.deletion-warning-active",
             #transmit,
             #receive,
         }
-        local active_label = section.add{
-            type = "label",
-            caption = active_caption
-        }
+        local active_label = section.add{type = "label", caption = caption}
         active_label.style.single_line = false
     end
 
@@ -636,6 +678,8 @@ local submode_constructors = {
 ---@param gui_data ControlCenterData
 function CCTemplates.construct_right_side(gui_data)
     local right_frame = gui_data.elements.right_frame
+
+    -- If template is selected, displaying template information
     if gui_data.selected_template then
         add_general_info_section(right_frame, gui_data)
         add_template_inputs_section(right_frame, gui_data)
@@ -643,29 +687,15 @@ function CCTemplates.construct_right_side(gui_data)
         add_template_build_cost_section(right_frame, gui_data)
         add_template_routing_table(right_frame, gui_data)
     end
+
     ---If sumbode is selected, displaying corresponding section
     local submode = gui_data.template_submode
     if submode then
         local constructor = submode_constructors[submode]
-        if constructor then
-            constructor(right_frame, gui_data)
-            right_frame.scroll_to_bottom()
-        end
+        constructor(right_frame, gui_data)
+        right_frame.scroll_to_bottom()
     end
 end
-
----Time based updater for the window in templates mode
----@param gui_data ControlCenterData
----@param update_cycle integer
-function CCTemplates.on_tick_updater(gui_data, update_cycle)
-    if update_cycle % 30 == 0 then
-        update_template_routing_table(gui_data)
-    end
-end
-
--------------------------------------------------------------------------------
----------------------------- GUI STATE MANAGEMENT -----------------------------
--------------------------------------------------------------------------------
 
 ---Updates all elements in the left frame, rebuilds the right frame
 ---@param gui_data ControlCenterData
@@ -678,6 +708,35 @@ local function update_left_rebuild_right(gui_data)
     CCTemplates.construct_right_side(gui_data)
 end
 
+---Time based updater for the window in templates mode
+---@param gui_data ControlCenterData
+---@param update_cycle integer
+function CCTemplates.on_tick_updater(gui_data, update_cycle)
+    -- Verifying that selected template actually exists
+    local selected = gui_data.selected_template
+    if selected and not TCCManager.get_template_uuid(selected) then
+        gui_data.selected_template = nil
+        gui_data.template_submode = nil
+        update_left_rebuild_right(gui_data)
+        return
+    end
+
+    -- Updating template routing table if template is selected
+    if update_cycle % 30 == 0 and gui_data.selected_template then
+        update_template_routing_table(gui_data)
+    end
+
+    -- Updating template selectors if updates are enabled
+    if update_cycle % 60 == 0 and gui_data.template_updates then
+        update_inactive_template_selector(gui_data)
+        update_active_template_selector(gui_data)
+    end
+end
+
+-------------------------------------------------------------------------------
+---------------------------- GUI STATE MANAGEMENT -----------------------------
+-------------------------------------------------------------------------------
+
 ---Used to set template submode to provided value. If provided value
 ---matches with current submode, it's cleared instead.
 ---@param gui_data ControlCenterData
@@ -686,6 +745,9 @@ local function toggle_template_submode(gui_data, new_submode)
     if gui_data.template_submode == new_submode then
         gui_data.template_submode = nil
     else
+        if new_submode == template_submodes.rename_template then
+            gui_data.template_rename_name = nil
+        end
         gui_data.template_submode = new_submode
     end
     update_left_rebuild_right(gui_data)
@@ -711,30 +773,7 @@ end
 -------------------- LEFT FRAME CONTROL ELEMENTS: HANDLERS --------------------
 -------------------------------------------------------------------------------
 
-------------------------- INACTIVE TEMPLATE SELECTION -------------------------
-
----Handles inactive template textfield being changed
----@param event EventData.on_gui_text_changed
-function CCTemplates.handle_inactive_template_search(event)
-    ---@type ControlCenterData
-    local gui_data = storage.control_center[event.player_index]
-    gui_data.inactive_template_query = event.text
-    update_inactive_template_selector(gui_data)
-end
-
----Handles inactive template selector being changed
----@param event EventData.on_gui_selection_state_changed
-function CCTemplates.handle_inactive_template_selector(event)
-    local selector = event.element
-    local new_selection = selector.get_item(selector.selected_index)
-    toggle_template_selection(
-        storage.control_center[event.player_index],
-        ---@diagnostic disable-next-line
-        new_selection
-    )
-end
-
--------------------------------- RENAME BUTTON --------------------------------
+----------------------------------- BUTTONS -----------------------------------
 
 ---Handles "rename template" button being pressed
 ---@param event EventData.on_gui_click
@@ -745,8 +784,6 @@ function CCTemplates.handle_rename_template_button(event)
     )
 end
 
--------------------------------- DELETE BUTTON --------------------------------
-
 ---Handles "delete template" button being pressed
 ---@param event EventData.on_gui_click
 function CCTemplates.handle_delete_template_button(event)
@@ -756,20 +793,36 @@ function CCTemplates.handle_delete_template_button(event)
     )
 end
 
--------------------------- ACTIVE TEMPLATE SELECTION --------------------------
+----------------------------- TEMPLATE SELECTION ------------------------------
+
+---Handles button, which toggles time-based updates for template selectors
+---@param event EventData.on_gui_click
+function CCTemplates.handle_template_updates_btn(event)
+    local gui_data = storage.control_center[event.player_index]
+    gui_data.template_updates = not gui_data.template_updates
+    update_inactive_template_selector(gui_data)
+    update_active_template_selector(gui_data)
+end
+
+---Handles inactive template textfield being changed
+---@param event EventData.on_gui_text_changed
+function CCTemplates.handle_inactive_template_search(event)
+    local gui_data = storage.control_center[event.player_index]
+    gui_data.inactive_template_query = event.text
+    update_inactive_template_selector(gui_data)
+end
 
 ---Handles active template textfield being changed
 ---@param event EventData.on_gui_text_changed
 function CCTemplates.handle_active_template_search(event)
-    ---@type ControlCenterData
     local gui_data = storage.control_center[event.player_index]
     gui_data.active_template_query = event.text
     update_active_template_selector(gui_data)
 end
 
----Handles active template selector being changed
+---Handles selected template being changed
 ---@param event EventData.on_gui_selection_state_changed
-function CCTemplates.handle_active_template_selector(event)
+function CCTemplates.handle_template_selection_change(event)
     local selector = event.element
     local new_selection = selector.get_item(selector.selected_index)
     toggle_template_selection(
@@ -818,7 +871,6 @@ end
 ---@param event EventData.on_gui_click
 function CCTemplates.handle_template_deletion_confirm_btn(event)
     local player_index = event.player_index
-    ---@type ControlCenterData
     local gui_data = storage.control_center[player_index]
     local template_name = gui_data.selected_template
     local status, reason = TCCManager.delete_template(template_name)
@@ -829,6 +881,5 @@ function CCTemplates.handle_template_deletion_confirm_btn(event)
     gui_data.template_submode = nil
     update_left_rebuild_right(gui_data)
 end
-
 
 return CCTemplates
