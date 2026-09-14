@@ -1,127 +1,121 @@
 --[[
-Virtualization clusters (also reffered to as clusters) are simulated "factories".
-Their purpose is to produce (craft) things from other things. Currently clusters
-can consume and produce items, fluids and electric energy. The rate of production and
-consumption is defined by template assigned to the cluster.
+Virtualization clusters (or clusters for short) are simulated "factories".
+Their purpose is to produce (craft) things from other things. Currently
+clusters can consume and produce items, fluids and electric energy. The rate
+of production and consumption is defined by template assigned to the cluster.
 
 Clusters are formed from entities (buildings) added by this mod. For example,
-cluster item IOs transfer items between physical factorio world and cluster internal
-buffer (which is virtual and exists as a table in storage). Virtualization mainframes
-provide crafting power to the cluster. If cluster has X crafting power, that means
-it can perform X crafts per second. Cluster storage units provide size to cluster
-internal buffers. There are other buildings that can be cluster members too.
+cluster item IOs transfer items between physical factorio world and cluster
+internal buffer (which is virtual and exists as a table in storage).
+Virtualization mainframes provide crafting power to the cluster. If cluster
+has X crafting power, that means it can perform X crafts per second. Cluster
+storage units provide size to cluster internal buffers.
+There are other buildings that can be cluster members too.
 
-Clusters are somewhat alike radio frequencies. Creation/rename/deletion of a cluster
-is requested by the player (and only by the player). Cluster is bound to a specific
-surface on creation (surface is specified by the player). 
+Clusters are somewhat alike radio frequencies. Creation/rename/deletion
+of a cluster is requested by the player (and only by the player).
+Cluster is bound to the surface specified by the player on creation.
 
 This file contains following logic:
 1. Cluster management (create/rename/delete cluster)
-2. Cluster member management (add/remove member; add/remove member crafting power; etc)
-3. Cluster logistics requests (add to input/remove from output, etc)
-4. Other general requests (check cluster exist, get all optimal clusters, etc.)
-5. On-tick cluster processor.
+2. Member management (add/remove member; add/remove crafting power; etc)
+3. Cluster logistics requests (add to input/remove from output; etc)
+4. General requests (check cluster existance; get all optimal clusters; etc)
+5. On-tick crafting processor.
 
 Cluster-processor relies on entity-processor in cluster member management.
-Note that any cluster member can either be operational (meaning that everything
-is ok with this entity and it can operate) or not operational. This is also controlled
-by entity processor. Operational criteria is different among different entities.
-This inevitably leads to significant interconnection between cluster processor and
-entity processor.
+Note that any cluster member can either be operational (meaning that
+everything is ok with this entity and it can operate) or not operational.
+This is also controlled by entity processor. Operational criteria is
+different among different entities. This inevitably leads to significant
+interconnection between cluster processor and entity processor.
 
-Cluster energy consumption (apart from template energy "per_craft") also depends on
-how far apart cluster members are from its center. The idea behind this is to
-encourage players to build compact clusters. It's called the "decentralization loss".
-It's applied multiplicatively to cluster energy required per craft.
+Cluster energy consumption (apart from template energy "per_craft")
+also depends on how far apart cluster members are from its center.
+The idea behind this is to encourage players to build compact clusters.
+It's called the "decentralization loss" and is applied multiplicatively
+to cluster energy required per craft.
 
-Decentralization loss is handled as follows. When building is added to the cluster it has
-a weight associated with it. Center of a cluster is a weighted average of coordinates of
-all its members. Loss for one cluster member is calculated using the formula:
-BASE_COST*(dist(center, member_pos))^2. Total loss is the weighted average of losses
-for each cluster member. Total value of decentralization loss can be calculated in O(1)
-time if following values are known: total cluster weight, coordinates of cluster center,
-weighted sum of (x^2 + y^2) for all members. For this reason each cluster
-contains fields: "sum_x", "sum_y", "total_weight", "sum_squares".
+Decentralization loss is handled as follows. When building is added
+to the cluster it has a weight associated with it. Center of a cluster
+is a weighted average of coordinates of all its members. Loss for one
+cluster member is calculated using the formula:
+BASE_COST*(dist(center, member_pos))^2. Total loss is the weighted average
+of losses for each cluster member. Total value of decentralization loss
+can be calculated in O(1) time if following values are known: total cluster
+weight, coordinates of cluster center, weighted sum of (x^2 + y^2)
+for all members. For this reason each cluster table contains fields:
+"sum_x", "sum_y", "total_weight", "sum_squares".
 
 All cluster data is located at storage.clusters (see ClusterStorage class).
 --]]
 
-
----Describes one stored type (item/fluid/energy) in cluster buffer.
+---Describes one stored resource in cluster buffer.
 ---@class ClusterBufferEntry
 ---@field current number currently stored amount
 ---@field per_craft number amount required per 1 craft
 ---@field maximum number largest amount that can be stored
 ---@field ls_possible_crafts number number of crafts this entry could allow
 ---at the time of last craft
----@field ls_input_flow number amount that entered the buffer in the last second
----@field ls_output_flow number amount that left the buffer in the last second
----@field cs_flow number amount that entered(input buffer)/exited(output buffer)
----from the time of last craft
+---@field ls_input_flow number amount entered the buffer in the last second
+---@field ls_output_flow number amount left the buffer in the last second
+---@field cs_flow number amount that entered (input buffer) or exited
+---(output buffer) from the time of last craft
 ---@field type "item"|"fluid"|"energy"
----@field sprite string used for displaying entry information in the GUI
----@field tooltip LocalisedString used for displaying entry information in the GUI
----@field item_id table|nil {name = name, quality = quality} only present for items
+---@field sprite string used to display information in the GUI
+---@field tooltip LocalisedString used to display information in the GUI
+---@field item_id table|nil {name = name, quality = quality} only for items
 ---@field fluid_name string|nil only present for fluids
 
 ---@class MemberBufferCapacity
 ---@field io_mode "input"|"output" where capacity is assigned
----@field buffer_key BufferKeyString where specifically capacity is assigned
+---@field buffer_key BufferKeyString where capacity is assigned
 ---@field amount number how much capacity is assigned
 
----Contains data for one cluster member
 ---@class ClusterMemberData
 ---@field x_pos number x-coordinate of this entity
 ---@field y_pos number y-coordinate of this entity
 ---@field weight number weight of this entity
 ---@field name string name of this entity
----@field crafting_power number|nil amount of crafting power entity is contributing
----@field buffer_capacity MemberBufferCapacity|nil
+---@field crafting_power number|nil assigned crafting power
+---@field buffer_capacity MemberBufferCapacity|nil assigned buffer capacity
 
----Contains status (operational?) statistics over one building name in the cluster 
+---Contains statistics for one member type in the cluster
 ---@class MemberCountsEntry
----@field total integer total number of buildings in this cluster
----@field operational integer number of operational buildings in this cluster
----@field problems table<integer, true> key is unit_number, contains all buildings
----that are included in total, but are not operational
+---@field total integer total number of members of this type
+---@field operational integer number of operational members of this type
+---@field problems table<integer, true> contains keys of non-operational
 
 ---Describes one virtualization cluster
 ---@class ClusterData
 ---@field array_index integer position of this cluster in the data structure
 ---@field cluster_uuid string unique cluster identifier. Assigned at creation
 ---@field surface_index integer identifier of the surface cluster is bound to
----@field item_statistics LuaFlowStatistics for player force on the surface
----cluster is bound to
----@field fluid_statistics LuaFlowStatistics for player force on the surface
----cluster is bound to
+---@field item_statistics LuaFlowStatistics belongs to player force
+---@field fluid_statistics LuaFlowStatistics belongs to player force
 ---
 ---Fields directly related to cluster members (add/remove/status change)
----@field members table<integer, ClusterMemberData> key is entity.unit_number.
----contains data for all cluster members
----@field member_counts table<string, MemberCountsEntry> member status statistics
----@field total_members integer total number of members in this cluster
----@field operational_members integer number of operational members in this cluster
+---@field members table<integer, ClusterMemberData> key is unit_number
+---@field member_counts table<string, MemberCountsEntry> member statistics
+---@field total_members integer total number of members
+---@field operational_members integer number of operational members
 ---@field sum_x number weighted sum of x-coordinates of all members
 ---@field sum_y number weighted sum of y coordinates of all members
 ---@field total_weight number sum of weights of all members
----@field sum_squares number weighted sum of squares (x^2 + y^2)
----of all member positions
+---@field sum_squares number weighted sum of squares (x^2 + y^2) of members
 ---@field decentralization_loss number multiplier of energy per craft
----of this cluster
----@field crafting_power number maximum number of crafts cluster can produce per second
----@field power_contributors table<integer, true> unit numbers of all members with
----assigned crafting power
+---@field crafting_power number number of crafts cluster can produce per second
+---@field power_contributors table<integer, true> key is unit number.
 ---@field buffer_capacity table<"input"|"output", table<BufferKeyString, integer>>
----contains maximum buffer capacity added to this cluster. Controlled by
----adding/removing member buffer capacity
+---contains buffer capacity added to this cluster.
 ---
 ---Fields related to assigned template or changed during processing 
----@field template_uuid string|nil identifier of template assigned to this cluster
----@field build_cost table<BufferKeyString, number> items for template construction
----@field input table<BufferKeyString, ClusterBufferEntry> cluster input buffer
----@field output table<BufferKeyString, ClusterBufferEntry> cluster output buffer
----@field energy_per_craft number electric energy consumption per craft, calculated
----before applying decentralization loss.
+---@field template_uuid string|nil uuid of assigned template
+---@field build_cost table<BufferKeyString, number> template construction cost
+---@field input table<BufferKeyString, ClusterBufferEntry> input buffer
+---@field output table<BufferKeyString, ClusterBufferEntry> output buffer
+---@field energy_per_craft number electric energy consumption per craft before
+---applying decentralization loss.
 ---@field ls_crafts number crafts performed in the last crafting cycle
 
 ---@class ClusterStorage
@@ -133,10 +127,10 @@ All cluster data is located at storage.clusters (see ClusterStorage class).
 
 local TCCManager = require("scripts.simulation.tcc-manager")
 local VSurfaceManager = require("scripts.world.vsurface-manager")
+local Misc = require("scripts.misc")
 
 
 local ClusterProcessor = {}
-
 
 -------------------------------------------------------------------------------
 ----------------------------- CLUSTER MANAGEMENT ------------------------------
@@ -220,13 +214,15 @@ function ClusterProcessor.create_cluster(cluster_name, surface_name)
     local player_force = game.forces["player"]
     local array = clusters.array
     local array_index = #array + 1
+    local item_stat = player_force.get_item_production_statistics(surface)
+    local fluid_stat = player_force.get_fluid_production_statistics(surface)
     ---@type ClusterData
     local cluster_data = {
         array_index = array_index,
         cluster_uuid = cluster_uuid,
         surface_index = surface_index,
-        item_statistics = player_force.get_item_production_statistics(surface),
-        fluid_statistics = player_force.get_fluid_production_statistics(surface),
+        item_statistics = item_stat,
+        fluid_statistics = fluid_stat,
         members = {},
         member_counts = {},
         total_members = 0,
@@ -348,6 +344,29 @@ function ClusterProcessor.rename_cluster(old_name, new_name)
     return true
 end
 
+---Deletes provided cluster from the data structure.
+---Assuming that this cluster actually exists in the structure.
+---@param cluster_data ClusterData
+local function delete_cluster(cluster_data)
+    local cluster_uuid = cluster_data.cluster_uuid
+    local clusters = storage.clusters
+    -- Deleting cluster from the array: replacing it with last element
+    local array = clusters.array
+    local array_index = cluster_data.array_index
+    local last_element = array[#array]
+    array[array_index] = last_element
+    last_element.array_index = array_index
+    array[#array] = nil
+    -- Deleting cluster from all other tables
+    clusters.lookup[cluster_uuid] = nil
+    local uuid_to_name = clusters.uuid_to_name
+    local cluster_name = uuid_to_name[cluster_uuid]
+    clusters.name_to_uuid[cluster_name] = nil
+    uuid_to_name[cluster_uuid] = nil
+    -- deleting template routing associated with this cluster
+    TCCManager.remove_cluster_routing(cluster_uuid)
+end
+
 ---Attempts to deletes provided cluster from storage.
 ---Cluster deletion is a player request.
 ---@param cluster_name string|nil cluster display name
@@ -366,24 +385,8 @@ function ClusterProcessor.delete_cluster(cluster_name)
     if not cluster_uuid then
         return false, {"cluster-processor.deletion-error-no-data"}
     end
-
-    -- Data is found: erasing it from all tables
-    local lookup = clusters.lookup
-    local cluster_data = lookup[cluster_uuid]
-    -- deleting cluster from the array: replacing it with last element
-    local array = clusters.array
-    local array_index = cluster_data.array_index
-    local last_element = array[#array]
-    array[array_index] = last_element
-    last_element.array_index = array_index
-    array[#array] = nil
-    -- deleting cluster data from all other tables
-    lookup[cluster_uuid] = nil
-    name_to_uuid[cluster_name] = nil
-    clusters.uuid_to_name[cluster_uuid] = nil
-    -- deleting template routing associated with this cluster
-    TCCManager.remove_cluster_routing(cluster_uuid)
-
+    -- Data is found: erasing it from the structure
+    delete_cluster(clusters.lookup[cluster_uuid])
     return true
 end
 
@@ -417,8 +420,12 @@ local function update_decentralization_loss(cluster)
         -- weighted sum of (x^2 + y^2) of all members
         local sum_squares = cluster.sum_squares
         -- sum of weight*(dist(member_pos, cluster_center))^2 for all members
-        local total_distance_squared = sum_squares - (sum_x^2 + sum_y^2) / weight
-        cluster.decentralization_loss = dc_loss_base * total_distance_squared / weight
+        local total_distance_squared = (
+            sum_squares - (sum_x^2 + sum_y^2) / weight
+        )
+        cluster.decentralization_loss = (
+            dc_loss_base * total_distance_squared / weight
+        )
     end
     update_cluster_energy_demand(cluster)
 end
@@ -427,8 +434,8 @@ end
 ---of entity in the entity-processor.
 ---@param entity LuaEntity assumed to be valid (checked in entity-processor)
 ---@param cluster_uuid string unique cluster identifier
----@param weight number weight of this entity (used in cluster center calculation)
----@return boolean status true if entity was added successfully or found in cluster.
+---@param weight number weight of this entity (used to get cluster center)
+---@return boolean status true if entity was added or was found in cluster
 function ClusterProcessor.add_member_to_cluster(entity, cluster_uuid, weight)
     local cluster = storage.clusters.lookup[cluster_uuid]
     if not cluster then return false end
@@ -481,9 +488,8 @@ function ClusterProcessor.add_member_to_cluster(entity, cluster_uuid, weight)
     return true
 end
 
----Removes entity from cluster given its unit number. Entity can already be invalid
----when this function is called. Intended use case: deinitialization of an entity
----in the entity-processor.
+---Removes entity from cluster given its unit number.
+---Entity can be invalid when this function is called.
 ---@param cluster_uuid string unique cluster identifier
 ---@param unit_number integer unique entity identifier
 function ClusterProcessor.remove_member_from_cluster(cluster_uuid, unit_number)
@@ -544,8 +550,7 @@ function ClusterProcessor.remove_member_from_cluster(cluster_uuid, unit_number)
     update_decentralization_loss(cluster)
 end
 
----Marks unit number operational in the given cluster. Intended use case: during
----initialization or on-tick processing in the entity-processor.
+---Marks unit number operational in the given cluster.
 ---@param cluster_uuid string unique cluster identifier
 ---@param unit_number integer unique entity identifier
 function ClusterProcessor.mark_member_operational(cluster_uuid, unit_number)
@@ -568,8 +573,7 @@ function ClusterProcessor.mark_member_operational(cluster_uuid, unit_number)
     cluster.operational_members = cluster.operational_members + 1
 end
 
----Marks unit number not operational in the given cluster. Intended use case:
----during on-tick processing in the entity-processor.
+---Marks unit number not operational in the given cluster.
 ---@param cluster_uuid string unique cluster identifier
 ---@param unit_number integer unique entity identifier
 function ClusterProcessor.mark_member_not_operational(cluster_uuid, unit_number)
@@ -592,12 +596,16 @@ function ClusterProcessor.mark_member_not_operational(cluster_uuid, unit_number)
     cluster.operational_members = cluster.operational_members - 1
 end
 
----Assignes crafting power to the given unit number. Intended use case:
----during on-tick processing in the entity-processor.
+---Assignes crafting power to the given unit number.
+---Does nothing if member already has power assigned.
 ---@param cluster_uuid string unique cluster identifier
 ---@param unit_number integer unique entity identifier
----@param amount number how much crafting power should be added
-function ClusterProcessor.assign_member_crafting_power(cluster_uuid, unit_number, amount)
+---@param amount number how much crafting power should be assigned
+function ClusterProcessor.assign_member_crafting_power(
+    cluster_uuid,
+    unit_number,
+    amount
+)
     local cluster = storage.clusters.lookup[cluster_uuid]
     if not cluster then return end
     local member_data = cluster.members[unit_number]
@@ -610,8 +618,7 @@ function ClusterProcessor.assign_member_crafting_power(cluster_uuid, unit_number
     cluster.power_contributors[unit_number] = true
 end
 
----Removes crafting power assigned to the given unit number. Intended use case:
----during on-tick processing in the entity-processor.
+---Removes crafting power assigned to the given unit number.
 ---@param cluster_uuid string unique cluster identifier
 ---@param unit_number integer unique entity identifier
 function ClusterProcessor.remove_member_crafting_power(cluster_uuid, unit_number)
@@ -622,15 +629,20 @@ function ClusterProcessor.remove_member_crafting_power(cluster_uuid, unit_number
     if not member_data then return end
     -- member does not have assigned crafting power: return
     if not member_data.crafting_power then return end
-    cluster.crafting_power = cluster.crafting_power - member_data.crafting_power
-    -- avoiding potential float inaccuracies
-    if cluster.crafting_power < 1e-6 then cluster.crafting_power = 0 end
-    member_data.crafting_power = nil
+    -- Removing assigned crafting power
     cluster.power_contributors[unit_number] = nil
+    if next(cluster.power_contributors) then
+        cluster.crafting_power = (
+            cluster.crafting_power - member_data.crafting_power
+        )
+    else
+        -- avoiding potential float inaccuracies
+        cluster.crafting_power = 0
+    end
+    member_data.crafting_power = nil
 end
 
----Assignes buffer capacity to the given unit number. Intended use case:
----during on-tick processing in the entity-processor.
+---Assignes buffer capacity to the given unit number.
 ---@param cluster_uuid string unique cluster identifier
 ---@param unit_number integer unique entity identifier
 ---@param buffer_key BufferKeyString buffer entry identifier
@@ -659,21 +671,20 @@ function ClusterProcessor.assign_member_buffer_capacity(
     }
     -- Assigning buffer capacity to cluster (updating buffer_capacity field)
     local io_section = cluster.buffer_capacity[io_mode]
-    if io_section[buffer_key] then
-        io_section[buffer_key] = io_section[buffer_key] + amount
-    else
-        io_section[buffer_key] = amount
-    end
+    local curr_capacity = io_section[buffer_key] or 0
+    io_section[buffer_key] = curr_capacity + amount
     -- Updating capacity of real cluster buffer if entry exists
     local buffer_entry = cluster[io_mode][buffer_key]
     if buffer_entry then buffer_entry.maximum = io_section[buffer_key] end
 end
 
----Removes buffer capacity assigned to the given unit number. Intended use case:
----during on-tick processing in the entity-processor.
+---Removes buffer capacity assigned to the given unit number.
 ---@param cluster_uuid string unique cluster identifier
 ---@param unit_number integer unique entity identifier
-function ClusterProcessor.remove_member_buffer_capacity(cluster_uuid, unit_number)
+function ClusterProcessor.remove_member_buffer_capacity(
+    cluster_uuid,
+    unit_number
+)
     local cluster = storage.clusters.lookup[cluster_uuid]
     if not cluster then return end
     local member_data = cluster.members[unit_number]
@@ -684,14 +695,14 @@ function ClusterProcessor.remove_member_buffer_capacity(cluster_uuid, unit_numbe
     if not assigned_capacity then return end
     member_data.buffer_capacity = nil
 
-    -- removing buffer capacity from cluster (updating buffer_capacity field)
+    -- removing buffer capacity from cluster
     local io_mode = assigned_capacity.io_mode
     local buffer_key = assigned_capacity.buffer_key
     local io_section = cluster.buffer_capacity[io_mode]
     io_section[buffer_key] = io_section[buffer_key] - assigned_capacity.amount
     if io_section[buffer_key] < 1e-6 then io_section[buffer_key] = nil end
 
-    -- removing capacity from real buffer entry if it exists
+    -- removing capacity from buffer entry if it exists
     local buffer_entry = cluster[io_mode][buffer_key]
     if buffer_entry then buffer_entry.maximum = io_section[buffer_key] or 0 end
 end
@@ -748,14 +759,12 @@ end
 ---@return number voided_amount number of voided items
 function ClusterProcessor.void_overflow(buffer_entry, max_amount, threshold)
     local current_amount = buffer_entry.current
-    ---Calculating target delta: how much should be voided from current amount in
-    ---order to make buffer fullness be equal to threshold.
+    ---Calculating target delta: how much should be voided from current 
+    ---amount in order to make buffer fullness be equal to threshold.
     local target_delta = current_amount - buffer_entry.maximum * threshold
-    -- Accounting for max_amount and rounding delta ensuring that
-    -- only whole amount can be voided
-    local delta = math.floor(math.min(target_delta, max_amount))
+    local delta = math.min(target_delta, max_amount)
     -- can not void if delta is not positive
-    if delta < 1 then return 0 end
+    if delta <= 0 then return 0 end
     buffer_entry.current = buffer_entry.current - delta
     return delta
 end
@@ -774,7 +783,7 @@ local function is_cluster_optimal(cluster)
         return false
     end
     local crafting_power = cluster.crafting_power
-    -- checking that cluster has crafting power and using it
+    -- checking that cluster has crafting power and is using it
     if crafting_power == 0 or crafting_power > cluster.ls_crafts then
         return false
     end
@@ -920,7 +929,10 @@ end
 ---@return integer|nil surface_index
 ---@return number|nil pos_x
 ---@return number|nil pos_y
-function ClusterProcessor.get_not_operational_position(cluster_name, entity_name)
+function ClusterProcessor.get_not_operational_position(
+    cluster_name,
+    entity_name
+)
     local cluster = get_cluster_by_name(cluster_name)
     -- cluster not found or name was not provided
     if not cluster then return end
@@ -963,7 +975,7 @@ function ClusterProcessor.get_cluster_energy_demand(cluster_name)
     local cluster = get_cluster_by_name(cluster_name)
     if not cluster then return 0, 1 end
     local max_energy = cluster.energy_per_craft * cluster.crafting_power
-    local mult = cluster.decentralization_loss + 1
+    local mult = 1 + cluster.decentralization_loss
     return max_energy, mult
 end
 
@@ -995,11 +1007,14 @@ end
 function ClusterProcessor.get_cluster_center(cluster_name)
     local cluster = get_cluster_by_name(cluster_name)
     if not cluster then return end
-
     local weight = cluster.total_weight
-    local pos_x = (weight ~= 0) and (cluster.sum_x / weight) or 0
-    local pos_y = (weight ~= 0) and (cluster.sum_y / weight) or 0
-    return cluster.surface_index, pos_x, pos_y
+    if weight == 0 then
+        return cluster.surface_index, 0, 0
+    else
+        local pos_x = cluster.sum_x / weight
+        local pos_y = cluster.sum_y / weight
+        return cluster.surface_index, pos_x, pos_y
+    end
 end
 
 ------------------------------ REQUESTS BY UUID -------------------------------
@@ -1123,6 +1138,7 @@ local function set_assigned_template(cluster, template)
         create_buffer_entry(cluster, "output", buffer_key, per_craft)
     end
 
+    -- dropping craftin power to zero since template changed
     drop_crafting_power(cluster)
 end
 
@@ -1153,10 +1169,10 @@ local function get_output_crafts(cluster)
 end
 
 ---Helps with processing crafts inside clusters.
----Adds data to production statistics assuming LuaFlowStatistics is valid.
+---Adds data to production statistics assuming LuaFlowStatistics are valid.
 ---@param cluster ClusterData
 ---@param entry ClusterBufferEntry
----@param count number positive to add to "produced", negative to add to "consumed"
+---@param count number positive to add to "produced", negative for "consumed"
 local function add_to_statistics(cluster, entry, count)
     local entry_type = entry.type
     if entry_type == "energy" then return end
@@ -1209,18 +1225,20 @@ local function update_cluster(cluster)
     local template_uuid, template = TCCManager.get_assigned_template(
         cluster.cluster_uuid
     )
+    -- template is not assigned/inaccessible: cannot craft
+    if not template_uuid then return end
     -- only changing to new template if it exists (not nil)
-    if template_uuid and template_uuid ~= cluster.template_uuid then
+    if template_uuid ~= cluster.template_uuid then
         ---@cast template TemplateData
         cluster.template_uuid = template_uuid
         set_assigned_template(cluster, template)
+        return
     end
-    -- template is not assigned/inaccessible: cannot craft
-    if not template_uuid then return end
-    -- production statistics is inaccessible: cannot craft
-    -- (surface was probably deleted or smth)
-    if not cluster.item_statistics.valid then return end
-
+    -- production statistics are inaccessible: surface was deleted
+    if not cluster.item_statistics.valid then
+        delete_cluster(cluster)
+        return
+    end
     -- calculating how many crafts can be performed
     local max_crafts = math.min(
         cluster.crafting_power,
@@ -1237,10 +1255,26 @@ end
 ---@param event EventData.on_tick
 function ClusterProcessor.on_tick(event)
     local array = storage.clusters.array
-    local offset = (event.tick % 60) + 1
-    for i = offset, #array, 60 do
+    local offset = event.tick % 60
+    local start_idx, stop_idx = Misc.get_slice_range(
+        #array,
+        offset,
+        60
+    )
+    -- slice is empty: return
+    if not start_idx then return end
+    for i = stop_idx, start_idx, -60 do
         update_cluster(array[i])
     end
 end
+
+-------------------------------------------------------------------------------
+------------------------------- DATA LIFECYCLE --------------------------------
+-------------------------------------------------------------------------------
+
+function ClusterProcessor.on_configuration_changed()
+    -- TODO: check cluster data and apply migrations
+end
+
 
 return ClusterProcessor

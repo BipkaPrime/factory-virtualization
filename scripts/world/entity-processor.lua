@@ -104,8 +104,14 @@ Entity properties can be divided into 3 logical groups.
 ---of corresponding filters in "logistic_filters" field
 ---@field logistic_section LuaLogisticSection|nil used to reduce load on GC
 
+---One entry in the registration queue
+---@class RegistrationEntry
+---@field entity LuaEntity entity to be registered
+---@field relevant_tags Tags|nil additional configuration data
+
 ---Used to store properties of all relevant entities
 ---@class EntityRegistry
+---@field registration_queue RegistrationEntry[] registration pending
 ---@field active EntityProperties[] initialized entities in operation
 ---@field stalled EntityProperties[] same as active but updated less frequently
 ---@field pending EntityProperties[] initialization pending (not initialized)
@@ -124,19 +130,21 @@ Entity properties can be divided into 3 logical groups.
 ---for regular on-tick processing of initialized entity. Returns name of section
 ---to which entity properties should be moved
 
-local ClusterBridge = require("scripts.world.e-processor-modules.cluster-bridge")
-local ClusterEnergyIO = require("scripts.world.e-processor-modules.cluster-energy-io")
-local ClusterFluidIO = require("scripts.world.e-processor-modules.cluster-fluid-io")
-local ClusterItemIO = require("scripts.world.e-processor-modules.cluster-item-io")
-local OverflowController = require("scripts.world.e-processor-modules.cluster-overflow-controller")
-local StorageUnit = require("scripts.world.e-processor-modules.cluster-storage-unit")
-local TemplateAccess = require("scripts.world.e-processor-modules.template-access-interface")
-local ComputationArray = require("scripts.world.e-processor-modules.template-computation-array")
-local TemplateCC = require("scripts.world.e-processor-modules.template-control-center")
-local TemplateEnergyIO = require("scripts.world.e-processor-modules.template-energy-io")
-local TemplateFluidIO = require("scripts.world.e-processor-modules.template-fluid-io")
-local TemplateItemIO = require("scripts.world.e-processor-modules.template-item-io")
-local VMainframe = require("scripts.world.e-processor-modules.virtualization-mainframe")
+local module_path = "scripts.world.e-processor-modules."
+local ClusterBridge = require(module_path .. "cluster-bridge")
+local ClusterEnergyIO = require(module_path .. "cluster-energy-io")
+local ClusterFluidIO = require(module_path .. "cluster-fluid-io")
+local ClusterItemIO = require(module_path .. "cluster-item-io")
+local OverflowController = require(module_path .. "cluster-overflow-controller")
+local StorageUnit = require(module_path .. "cluster-storage-unit")
+local TemplateAccess = require(module_path .. "template-access-interface")
+local ComputationArray = require(module_path .. "template-computation-array")
+local TemplateCC = require(module_path .. "template-control-center")
+local TemplateEnergyIO = require(module_path .. "template-energy-io")
+local TemplateFluidIO = require(module_path .. "template-fluid-io")
+local TemplateItemIO = require(module_path .. "template-item-io")
+local VMainframe = require(module_path .. "virtualization-mainframe")
+local Misc = require("scripts.misc")
 
 
 local PREFIX = "FV-"
@@ -237,44 +245,79 @@ local registry_sections = {
     incorrect = "incorrect"
 }
 
----Adds given entity to registry. Called when any build event is triggered.
----@param entity LuaEntity assumed to be valid
----@param tags table|nil build event tags
-function EntityProcessor.register_entity(entity, tags)
+---Adds entity to registration queue.
+---@param entity LuaEntity
+---@param tags Tags|nil build event tags
+function EntityProcessor.add_to_registartion_queue(entity, tags)
+    local relevant_tags = tags and tags[PREFIX]
+    ---@cast relevant_tags Tags|nil
+    local queue = storage.entity_registry.registration_queue
+    queue[#queue + 1] = {entity = entity, relevant_tags = relevant_tags}
+end
+
+---Registers entities from registration queue
+---@param count integer number of entities to register
+local function register_entities(count)
+    -- needed to check that configuration data is valid
+    local qualities = prototypes.quality
+    local items = prototypes.item
+    local fluids = prototypes.fluid
+
     local registry = storage.entity_registry
     local lookup = registry.lookup
-    ---@type number assuming entity has unit number
-    local unit_number = entity.unit_number
-    -- entity with this unit number is already registered
-    if lookup[unit_number] then return end
-
-    -- mandatory entity properties
-    local section = registry.pending
-    local array_index = #section + 1
-    local entity_name = entity.name
-    ---@type EntityProperties
-    local properties = {
-        unit_number = unit_number,
-        entity = entity,
-        entity_name = entity_name,
-        section = registry_sections.pending,
-        array_index = array_index,
-    }
-
-    -- adding tags to properties
-    if tags then
-        local relevant_tags = tags[PREFIX]
-        if relevant_tags then
-            local copyable_fields = configuration[entity_name]
-            for _, field in ipairs(copyable_fields) do
-                properties[field] = relevant_tags[field]
+    -- entities are added to pending section on registration
+    local pending = registry.pending
+    local queue = registry.registration_queue
+    for i = #queue, #queue - count + 1, -1 do
+        local entry = queue[i]
+        queue[i] = nil
+        local entity = entry.entity
+        -- cannot register an invalid entity
+        if entity.valid then
+            ---@type number assuming entity has unit number
+            local unit_number = entity.unit_number
+            -- avoiding duplicates
+            if not lookup[unit_number] then
+                local entity_name = entity.name
+                local array_index = #pending + 1
+                ---@type EntityProperties
+                local properties = {
+                    unit_number = unit_number,
+                    entity = entity,
+                    entity_name = entity_name,
+                    section = registry_sections.pending,
+                    array_index = array_index,
+                }
+                -- adding tags to properties
+                local relevant_tags = entry.relevant_tags
+                if relevant_tags then
+                    local copyable_fields = configuration[entity_name]
+                    for _, field in ipairs(copyable_fields) do
+                        ---@diagnostic disable-next-line: assign-type-mismatch
+                        properties[field] = relevant_tags[field]
+                    end
+                end
+                -- verifying that selected item and quality exist
+                local item_name = properties.selected_item_name
+                local quality = properties.selected_item_quality
+                if (
+                    quality and not qualities[quality] or
+                    item_name and not items[item_name]
+                ) then
+                    properties.selected_item_name = nil
+                    properties.selected_item_quality = nil
+                end
+                -- verifying that selected fluid exist
+                local fluid_name = properties.selected_fluid
+                if fluid_name and not fluids[fluid_name] then
+                    properties.selected_fluid = nil
+                end
+                -- adding properties to pending section
+                pending[array_index] = properties
+                lookup[unit_number] = properties
             end
         end
     end
-
-    -- adding properties to pending section
-    section[array_index] = properties
-    lookup[unit_number] = properties
 end
 
 ---Registry sections that contain initialized properties
@@ -287,13 +330,14 @@ local uninit_sections = {
     pending = true,
     incorrect = true
 }
----Maps registry sections to corresponding alerts sprites
+---Maps registry sections to corresponding alert sprites
 local alert_sections = {
     incorrect = PREFIX .. "entity-config-alert-red",
     stalled = PREFIX .. "entity-config-alert-yellow",
 }
 
----Moves properties to specified registry section
+---Moves properties to specified registry section.
+---Controls custom alerts displayed for "invalid" and "stalled".
 ---@param properties EntityProperties properties to move
 ---@param destination_name EntityRegistrySection name of destination section
 local function move_properties(properties, destination_name)
@@ -325,7 +369,7 @@ local function move_properties(properties, destination_name)
         uninitialization[properties.entity_name](properties)
     end
 
-    -- removing any render associated with this entity
+    -- removing alert render associated with this entity
     local render = properties.alert_render
     if render and render.valid then
         render.destroy()
@@ -368,14 +412,14 @@ local function unregister_entity(properties)
 end
 
 ---Gets properties of given entity by unit number
----@param unit_number number unique entity identifier
+---@param unit_number integer unique entity identifier
 ---@return EntityProperties|nil properties entity data from registry
 local function get_entity_properties(unit_number)
     return storage.entity_registry.lookup[unit_number]
 end
 
 ---Gets properties of given entity by unit number
----@param unit_number number unique entity identifier
+---@param unit_number integer unique entity identifier
 ---@return EntityProperties|nil properties entity data from registry
 function EntityProcessor.get_entity_properties(unit_number)
     return storage.entity_registry.lookup[unit_number]
@@ -400,7 +444,9 @@ local config_fields = {
     selected_template = "selected_template",
 }
 
----Abstract setter. Sets specified property for a given entity or entity-ghost
+---Abstract setter. Sets specified property for a given entity or entity-ghost.
+---If entity has properties in the registry, moves them to pending section
+---effectively uninitializing them before changing anything.
 ---@param entity LuaEntity entity for which data should be set
 ---@param field string field in properties that will be set
 ---@param value nil|boolean|table|string|number value to write in properties
@@ -638,17 +684,27 @@ end
 ------------------------------- MAIN PROCESSOR --------------------------------
 -------------------------------------------------------------------------------
 
+local REGISTRATION_CHUNKS = 60
+local PENDING_CHUNKS = 60
+local ACTIVE_SLICES = 60
+local STALLED_SLICES = 300
+local INCORRECT_SLICES = 300
+
 ---On-tick updater for entity registry
 ---@param event EventData.on_tick
 function EntityProcessor.on_tick(event)
     local registry = storage.entity_registry
     local tick = event.tick
 
-    -- Pending section: initializing 1/60 of current array size
+    -- Registration queue: registering 1/60 of current queue
+    local queue = registry.registration_queue
+    local chunk_size = math.ceil(#queue / REGISTRATION_CHUNKS)
+    if chunk_size > 0 then register_entities(chunk_size) end
+
+    -- Pending section: initializing 1/60 of pending section
     local pending = registry.pending
-    local size = #pending
-    local chunk_size = math.ceil(size / 60)
-    for i = size, size - chunk_size + 1, -1 do
+    chunk_size = math.ceil(#pending / PENDING_CHUNKS)
+    for i = #pending, #pending - chunk_size + 1, -1 do
         local properties = pending[i]
         if properties.entity.valid then
             local handler = initialization[properties.entity_name]
@@ -660,47 +716,75 @@ function EntityProcessor.on_tick(event)
         end
     end
 
-    -- Active section: elements are updated once per second
+    -- Active section: elements are divided into 60 slices
     local active = registry.active
-    local offset = tick % 60
-    -- updating every 60-th element in the array
-    for i = #active - offset, 1, -60 do
-        local properties = active[i]
-        if properties.entity.valid then
-            local handler = update[properties.entity_name]
-            local target_section = handler(properties)
-            move_properties(properties, target_section)
-        else
-            -- entity is invalid: removing it from registry
-            unregister_entity(properties)
+    local offset = tick % ACTIVE_SLICES
+    local start_idx, stop_idx = Misc.get_slice_range(
+        #active,
+        offset,
+        ACTIVE_SLICES
+    )
+    if start_idx then
+        for i = stop_idx, start_idx, -ACTIVE_SLICES do
+            local properties = active[i]
+            if properties.entity.valid then
+                local handler = update[properties.entity_name]
+                local target_section = handler(properties)
+                move_properties(properties, target_section)
+            else
+                -- entity is invalid: removing it from registry
+                unregister_entity(properties)
+            end
         end
     end
 
-    -- Stalled section: elements are updated once per 10 seconds
+    -- Stalled section: elements are divided into 300 slices
     local stalled = registry.stalled
-    offset = tick % 600
-    -- updating every 60-th element in the array
-    for i = #stalled - offset, 1, -600 do
-        local properties = stalled[i]
-        if properties.entity.valid then
-            local handler = update[properties.entity_name]
-            local target_section = handler(properties)
-            move_properties(properties, target_section)
-        else
-            -- entity is invalid: removing it from registry
-            unregister_entity(properties)
+    offset = tick % STALLED_SLICES
+    start_idx, stop_idx = Misc.get_slice_range(
+        #stalled,
+        offset,
+        STALLED_SLICES
+    )
+    if start_idx then
+        for i = stop_idx, start_idx, -STALLED_SLICES do
+            local properties = stalled[i]
+            if properties.entity.valid then
+                local handler = update[properties.entity_name]
+                local target_section = handler(properties)
+                move_properties(properties, target_section)
+            else
+                -- entity is invalid: removing it from registry
+                unregister_entity(properties)
+            end
         end
     end
 
-    -- Incorrect section: checking that entities are valid (once per 10 sec)
+    -- Incorrect section: elements are divided into 300 slices
     local incorrect = registry.incorrect
-    for i = #incorrect - offset, 1, -600 do
-        local properties = incorrect[i]
-        if not properties.entity.valid then
-            -- entity is invalid: removing it from registry
-            unregister_entity(properties)
+    offset = tick % INCORRECT_SLICES
+    start_idx, stop_idx = Misc.get_slice_range(
+        #incorrect,
+        offset,
+        INCORRECT_SLICES
+    )
+    if start_idx then
+        for i = stop_idx, start_idx, -INCORRECT_SLICES do
+            local properties = incorrect[i]
+            if not properties.entity.valid then
+                -- entity is invalid: removing it from registry
+                unregister_entity(properties)
+            end
         end
     end
+end
+
+-------------------------------------------------------------------------------
+------------------------------- DATA LIFECYCLE --------------------------------
+-------------------------------------------------------------------------------
+
+function EntityProcessor.on_configuration_changed()
+    -- TODO: check entity data and apply migrations
 end
 
 return EntityProcessor

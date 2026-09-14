@@ -79,7 +79,7 @@ local COMPILATION_TIME = 36000
 ---Time between compilation validation report updates (5 seconds)
 local VALIDATION_INTERVAL = 300
 
----Gets gets vsurface data by surface name
+---Gets vsurface data by surface name
 ---@param surface_name string|nil
 ---@return VSurfaceData|nil
 local function get_vsurface_data_by_name(surface_name)
@@ -96,7 +96,9 @@ end
 ---Calculates idle computation demand for a vsurface given its config
 ---@param vsurface_config VSurfaceConfig
 function VSurfaceManager.get_idle_computation_demand(vsurface_config)
-    return VSurfaceManager.get_compiling_computation_demand(vsurface_config) / 10
+    return VSurfaceManager.get_compiling_computation_demand(
+        vsurface_config
+    ) / 10
 end
 
 ---Calculates compilation computation demand for a vsurface given its config
@@ -357,15 +359,14 @@ function VSurfaceManager.rename_vsurface(old_name, new_name)
     local vsurface_data = lookup_by_name[old_name]
     vsurface_data.surface.name = new_name
     vsurface_data.surface_name = new_name
-    lookup_by_name[new_name] = vsurface_data
     lookup_by_name[old_name] = nil
+    lookup_by_name[new_name] = vsurface_data
     return true
 end
 
 ------------------------------ VSURFACE DELETION ------------------------------
 
----Deletes vsurface data from storage.
----COMPILING VSURFACE SHOULD NEVER BE DELETED.
+---Deletes vsurface data from storage. Should only be used on idle vsurfaces.
 ---@param vsurface_data VSurfaceData
 local function delete_vsurface_data(vsurface_data)
     local vsurfaces = storage.vsurfaces
@@ -832,6 +833,7 @@ local function add_to_cost(total_cost, name, quality, count)
 end
 
 ---Calculates total building cost of a vsurface.
+---Counts tiles, buildings and modules.
 ---@param surface LuaSurface assumed to be valid
 ---@return table<BufferKeyString, number> building_cost
 local function get_vsurface_building_cost(surface)
@@ -993,7 +995,7 @@ local function update_validation_report(vsurface_data)
     end
 
     -- Running validation
-    for key, report_entry in pairs(report) do
+    for _, report_entry in pairs(report) do
         local in_sum = report_entry.input + report_entry.produced
         local out_sum = report_entry.output + report_entry.consumed
         local deviation_abs = math.abs(in_sum - out_sum)
@@ -1020,7 +1022,7 @@ local function process_compilations()
 
     -- Checking that vsurface is valid
     if not vsurface_data.surface.valid then
-        -- surface was deleted, terminating compilation
+        -- termination compilation and clearing data from the structure
         terminate_compilation(vsurface_data)
         delete_vsurface_data(vsurface_data)
         return
@@ -1074,5 +1076,14 @@ function VSurfaceManager.on_tick_updater()
     enforce_computation_limits()
     process_compilations()
 end
+
+-------------------------------------------------------------------------------
+------------------------------- DATA LIFECYCLE --------------------------------
+-------------------------------------------------------------------------------
+
+function VSurfaceManager.on_configuration_changed()
+    -- TODO: 
+end
+
 
 return VSurfaceManager

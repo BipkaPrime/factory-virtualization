@@ -55,7 +55,7 @@ end
 ---@field surface_index integer|nil identifier of the surface tcc is located on
 ---@field pos_x number|nil x-coordinate of template control center entity
 ---@field pos_y number|nil y-coordinate of template control center entity
----@field proximity_dist number|nil maximum distance from which entities
+---@field proximity_dist number|nil square of max distance from which entities
 ---that require tcc proximity to work can interact with it.
 ---@field max_template_drain number|nil maximum template drain this TCC allows
 ---@field game_render LuaRenderObject|nil proximity radius render (in game)
@@ -226,7 +226,7 @@ end
 ----------------------------- COMPUTATION MANAGER -----------------------------
 -------------------------------------------------------------------------------
 
----Used to storage computation resource data
+---Used to store computation resource data
 ---@class ComputationStorage
 ---@field max_available number max amount of computation potentially available
 ---@field curr_demand number current computation demand
@@ -274,14 +274,14 @@ function TCCManager.get_computation_demand_ratio()
 end
 
 ---Adds provided amount to max available computation
----@param amount number amount of computation to add (must be positive)
+---@param amount number amount of computation to add (should be positive)
 function TCCManager.increase_computation_max_available(amount)
     local computation = storage.computation
     computation.max_available = computation.max_available + amount
 end
 
 ---Removes provided amount from max available computation
----@param amount number amount of computation to remove (must be positive)
+---@param amount number amount of computation to remove (should be positive)
 function TCCManager.decrease_computation_max_available(amount)
     local computation = storage.computation
     local result = computation.max_available - amount
@@ -290,14 +290,14 @@ function TCCManager.decrease_computation_max_available(amount)
 end
 
 ---Adds provided amount to computation current demand
----@param amount number amount of computation to add (must be positive)
+---@param amount number amount of computation to add (should be positive)
 function TCCManager.increase_computation_curr_demand(amount)
     local computation = storage.computation
     computation.curr_demand = computation.curr_demand + amount
 end
 
 ---Removes provided amount from computation current demand
----@param amount number amount of computation to remove (must be positive)
+---@param amount number amount of computation to remove (should be positive)
 function TCCManager.decrease_computation_curr_demand(amount)
     local computation = storage.computation
     local result = computation.curr_demand - amount
@@ -312,7 +312,6 @@ end
 ---@alias cluster_uuid string cluster identifier, assigned at creation
 ---@alias template_uuid string template identifier, assigned at creation
 ---@alias template_name string display name of template that is shown to player
----@alias surface_index integer unique surface identifier
 ---Both uuid and display name must be unique among all templates
 
 ---Contains data of one compiled template
@@ -337,8 +336,8 @@ end
 --------------------------- CREATE RENAME DELETE ---------------------------
 
 ---Generates uuid for template for internal use.
----@param name template_name display name that is shown to player
----@return template_uuid uuid unique template identifier 
+---@param name string display name that is shown to player
+---@return string template_uuid unique template identifier 
 local function generate_template_uuid(name)
     local uuid = string.format(
         "%s/%d/%.9f",
@@ -351,9 +350,8 @@ end
 
 ---Saves given template to template storage
 ---@param template TemplateData
----@param name template_name display name
+---@param name string display name
 function TCCManager.add_template(template, name)
-    ---@type TemplateStorage
     local templates = storage.templates
 
     -- making sure that name is not occupied
@@ -373,10 +371,10 @@ function TCCManager.add_template(template, name)
 end
 
 ---Checks if template can be renamed.
----@param old_name template_name|nil
----@param new_name template_name|nil
+---@param old_name string|nil
+---@param new_name string|nil
 ---@return boolean status true if template can be renamed
----@return LocalisedString|nil reason why template can not be renamed
+---@return LocalisedString|nil reason why template cannot be renamed
 function TCCManager.can_rename_template(old_name, new_name)
     -- checking that old name is provided
     if not old_name then
@@ -404,8 +402,8 @@ function TCCManager.can_rename_template(old_name, new_name)
 end
 
 ---Changes display name for a given template
----@param old_name template_name|nil
----@param new_name template_name|nil
+---@param old_name string|nil
+---@param new_name string|nil
 ---@return boolean status true if template was successfully renamed
 ---@return LocalisedString|nil reason error string if rename failed
 function TCCManager.rename_template(old_name, new_name)
@@ -426,7 +424,7 @@ function TCCManager.rename_template(old_name, new_name)
 end
 
 ---Deletes provided template from storage
----@param template_name template_name|nil display name
+---@param template_name string|nil display name
 ---@return boolean status true if deletion was successful
 ---@return LocalisedString|nil reason error string if deletion failed
 function TCCManager.delete_template(template_name)
@@ -436,7 +434,6 @@ function TCCManager.delete_template(template_name)
     end
 
     -- checking that template exists in storage
-    ---@type TemplateStorage
     local templates = storage.templates
     local name_to_uuid = templates.name_to_uuid
     local template_uuid = name_to_uuid[template_name]
@@ -476,11 +473,10 @@ end
 
 ---Adds the transmitter of provided template to provided cluster
 ---Only one template can be transmitted to cluster at a time
----@param template_uuid template_uuid unique template identifier
----@param cluster_uuid cluster_uuid unique cluster identifier
+---@param template_uuid string unique template identifier
+---@param cluster_uuid string unique cluster identifier
 ---@return boolean status true if transmitter was added successfully
 function TCCManager.add_template_transmitter(template_uuid, cluster_uuid)
-    ---@type TemplateStorage
     local templates = storage.templates
     local transmit = templates.transmit
     local transmit_inv = templates.transmit_inv
@@ -494,10 +490,9 @@ function TCCManager.add_template_transmitter(template_uuid, cluster_uuid)
 end
 
 ---Removes a transmitter of template from provided cluster.
----Can be safely called if no template is being transmitted to the cluster. 
----@param cluster_uuid cluster_uuid
+---Can be safely called if no template is being transmitted to the cluster.
+---@param cluster_uuid string unique cluster identifier
 function TCCManager.remove_template_transmitter(cluster_uuid)
-    ---@type TemplateStorage
     local templates = storage.templates
     local transmit = templates.transmit
     local transmit_inv = templates.transmit_inv
@@ -513,11 +508,10 @@ end
 
 ---Adds the reciever of provided template to provided cluster
 ---Only one template can be transmitted to cluster at a time
----@param template_uuid template_uuid unique template identifier
----@param cluster_uuid cluster_uuid unique cluster identifier
+---@param template_uuid string unique template identifier
+---@param cluster_uuid string unique cluster identifier
 ---@return boolean status true if receiver was added successfully
 function TCCManager.add_template_receiver(template_uuid, cluster_uuid)
-    ---@type TemplateStorage
     local templates = storage.templates
     local receive = templates.receive
     local receive_inv = templates.receive_inv
@@ -531,10 +525,9 @@ function TCCManager.add_template_receiver(template_uuid, cluster_uuid)
 end
 
 ---Removes a receiver of template from provided cluster.
----Can be safely called if no template is being received by the cluster. 
+---Can be safely called if no template is being received by the cluster.
 ---@param cluster_uuid cluster_uuid
 function TCCManager.remove_template_receiver(cluster_uuid)
-    ---@type TemplateStorage
     local templates = storage.templates
     local receive = templates.receive
     local receive_inv = templates.receive_inv
@@ -548,7 +541,8 @@ function TCCManager.remove_template_receiver(cluster_uuid)
     end
 end
 
----Removes a cluster from template routing tables
+---Removes a cluster from template routing tables.
+---Intended use case: when cluster is deleted
 ---@param cluster_uuid cluster_uuid unique cluster identifier
 function TCCManager.remove_cluster_routing(cluster_uuid)
     TCCManager.remove_template_transmitter(cluster_uuid)
@@ -569,12 +563,11 @@ function TCCManager.does_template_exist(template_uuid)
 end
 
 ---Gets uuid of template assigned to the given cluster.
----@param cluster_uuid cluster_uuid unique cluster identifier
----@return template_uuid|nil template_uuid id of assigned template
+---@param cluster_uuid string unique cluster identifier
+---@return string|nil template_uuid uuid of assigned template
 ---@return TemplateData|nil template assigned template data
 function TCCManager.get_assigned_template(cluster_uuid)
     if not TCCManager.is_tcc_registered() then return end
-    ---@type TemplateStorage
     local templates = storage.templates
     local transmit_inv = templates.transmit_inv
     local receive_inv = templates.receive_inv
@@ -600,11 +593,10 @@ end
 
 ---Checks if given template is active. Template is considered active if it
 ---appears at least in one routing table.
----@param template_name template_name|nil display name
+---@param template_name string|nil display name
 ---@return boolean status true if template is found and active
 function TCCManager.is_template_active(template_name)
     if not template_name then return false end
-    ---@type TemplateStorage
     local templates = storage.templates
     local uuid = templates.name_to_uuid[template_name]
     if not uuid then return false end
@@ -614,11 +606,10 @@ end
 
 ---Checks if given template is inactive. Template is considered inactive if it
 ---does not appear in routing tables.
----@param template_name template_name|nil display name
+---@param template_name string|nil display name
 ---@return boolean status true if template is found and inactive
 function TCCManager.is_template_inactive(template_name)
     if not template_name then return false end
-    ---@type TemplateStorage
     local templates = storage.templates
     local uuid = templates.name_to_uuid[template_name]
     if not uuid then return false end
@@ -631,12 +622,10 @@ end
 ---@param query string|nil search query
 ---@return string[]
 function TCCManager.get_inactive_template_names(query)
-    ---@type TemplateStorage
     local templates = storage.templates
     local receive = templates.receive
     local transmit = templates.transmit
     local result = {}
-
     local has_query = query and string.find(query, "%S", 1, false)
     for name, uuid in pairs(templates.name_to_uuid) do
         -- collecting templates that do not appear in routing tables
@@ -656,7 +645,6 @@ end
 ---@param query string|nil search query
 ---@return string[]
 function TCCManager.get_active_template_names(query)
-    ---@type TemplateStorage
     local templates = storage.templates
     local receive = templates.receive
     local transmit = templates.transmit
@@ -675,13 +663,12 @@ function TCCManager.get_active_template_names(query)
     return result
 end
 
----Collects uuids of all clusters given template is transmitted to.
----Uuids are returned in random order.
----@param template_name template_name|nil display name
+---Collects uuids of all clusters that given template is transmitted to.
+---Strings are returned in random order.
+---@param template_name string|nil display name
 ---@return string[] uuids
 function TCCManager.get_transmit_cluster_uuids(template_name)
     if not template_name then return {} end
-    ---@type TemplateStorage
     local templates = storage.templates
     local template_uuid = templates.name_to_uuid[template_name]
     -- checking that template uuid was found
@@ -698,11 +685,10 @@ end
 
 ---Collects uuids of all clusters given template is received by
 ---Uuids are returned in random order.
----@param template_name template_name|nil display name
+---@param template_name string|nil display name
 ---@return string[] uuids
 function TCCManager.get_receive_cluster_uuids(template_name)
     if not template_name then return {} end
-    ---@type TemplateStorage
     local templates = storage.templates
     local template_uuid = templates.name_to_uuid[template_name]
     -- checking that template uuid was found
@@ -718,11 +704,10 @@ function TCCManager.get_receive_cluster_uuids(template_name)
 end
 
 ---Gets template data by name
----@param template_name template_name|nil display name
+---@param template_name string|nil display name
 ---@return TemplateData|nil
 local function get_template_by_name(template_name)
     if not template_name then return end
-    ---@type TemplateStorage
     local templates = storage.templates
     local uuid = templates.name_to_uuid[template_name]
     if not uuid then return end
@@ -730,8 +715,9 @@ local function get_template_by_name(template_name)
 end
 
 ---Gets inputs and energy drain of given template
----@param template_name template_name|nil display name
----@return table<BufferKeyString, number> input, number energy_drain
+---@param template_name string|nil display name
+---@return table<BufferKeyString, number> input
+---@return number energy_drain
 function TCCManager.get_template_inputs(template_name)
     local template = get_template_by_name(template_name)
     if not template then return {}, 0 end
@@ -739,7 +725,7 @@ function TCCManager.get_template_inputs(template_name)
 end
 
 ---Gets outputs of given template
----@param template_name template_name|nil display name
+---@param template_name string|nil display name
 ---@return table<BufferKeyString, number> input
 function TCCManager.get_template_outputs(template_name)
     local template = get_template_by_name(template_name)
@@ -748,7 +734,7 @@ function TCCManager.get_template_outputs(template_name)
 end
 
 ---Gets building cost of given template
----@param template_name template_name|nil display name
+---@param template_name string|nil display name
 ---@return table<BufferKeyString, number> input
 function TCCManager.get_template_building_cost(template_name)
     local template = get_template_by_name(template_name)
@@ -786,5 +772,14 @@ function TCCManager.get_template_names(query)
     end
     return result
 end
+
+-------------------------------------------------------------------------------
+------------------------------- DATA LIFECYCLE --------------------------------
+-------------------------------------------------------------------------------
+
+function TCCManager.on_configuration_changed()
+    -- TODO: check template data and apply migrations
+end
+
 
 return TCCManager

@@ -13,10 +13,6 @@ local ProductionResearch = require("scripts.world.production-research")
 
 local PREFIX = "FV-"
 
---TODO: add on_surface_deleted handler (for clusters and vsurfaces?)
---TODO: on player removed for GUI?
---TODO: update control center gui (hover events left side of interface).
-
 -------------------------------------------------------------------------------
 ------------------------ INITIALIZATION AND LIFECYCLE -------------------------
 -------------------------------------------------------------------------------
@@ -26,6 +22,7 @@ script.on_init(function()
     -- world/entity-processor
     ---@type EntityRegistry
     storage.entity_registry = {
+        registration_queue = {},
         active = {},
         stalled = {},
         pending = {},
@@ -97,7 +94,7 @@ script.on_event(defines.events.on_pre_player_removed, function(event)
 end)
 
 -------------------------------------------------------------------------------
--- TIME-BASED SCRIPTS
+----------------------------- TIME-BASED SCRIPTS ------------------------------
 -------------------------------------------------------------------------------
 
 script.on_event(defines.events.on_tick, function(event)
@@ -111,7 +108,7 @@ end)
 script.on_nth_tick(3600, ProductionResearch.check_progress)
 
 -------------------------------------------------------------------------------
--- ENTITY PROCESSOR TAGS AND REGISTRATION
+------------------------ ENTITY PROCESSOR REGISTRATION ------------------------
 -------------------------------------------------------------------------------
 
 local build_events = {
@@ -124,9 +121,7 @@ local build_events = {
 ---Handles entity buing built. Adds it to entity registry.
 ---@param event EventData.on_built_entity
 local function on_entity_built(event)
-    local entity = event.entity
-    if not entity or not entity.valid then return end
-    EntityProcessor.register_entity(entity, event.tags)
+    EntityProcessor.add_to_registartion_queue(event.entity, event.tags)
 end
 
 -- subsribing to all "build events"

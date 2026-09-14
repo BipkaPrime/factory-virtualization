@@ -3,7 +3,6 @@
 ---@field item_name string name of item that needs to be produced
 ---@field amount number amount that needs to be produced in one hour
 
---TODO: consider not deleting research.
 
 local PREFIX = "FV-"
 local ProductionResearch = {}
@@ -35,6 +34,7 @@ function ProductionResearch.check_progress()
     if #production_research == 0 then return end
 
     -- gathering item statistics for player force for all surfaces
+    ---@type LuaForce
     local player_force = game.forces["player"]
     ---@type LuaFlowStatistics[]
     local statistics = {}
@@ -46,6 +46,7 @@ function ProductionResearch.check_progress()
     end
 
     -- checking for research completion
+    local technologies = player_force.technologies
     local counts = {}
     for i, research in ipairs(production_research) do
         local item_name = research.item_name
@@ -65,7 +66,12 @@ function ProductionResearch.check_progress()
         -- researching the technology if requirments are met
         if research.amount <= counts[item_name] then
             player_force.script_trigger_research(research.tech_name)
-            table.remove(storage.production_research, i)
+            -- Removing technology from the list if it was researched
+            ---@type LuaTechnology
+            local tech = technologies[research.tech_name]
+            if tech.researched then
+                table.remove(storage.production_research, i)
+            end
         end
     end
 end

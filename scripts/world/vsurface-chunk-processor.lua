@@ -17,7 +17,7 @@ from registry when surface becomes invalid.
 
 ---Table describing one chunk in chunk registry
 ---@class ChunkData
----@field surface LuaSurface reference to surface object that has this chunk
+---@field surface LuaSurface reference to surface object that owns this chunk
 ---@field surface_index number unique surface identifier
 ---@field area BoundingBox area of the chunk
 ---@field compiling boolean true if chunk is currently compiling
@@ -26,7 +26,7 @@ from registry when surface becomes invalid.
 local ChunkProcessor = {}
 
 ------------------------------------------------------------------------------------
--- REGISTRY OPERATIONS: register, unregister, set compiling flag
+------------ SURFACE OPERATIONS: ADD/REMOVE SURFACE, SET COMPILING FLAG ------------
 ------------------------------------------------------------------------------------
 
 ---Adds all chunks of a given surface to chunk registry
@@ -58,12 +58,18 @@ local function unregister_surface(surface_index, chunk_index)
     local total_chunks = #chunks
     -- finding first chunk of this surface in registry
     local first_idx = chunk_index
-    while first_idx > 1 and chunks[first_idx - 1].surface_index == surface_index do
+    while (
+        first_idx > 1 and
+        chunks[first_idx - 1].surface_index == surface_index
+    ) do
         first_idx = first_idx - 1
     end
     -- fidning last chunk of this surface in registry
     local last_idx = chunk_index
-    while last_idx < total_chunks and chunks[last_idx + 1].surface_index == surface_index do
+    while (
+        last_idx < total_chunks and
+        chunks[last_idx + 1].surface_index == surface_index
+    ) do
         last_idx = last_idx + 1
     end
     -- using 2 pointers to overwrite chunks we want deleted
@@ -263,13 +269,14 @@ local function process_item_requests(surface, chunk_area)
     end
 end
 
+local CHUNK_SLICES = 60
+
 ---On-tick processors of chunks in the registry
 ---@param event EventData.on_tick
 function ChunkProcessor.process_chunks(event)
-    -- processing every 60-th chunk
     local chunks = storage.vsurface_chunks
-    local offset = (event.tick % 60) + 1
-    for i = offset, #chunks, 60 do
+    local offset = (event.tick % CHUNK_SLICES) + 1
+    for i = offset, #chunks, CHUNK_SLICES do
         local curr_chunk = chunks[i]
         local surface = curr_chunk.surface
         if not surface.valid then

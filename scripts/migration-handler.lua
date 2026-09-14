@@ -1,1 +1,0 @@
--- When any migration occurs, have to migrate storage (templates, clusters, etc.)

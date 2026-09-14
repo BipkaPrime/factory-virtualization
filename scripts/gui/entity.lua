@@ -811,7 +811,9 @@ local function add_status_section(parent, gui_data)
         parent,
         {"entity-gui.entity-status"}
     )
-    gui_data.elements.status_label = section.add{type = "label"}
+    local label = section.add{type = "label"}
+    label.style.single_line = false
+    gui_data.elements.status_label = label
     update_status_section(gui_data)
 end
 
