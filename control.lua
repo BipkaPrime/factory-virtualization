@@ -10,6 +10,7 @@ local CCTemplates = require("scripts.gui.cc-modules.templates")
 local CCClusters = require("scripts.gui.cc-modules.clusters")
 local GuiUpdater = require("scripts.gui.updater")
 local ProductionResearch = require("scripts.world.production-research")
+local TCCManager = require("scripts.simulation.tcc-manager")
 
 local PREFIX = "FV-"
 
@@ -76,15 +77,16 @@ script.on_init(function()
 end)
 
 script.on_configuration_changed(function(change_data)
-    -- TODO: when migration is applied (any mod in the save)
-    -- have to apply it to all data structures:
-    -- entity processor: selected item, selected fluid,
-    -- vsurfaces (compilation tables)
-    -- clusters (internal buffers, members?)
-    -- templates (io, constuction cost)
-
-    -- TODO: close opened gui windows here and clear related structures?
-    -- control_center, entity_gui, gui_updater
+    local migrations = change_data.migrations
+    local item = migrations.item
+    local fluid = migrations.fluid
+    local quality = migrations.quality
+    if next(item) or next(fluid) or next(quality) then
+        TCCManager.on_configuration_changed(item, fluid, quality)
+        ClusterProcessor.on_configuration_changed(item, fluid, quality)
+        EntityProcessor.on_configuration_changed(item, fluid, quality)
+        VSurfaceManager.on_configuration_changed(item, fluid, quality)
+    end
 end)
 
 script.on_event(defines.events.on_pre_player_removed, function(event)
@@ -277,3 +279,33 @@ script.on_event(defines.events.on_gui_checked_state_changed, function(event)
 end)
 
 script.on_event(PREFIX .. "control-center-hotkey", ControlCenter.handle_hotkey)
+
+commands.add_command(
+    "FV-reset-gui",
+    "Resets Factory Virtualization GUIs state for all players and closes all opened windows",
+    function()
+        -- gui/control-center
+        ---@type table<integer, ControlCenterData>
+        storage.control_center = {}
+        -- gui/entity-gui
+        ---@type table<integer, EntityGuiData>
+        storage.entity_gui = {}
+        -- gui/updater
+        ---@type GuiUpdater
+        storage.gui_updater = {array = {}, lookup = {}, next_index = 1}
+
+        -- closing FV GUI windows
+        local fv_windows = {
+            PREFIX .. "entity-window",
+            PREFIX .. "control-center-window"
+        }
+        for _, player in pairs(game.players) do
+            ---@cast player LuaPlayer
+            local screen = player.gui.screen
+            for _, name in ipairs(fv_windows) do
+                local window = screen[name]
+                if window then window.destroy() end
+            end
+        end
+    end
+)

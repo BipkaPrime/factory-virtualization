@@ -32,8 +32,8 @@ end
 function EntityInfo.get_vm_tables(unit_number)
     local properties = EntityProcessor.get_entity_properties(unit_number)
     if not properties then return {}, {} end
-    local requests = properties.building_contents or {}
-    local contents = properties.building_requests or {}
+    local requests = properties.building_requests or {}
+    local contents = properties.building_contents or {}
     return requests, contents
 end
 

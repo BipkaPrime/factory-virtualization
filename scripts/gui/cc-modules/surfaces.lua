@@ -1569,6 +1569,10 @@ function CCSurfaces.on_tick_updater(gui_data, update_cycle)
     if update_cycle % 60 == 0 and gui_data.vsurface_updates then
         update_idle_surface_selector(gui_data)
         update_compiling_surface_selector(gui_data)
+        -- these buttons depend on the state of selected surface
+        update_surface_delete_button(gui_data)
+        update_compilation_start_button(gui_data)
+        update_compilation_stop_button(gui_data)
     end
 end
 

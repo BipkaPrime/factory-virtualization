@@ -680,6 +680,12 @@ function EntityProcessor.setup_blueprint_tags(event)
     end
 end
 
+
+---@param event EventData.on_blueprint_settings_pasted
+function EntityProcessor.on_blueprint_settings_pasted(event)
+    --TODO:
+end
+
 -------------------------------------------------------------------------------
 ------------------------------- MAIN PROCESSOR --------------------------------
 -------------------------------------------------------------------------------
@@ -783,8 +789,189 @@ end
 ------------------------------- DATA LIFECYCLE --------------------------------
 -------------------------------------------------------------------------------
 
-function EntityProcessor.on_configuration_changed()
-    -- TODO: check entity data and apply migrations
+---Helps with entity-processor storage update when migration occures.
+---@param old_table table<BufferKeyString, ItemBuffer>
+---@param item table<string, string> migration item mappind (old -> new)
+---@param quality table<string, string> migration quality mappind (old -> new)
+---@return table<BufferKeyString, ItemBuffer> new_table
+---@return boolean status true if all keys were successfuly migrated
+local function migrate_vm_table(old_table, item, quality)
+    local status = true
+    local new_table = {}
+    for key, entry in pairs(old_table) do
+        local start_idx, stop_idx = string.find(key, "//", 1, true)
+        local old_name = string.sub(key, 1, start_idx - 1)
+        local old_quality = string.sub(key, stop_idx + 1)
+        local new_name = item[old_name] or old_name
+        local new_quality = quality[old_quality] or old_quality
+        if new_name == "" or new_quality == "" then
+            status = false
+        else
+            entry.name = new_name
+            local new_key = string.format("%s//%s", new_name, new_quality)
+            new_table[new_key] = entry
+        end
+    end
+    return new_table, status
+end
+
+-- Pending is the first: entities are moved there when migration fails
+local migration_order = {
+    "pending",
+    "incorrect",
+    "active",
+    "stalled"
+}
+
+---Used to update entity-processor storage when a migration occures.
+---Migration for one entity goes as follows. Migration is attempted
+---for each field in properties. Any key that cannot be migrated is removed
+---from the structure, when that happens for any key, properties are moved
+---to "pending" section (deinitialized in the process).
+---@param item table<string, string> migration item mappind (old -> new)
+---@param fluid table<string, string> migration fluid mappind (old -> new)
+---@param quality table<string, string> migration quality mappind (old -> new)
+function EntityProcessor.on_configuration_changed(item, fluid, quality)
+    local registry = storage.entity_registry
+    for _, section_name in ipairs(migration_order) do
+        local section = registry[section_name]
+        -- with this iteration order we will be able to move properties
+        for i = #section, 1, -1 do
+            ---@type EntityProperties
+            local properties = section[i]
+            local to_deinitialize = false
+            -- Updating entity configuration
+            local item_name = properties.selected_item_name
+            -- quality should always be present when item is selected
+            local item_quality = properties.selected_item_quality or "normal"
+            if item_name then
+                local new_name = item[item_name] or item_name
+                local new_quality = quality[item_quality] or item_quality
+                if new_name == "" or new_quality == "" then
+                    properties.selected_item_name = nil
+                    properties.selected_item_quality = nil
+                    to_deinitialize = true
+                else
+                    properties.selected_item_name = new_name
+                    properties.selected_item_quality = new_quality
+                end
+            end
+            local fluid_name = properties.selected_fluid
+            if fluid_name then
+                local new_name = fluid[fluid_name] or fluid_name
+                if new_name == "" then
+                    properties.selected_fluid = nil
+                    to_deinitialize = true
+                else
+                    properties.selected_fluid = new_name
+                end
+            end
+            -- Updating buffer_key from entity cache
+            if properties.buffer_key then
+                local new_key = Misc.migrate_buffer_key(
+                    properties.buffer_key,
+                    item,
+                    fluid,
+                    quality
+                )
+                if not new_key then
+                    properties.buffer_key = nil
+                    to_deinitialize = true
+                end
+            end
+            -- Updating io_request from entity cache
+            local io_request = properties.io_request
+            if io_request then
+                if io_request.quality then
+                    ---@cast io_request ItemStackDefinition
+                    local old_name = io_request.name
+                    local old_quality = io_request.quality
+                    local new_name = item[old_name] or old_name
+                    local new_quality = quality[old_quality] or old_quality
+                    if new_name == "" or new_quality == "" then
+                        properties.io_request = nil
+                        to_deinitialize = true
+                    else
+                        io_request.name = new_name
+                        io_request.quality = new_quality
+                    end
+                else
+                    ---@cast io_request Fluid
+                    local old_name = io_request.name
+                    local new_name = fluid[old_name] or old_name
+                    if new_name == "" then
+                        properties.io_request = nil
+                        to_deinitialize = true
+                    else
+                        io_request.name = new_name
+                    end
+                end
+            end
+            -- updating mainframe request and content tables
+            if properties.building_requests then
+                local new_requests, status = migrate_vm_table(
+                    properties.building_requests,
+                    item,
+                    quality
+                )
+                properties.building_requests = new_requests
+                to_deinitialize = not status
+            end
+            if properties.building_contents then
+                local new_contents, status = migrate_vm_table(
+                    properties.building_contents,
+                    item,
+                    quality
+                )
+                properties.building_contents = new_contents
+                to_deinitialize = not status
+            end
+            -- updating logistic filters and their lookup
+            if properties.logistic_filters then
+                for _, filter in pairs(properties.logistic_filters) do
+                    local value = filter.value
+                    ---@cast value SignalFilter.struct
+                    local old_name = value.name
+                    local old_quality = value.quality
+                    ---@cast old_quality string
+                    local new_name = item[old_name] or old_name
+                    local new_quality = item[old_quality] or old_quality
+                    if new_name == "" or new_quality == "" then
+                        to_deinitialize = true
+                        -- this field is erased during deinitialization
+                        -- and does not interfere with it
+                        break
+                    else
+                        value.name = new_name
+                        value.quality = new_quality
+                    end
+                end
+            end
+            if properties.filter_lookup then
+                local new_table = {}
+                for key, value in pairs(properties.filter_lookup) do
+                    local new_key = Misc.migrate_buffer_key(
+                        key,
+                        item,
+                        fluid,
+                        quality
+                    )
+                    if not new_key then
+                        to_deinitialize = true
+                        -- this field is erased during deinitialization
+                        -- and does not interfere with it
+                        break
+                    end
+                    new_table[new_key] = value
+                end
+                properties.filter_lookup = new_table
+            end
+            -- deinitializing an entity if necessery
+            if to_deinitialize then
+                move_properties(properties, registry_sections.pending)
+            end
+        end
+    end
 end
 
 return EntityProcessor

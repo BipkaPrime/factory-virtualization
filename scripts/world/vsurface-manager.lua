@@ -70,6 +70,8 @@ This file handles vsurface requests like:
 local ChunkProcessor = require("scripts.world.vsurface-chunk-processor")
 local TCCManager = require("scripts.simulation.tcc-manager")
 local CommonGui = require("scripts.gui.common")
+local Misc = require("scripts.misc")
+
 
 local PREFIX = "FV-"
 local VSurfaceManager = {}
@@ -1081,8 +1083,44 @@ end
 ------------------------------- DATA LIFECYCLE --------------------------------
 -------------------------------------------------------------------------------
 
-function VSurfaceManager.on_configuration_changed()
-    -- TODO: 
+
+local migration_fields = {"input", "output", "validation_report"}
+---Used to update vsurface storage when a migration occures.
+---@param item table<string, string> migration item mappind (old -> new)
+---@param fluid table<string, string> migration fluid mappind (old -> new)
+---@param quality table<string, string> migration quality mappind (old -> new)
+function VSurfaceManager.on_configuration_changed(item, fluid, quality)
+    for _, vsurface_data in ipairs(storage.vsurfaces.array) do
+        local full_clear = false
+        for _, field in ipairs(migration_fields) do
+            local old_table = vsurface_data[field]
+            local new_table = Misc.migrate_buffer_table(
+                old_table,
+                item,
+                fluid,
+                quality,
+                true
+            )
+            if new_table then
+                vsurface_data[field] = new_table
+            else
+                full_clear = true
+            end
+        end
+        if full_clear then
+            for _, field in ipairs(migration_fields) do
+                vsurface_data[field] = {}
+            end
+            if vsurface_data.compiling then
+                terminate_compilation(vsurface_data)
+                local warning = {
+                    "vsurface-manager.migration-terminated",
+                    vsurface_data.surface_name
+                }
+                game.print(warning)
+            end
+        end
+    end
 end
 
 

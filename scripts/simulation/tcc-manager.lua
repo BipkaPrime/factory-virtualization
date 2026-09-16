@@ -25,6 +25,8 @@ important thing to keep in mind is that templates must be transmitted to the clu
 in order for it to craft. So template storage also has template routing tables.
 --]]
 
+local Misc = require("scripts.misc")
+
 
 local TCCManager = {}
 
@@ -38,6 +40,7 @@ local tier_10_log = math.log(1e11, 10)
 ---Tier 10 is 100GJ, which is slightly above max size surface with ore.
 ---@param energy_drain number
 function TCCManager.get_template_tier(energy_drain)
+    if energy_drain < 5e7 then return 0 end
     local drain_log = math.log(energy_drain, 10)
     return 10 * (drain_log - tier_0_log) / (tier_10_log - tier_0_log)
 end
@@ -777,9 +780,38 @@ end
 ------------------------------- DATA LIFECYCLE --------------------------------
 -------------------------------------------------------------------------------
 
-function TCCManager.on_configuration_changed()
-    -- TODO: check template data and apply migrations
+local migrating_fields = {"input", "output", "building_cost"}
+---Used to update template storage when a migration occures.
+---@param item table<string, string> migration item mappind (old -> new)
+---@param fluid table<string, string> migration fluid mappind (old -> new)
+---@param quality table<string, string> migration quality mappind (old -> new)
+function TCCManager.on_configuration_changed(item, fluid, quality)
+    local templates = storage.templates
+    local for_deletion = {}
+    for uuid, template in pairs(templates.template_lookup) do
+        for _, field in ipairs(migrating_fields) do
+            local new_table = Misc.migrate_buffer_table(
+                template[field],
+                item,
+                fluid,
+                quality,
+                true
+            )
+            if not new_table then
+                table.insert(for_deletion, uuid)
+                break
+            end
+            template[field] = new_table
+        end
+    end
+    -- deleting templates for which migration failed
+    local uuid_to_name = templates.uuid_to_name
+    for _, uuid in ipairs(for_deletion) do
+        local template_name = uuid_to_name[uuid]
+        TCCManager.delete_template(template_name)
+        local chat_warning = {"tcc-manager.migration-deleted", template_name}
+        game.print(chat_warning)
+    end
 end
-
 
 return TCCManager

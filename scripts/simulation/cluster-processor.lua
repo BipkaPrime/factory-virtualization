@@ -261,6 +261,17 @@ local function drop_crafting_power(cluster)
     end
 end
 
+---Resets template assigned to given cluster.
+---@param cluster ClusterData
+local function drop_assigned_template(cluster)
+    cluster.template_uuid = nil
+    cluster.build_cost = {}
+    cluster.input = {}
+    cluster.output = {}
+    cluster.energy_per_craft = 0
+    drop_crafting_power(cluster)
+end
+
 ---Attempts to remove assigned template from given cluster.
 ---Template drop is a player request.
 ---@param cluster_name string|nil cluster display name
@@ -281,12 +292,7 @@ function ClusterProcessor.drop_assigned_template(cluster_name)
 
     -- Everything is ok: dropping assigned template
     local cluster = clusters.lookup[cluster_uuid]
-    cluster.template_uuid = nil
-    cluster.build_cost = {}
-    cluster.input = {}
-    cluster.output = {}
-    cluster.energy_per_craft = 0
-    drop_crafting_power(cluster)
+    drop_assigned_template(cluster)
     return true
 end
 
@@ -1272,9 +1278,121 @@ end
 ------------------------------- DATA LIFECYCLE --------------------------------
 -------------------------------------------------------------------------------
 
-function ClusterProcessor.on_configuration_changed()
-    -- TODO: check cluster data and apply migrations
+---Helps in cluster storage migration. Updates input or output table.
+---Migration is strict here: fails if any key cannot be migrated
+---@param io_table table<BufferKeyString, ClusterBufferEntry>
+---@param item table<string, string> migration item mappind (old -> new)
+---@param fluid table<string, string> migration fluid mappind (old -> new)
+---@param quality table<string, string> migration quality mappind (old -> new)
+---@return table<BufferKeyString, ClusterBufferEntry>|nil new_table
+local function migrate_io_table(io_table, item, fluid, quality)
+    local new_table = {}
+    for key, entry in pairs(io_table) do
+        if entry.type == "item" then
+            -- item key "name//quality"
+            local start_idx, stop_idx = string.find(key, "//", 1, true)
+            local old_name = string.sub(key, 1, start_idx - 1)
+            local old_quality = string.sub(key, stop_idx + 1)
+            local new_name = item[old_name] or old_name
+            local new_quality = quality[old_quality] or old_quality
+            if new_name == "" or new_quality == "" then return end
+            entry.sprite = "item/" .. new_name
+            entry.tooltip = {
+                "?",
+                ---@diagnostic disable-next-line
+                {"item-name." .. new_name},
+                ---@diagnostic disable-next-line
+                {"entity-name." .. new_name}
+            }
+            entry.item_id = {name = new_name, quality = new_quality}
+            local new_key = string.format("%s//%s", new_name, new_quality)
+            new_table[new_key] = entry
+        elseif entry.type == "fluid" then
+            -- fluid key "name"
+            local new_name = fluid[key] or key
+            if new_name == "" then return end
+            entry.fluid_name = new_name
+            entry.sprite = "fluid/" .. new_name
+            entry.tooltip = {"fluid-name." .. new_name}
+            new_table[new_name] = entry
+        elseif entry.type == "energy" then
+            -- energy key "electric_energy"
+            new_table[key] = entry
+        end
+    end
+    return new_table
 end
 
+---Used to update cluster storage when a migration occures.
+---@param item table<string, string> migration item mappind (old -> new)
+---@param fluid table<string, string> migration fluid mappind (old -> new)
+---@param quality table<string, string> migration quality mappind (old -> new)
+function ClusterProcessor.on_configuration_changed(item, fluid, quality)
+    for _, cluster in pairs(storage.clusters.array) do
+        -- Updating buffer keys for assigned member capacity: not strict
+        for _, member_data in pairs(cluster.members) do
+            local member_capacity = member_data.buffer_capacity
+            if member_capacity then
+                local new_key = Misc.migrate_buffer_key(
+                    member_capacity.buffer_key,
+                    item,
+                    fluid,
+                    quality
+                )
+                if new_key then
+                    member_capacity.buffer_key = new_key
+                else
+                    member_data.buffer_capacity = nil
+                end
+            end
+        end
+        -- Updating buffer keys for buffer capacity tables: not strict
+        local buffer_capacity = cluster.buffer_capacity
+        ---@diagnostic disable-next-line: assign-type-mismatch
+        buffer_capacity.input = Misc.migrate_buffer_table(
+            buffer_capacity.input,
+            item,
+            fluid,
+            quality,
+            false
+        )
+        ---@diagnostic disable-next-line: assign-type-mismatch
+        buffer_capacity.output = Misc.migrate_buffer_table(
+            buffer_capacity.output,
+            item,
+            fluid,
+            quality,
+            false
+        )
+        -- Updating template-related table
+        local new_build_cost = Misc.migrate_buffer_table(
+            cluster.build_cost,
+            item,
+            fluid,
+            quality,
+            true
+        )
+        local new_input = migrate_io_table(
+            cluster.input,
+            item,
+            fluid,
+            quality
+        )
+        local new_output = migrate_io_table(
+            cluster.output,
+            item,
+            fluid,
+            quality
+        )
+        -- template is dropped if migration failed for any table
+        if new_build_cost and new_input and new_output then
+            cluster.build_cost = new_build_cost
+            cluster.input = new_input
+            cluster.output = new_output
+        else
+            drop_assigned_template(cluster)
+        end
+    end
+end
 
 return ClusterProcessor

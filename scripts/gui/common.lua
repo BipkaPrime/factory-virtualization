@@ -55,12 +55,13 @@ end
 
 ---Rounds number to given precision and converts it to string
 ---@param value number|nil number that should be converted
----@param precision number|nil maximum decimal places. Defaults to 0
+---@param precision integer|nil maximum decimal places. Defaults to 0
 ---@return string
 function CommonGui.number_to_string(value, precision)
     if not value then return "" end
-    local formatted = string.format("%." .. tostring(precision or 0) .. "f", value)
-    return string.format("%g", tonumber(formatted))
+    local mult = 10 ^ (precision or 0)
+    local rounded_value = math.floor(value * mult + 0.5) / mult
+    return string.format("%g", rounded_value)
 end
 
 ---Used to convert large numbers to human-readable format
@@ -74,9 +75,10 @@ local number_prefixes = {
     {suffix = " E", value = 1e18},
 }
 ---Converts large number to human-readable format
----@param value number number to format
+---@param value number|nil number to format
 ---@return string formatted_value for example: "105 M", "5.1 G"
 function CommonGui.large_number_to_string(value)
+    if not value then return "" end
     local selected = number_prefixes[1]
     for _, prefix in ipairs(number_prefixes) do
         if value < prefix.value then

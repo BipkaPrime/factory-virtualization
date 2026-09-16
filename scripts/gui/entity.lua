@@ -211,9 +211,9 @@ end
 function EntityGui.handle_item_selection(event)
     local gui_data = storage.entity_gui[event.player_index]
     local selection = event.element.elem_value
+    ---@cast selection PrototypeWithQuality
     local name = selection and selection.name
     local quality = selection and selection.quality
-    ---@diagnostic disable-next-line
     EntityProcessor.set_selected_item(gui_data.entity, name, quality)
     update_selected_item_configurator(gui_data)
 end
